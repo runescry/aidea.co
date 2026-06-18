@@ -394,16 +394,17 @@ export async function executeHarnessTool(
       if (!ctx.cost.canSpawnAgent()) return { error: 'Agent limit reached.' };
       if (!ctx.cost.canSpawnAtTier(callerAgent.tier + 1)) return { error: 'Depth limit reached.' };
 
+      const result = await spawnAgent(role, domain, mission, authority, callerAgent);
       ctx.send({
         type: 'agent_spawned',
         sessionId: ctx.sessionId,
         entityId: ctx.entityId,
-        agentId: callerAgent.id,
-        agentRole: callerAgent.role,
-        data: { spawnedRole: role, domain, mission },
+        agentId: result.agentId,
+        agentRole: role,
+        data: { tier: callerAgent.tier + 1, domain, parentId: callerAgent.id },
         timestamp: new Date().toISOString(),
       });
-      return spawnAgent(role, domain, mission, authority, callerAgent);
+      return result;
     }
 
     case 'wait_for_agents': {

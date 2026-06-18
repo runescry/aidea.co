@@ -178,9 +178,16 @@ function reducer(state: HarnessState, action: Action): HarnessState {
         input: event.data.input as Record<string, unknown>,
         calledAt: event.timestamp,
       };
+      // Eagerly capture write_state values so StateExplorer/ArtifactBrowser have data
+      const toolInput = event.data.input as Record<string, unknown>;
+      const newEntityState =
+        event.data.tool === 'write_state' && toolInput.key
+          ? { ...state.entityState, [toolInput.key as string]: toolInput.value }
+          : state.entityState;
       return {
         ...state,
         toolCalls: [...state.toolCalls.slice(-100), record],
+        entityState: newEntityState,
         eventLog: log,
       };
     }
