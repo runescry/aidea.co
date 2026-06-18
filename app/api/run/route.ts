@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 360;
 
 export interface HarnessRunRequest {
-  entityType: 'company' | 'personal' | 'learning' | 'creator';
+  entityType: 'company' | 'personal' | 'learning' | 'creator' | 'daily';
   input: Record<string, unknown>;
   sessionId?: string;
 }
