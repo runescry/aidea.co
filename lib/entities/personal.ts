@@ -14,6 +14,7 @@ export const personalEntityConfig: EntityConfig = {
     'finance-director',
     'relationships-director',
     'systems-director',
+    'relationship-monitor',
     'shared-researcher',
     'shared-planner',
   ],

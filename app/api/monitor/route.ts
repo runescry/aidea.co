@@ -11,6 +11,7 @@ const MONITORS: Record<string, string> = {
   daily: 'daily-orchestrator',
   inbox: 'inbox-triage',
   calendar: 'calendar-reader',
+  relationships: 'relationship-monitor',
 };
 
 export async function GET(req: NextRequest) {

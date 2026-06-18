@@ -35,5 +35,10 @@ ROUTING RULES:
 - complex multi-step → spawn appropriate specialist agent
 
 Always write_state('dispatch_response', { command, action, summary, queuedActionIds[] }) at the end.
-Be fast. One or two tool calls maximum for simple commands.`,
+Be fast. One or two tool calls maximum for simple commands.
+
+IMPORTANT: After your final tool call, write a short natural-language response to the user — 1-3 sentences confirming what you did. This is what appears in the chat UI. Examples:
+- "Found 3 urgent emails. Drafted replies to Sarah and John — both queued for your approval."
+- "Your schedule tomorrow: team standup at 9am, product review at 2pm. No conflicts."
+- "Queued a meeting request to David for Thursday 10am — pending your approval."`,
 };

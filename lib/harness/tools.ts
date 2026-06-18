@@ -349,6 +349,38 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
       required: ['repo', 'path', 'content', 'message'],
     },
   },
+
+  contacts_read: {
+    key: 'contacts_read',
+    name: 'contacts_read',
+    description: 'Read contacts from Google Contacts / People API. Returns name, email, last interaction date, and notes.',
+    requiresApproval: false,
+    realWorld: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query to filter contacts (optional)' },
+        maxResults: { type: 'number', description: 'Max contacts to return (default: 20)' },
+      },
+      required: [],
+    },
+  },
+
+  document_parse: {
+    key: 'document_parse',
+    name: 'document_parse',
+    description: 'Fetch and extract text from a document URL (PDF, HTML, or plain text). Returns extracted text up to 8000 chars.',
+    requiresApproval: false,
+    realWorld: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL of the document to parse' },
+        focus: { type: 'string', description: 'What to look for: "key-dates", "obligations", "risks", "summary" or custom' },
+      },
+      required: ['url'],
+    },
+  },
 };
 
 // ── Convert tool keys to Anthropic Tool format ────────────────────────────────
@@ -735,6 +767,60 @@ export async function executeHarnessTool(
     case 'github_commit':
       return { dryRun: true, message: 'github_commit not yet wired — add GitHub token and implement' };
 
+    case 'contacts_read': {
+      const { query, maxResults = 20 } = input as { query?: string; maxResults?: number };
+      const tokens = getGoogleTokens();
+      if (!tokens) return { error: 'Google credentials not configured' };
+      const accessToken = await refreshGoogleToken(tokens);
+      const params = new URLSearchParams({
+        pageSize: String(maxResults),
+        personFields: 'names,emailAddresses,metadata,biographies,userDefined',
+        ...(query ? { query } : {}),
+      });
+      const endpoint = query
+        ? `https://people.googleapis.com/v1/people:searchContacts?${params}`
+        : `https://people.googleapis.com/v1/people/me/connections?${params}`;
+      const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!res.ok) return { error: `Contacts API error: ${res.status}` };
+      const data = await res.json() as {
+        connections?: Array<{ names?: Array<{ displayName: string }>; emailAddresses?: Array<{ value: string }>; metadata?: { sources?: Array<{ updateTime: string }> } }>;
+        results?: Array<{ person: { names?: Array<{ displayName: string }>; emailAddresses?: Array<{ value: string }> } }>;
+      };
+      type PersonData = {
+        names?: Array<{ displayName: string }>;
+        emailAddresses?: Array<{ value: string }>;
+        metadata?: { sources?: Array<{ updateTime: string }> };
+      };
+      const people: PersonData[] = data.connections ?? (data.results ?? []).map(r => r.person as PersonData);
+      const contacts = people.map(p => ({
+        name: p.names?.[0]?.displayName ?? 'Unknown',
+        email: p.emailAddresses?.[0]?.value ?? '',
+        lastUpdated: p.metadata?.sources?.[0]?.updateTime ?? '',
+      }));
+      return { contacts, count: contacts.length };
+    }
+
+    case 'document_parse': {
+      const { url, focus } = input as { url: string; focus?: string };
+      const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AideaBot/1.0)' } });
+      if (!res.ok) return { error: `HTTP ${res.status}`, url };
+      const contentType = res.headers.get('content-type') ?? '';
+      let text: string;
+      if (contentType.includes('pdf')) {
+        // PDF: return raw bytes as base64 won't help — return a note
+        return { error: 'PDF parsing requires a dedicated library. Fetch the URL in a browser and paste the text.', url };
+      }
+      const html = await res.text();
+      text = html
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+        .slice(0, 8000);
+      return { url, text, focus: focus ?? 'general', truncated: html.length > 8000 };
+    }
+
     default:
       return { error: `Tool ${toolName} not implemented` };
   }
@@ -809,6 +895,22 @@ function getDryRunResponse(toolName: string, input: ToolInput): unknown {
     case 'calendar_draft':
     case 'calendar_create':
       return { dryRun: true, message: `[DRY RUN] Would create event: ${(input as { title: string }).title}`, input };
+    case 'contacts_read':
+      return {
+        contacts: [
+          { name: 'Sarah Johnson', email: 'sarah@company.com', lastUpdated: new Date(Date.now() - 14 * 86400_000).toISOString() },
+          { name: 'David Chen', email: 'david@partner.com', lastUpdated: new Date(Date.now() - 45 * 86400_000).toISOString() },
+          { name: 'Emma Williams', email: 'emma@client.com', lastUpdated: new Date(Date.now() - 7 * 86400_000).toISOString() },
+        ],
+        count: 3,
+      };
+    case 'document_parse':
+      return {
+        url: (input as { url: string }).url,
+        text: '[DRY RUN] Mock document content. Set realWorldToolMode to "auto" to fetch real content.',
+        focus: (input as { focus?: string }).focus ?? 'general',
+        truncated: false,
+      };
     default:
       return { dryRun: true, message: `[DRY RUN] ${toolName}`, input };
   }

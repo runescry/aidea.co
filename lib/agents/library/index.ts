@@ -32,6 +32,7 @@ import { dispatcherDef } from './dispatch/dispatcher';
 // Personal OS additions
 import { mentalHealthDirectorDef } from './personal/mental-health-director';
 import { valuesDirectorDef } from './personal/values-director';
+import { relationshipMonitorDef } from './personal/relationship-monitor';
 
 export const AGENT_LIBRARY: Record<string, AgentDefinition> = {
   // Company
@@ -54,6 +55,7 @@ export const AGENT_LIBRARY: Record<string, AgentDefinition> = {
   'systems-director': systemsDirectorDef,
   'mental-health-director': mentalHealthDirectorDef,
   'values-director': valuesDirectorDef,
+  'relationship-monitor': relationshipMonitorDef,
 
   // Daily OS
   'daily-orchestrator': dailyOrchestratorDef,
