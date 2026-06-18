@@ -184,7 +184,17 @@ export async function runAgentLoop(
           });
         }
 
-        messages.push({ role: 'user', content: toolResults });
+        // Drain any pending bus messages and inject as extra user content
+        const pending = ctx.bus.drain(agent.role);
+        const userContent: Anthropic.MessageParam['content'] = [...toolResults];
+        if (pending.length > 0) {
+          const incomingText = pending.map(m =>
+            `[${m.type.toUpperCase()} from ${m.fromRole} re: ${m.topic}] ${m.content}`
+          ).join('\n');
+          (userContent as Array<unknown>).push({ type: 'text', text: `INCOMING MESSAGES:\n${incomingText}` });
+        }
+
+        messages.push({ role: 'user', content: userContent });
         continue;
       }
 

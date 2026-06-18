@@ -23,6 +23,16 @@ import { systemsDirectorDef } from './personal/systems-director';
 import { sharedResearcherDef } from './shared/researcher';
 import { sharedPlannerDef } from './shared/planner';
 
+// Daily OS agents
+import { dailyOrchestratorDef, inboxTriageDef, calendarReaderDef, healthBrieferDef, newsCuratorDef, workPrepDef } from './daily';
+
+// Dispatch
+import { dispatcherDef } from './dispatch/dispatcher';
+
+// Personal OS additions
+import { mentalHealthDirectorDef } from './personal/mental-health-director';
+import { valuesDirectorDef } from './personal/values-director';
+
 export const AGENT_LIBRARY: Record<string, AgentDefinition> = {
   // Company
   'ceo': ceoDef,
@@ -42,6 +52,19 @@ export const AGENT_LIBRARY: Record<string, AgentDefinition> = {
   'finance-director': financeDirectorDef,
   'relationships-director': relationshipsDirectorDef,
   'systems-director': systemsDirectorDef,
+  'mental-health-director': mentalHealthDirectorDef,
+  'values-director': valuesDirectorDef,
+
+  // Daily OS
+  'daily-orchestrator': dailyOrchestratorDef,
+  'inbox-triage': inboxTriageDef,
+  'calendar-reader': calendarReaderDef,
+  'health-briefer': healthBrieferDef,
+  'news-curator': newsCuratorDef,
+  'work-prep': workPrepDef,
+
+  // Dispatch
+  'dispatcher': dispatcherDef,
 
   // Shared
   'shared-researcher': sharedResearcherDef,

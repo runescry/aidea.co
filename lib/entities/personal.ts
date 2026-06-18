@@ -7,6 +7,8 @@ export const personalEntityConfig: EntityConfig = {
   rootAgentId: 'life-ceo',
   agentIds: [
     'life-ceo',
+    'values-director',
+    'mental-health-director',
     'growth-director',
     'health-director',
     'finance-director',
@@ -22,6 +24,8 @@ export const personalEntityConfig: EntityConfig = {
     'read_state',
     'request_consensus',
     'send_message',
+    'kb_read',
+    'kb_write',
   ],
   autonomy: 'supervised',          // personal entity pauses for real-world actions
   consensusThreshold: 0.70,        // higher bar — life decisions need stronger agreement

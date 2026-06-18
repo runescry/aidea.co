@@ -27,6 +27,7 @@ export async function bootstrapEntity(
 
   // ── Build registry & infrastructure ────────────────────────────────────────
   const registry = createRegistry(entityId);
+  const bus = createMessageBus();
   const cost = createCostTracker(
     { ...DEFAULT_COST_CONFIG, ...config.costConfig },
     config.costConfig?.realWorldToolMode ?? DEFAULT_COST_CONFIG.realWorldToolMode
@@ -39,6 +40,7 @@ export async function bootstrapEntity(
     registry,
     state,
     cost,
+    bus,
     send,
   };
 
