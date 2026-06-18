@@ -1,5 +1,5 @@
-import Dashboard from '@/components/Dashboard';
+import HarnessDashboard from '@/components/harness/HarnessDashboard';
 
 export default function Home() {
-  return <Dashboard />;
+  return <HarnessDashboard />;
 }
