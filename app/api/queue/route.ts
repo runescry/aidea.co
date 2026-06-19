@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') as ActionStatus | null;
 
-  const actions = listActions(status ? { status } : undefined);
+  const actions = await listActions(status ? { status } : undefined);
   return NextResponse.json(actions);
 }
 

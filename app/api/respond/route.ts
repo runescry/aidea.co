@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const resolved = resolveHumanInput(body.requestId, body.answer);
+  const resolved = await resolveHumanInput(body.requestId, body.answer);
 
   if (!resolved) {
     return NextResponse.json(

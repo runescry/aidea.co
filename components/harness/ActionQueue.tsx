@@ -10,13 +10,14 @@ const TYPE_LABELS: Record<string, string> = {
   reminder: 'Reminder',
   message: 'Message',
   alert: 'Alert',
+  kb_update: 'Profile update',
   generic: 'Action',
 };
 
 const PRIORITY_STYLE: Record<string, string> = {
-  high: 'bg-red-900/50 text-red-300',
-  normal: 'bg-gray-800 text-gray-400',
-  low: 'bg-gray-800/50 text-gray-500',
+  high: 'bg-danger/10 text-danger',
+  normal: 'bg-surface-subtle text-foreground-muted',
+  low: 'bg-surface-subtle/50 text-foreground-subtle',
 };
 
 function ActionCard({
@@ -29,30 +30,35 @@ function ActionCard({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border border-gray-800 rounded-lg p-4 space-y-3 bg-gray-900/50">
+    <div className="card p-4 space-y-3">
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="text-[10px] font-mono bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-mono bg-surface-subtle text-foreground-muted px-1.5 py-0.5 rounded">
               {TYPE_LABELS[action.type] ?? action.type}
             </span>
             <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${PRIORITY_STYLE[action.priority]}`}>
               {action.priority}
             </span>
-            <span className="text-[10px] text-gray-600 font-mono">{action.agentRole}</span>
+            <span className="text-[10px] text-foreground-subtle font-mono">{action.agentRole}</span>
           </div>
-          <p className="text-sm text-white leading-snug">{action.summary}</p>
+          <p className="text-sm text-foreground leading-snug">{action.summary}</p>
           {action.detail && (
             <button
               onClick={() => setExpanded(e => !e)}
-              className="text-xs text-blue-500 hover:text-blue-400 mt-1"
+              className="text-xs text-accent hover:underline mt-1"
             >
               {expanded ? 'less' : 'more'}
             </button>
           )}
           {expanded && action.detail && (
-            <pre className="mt-2 text-xs text-gray-400 bg-gray-950 rounded p-2 overflow-auto max-h-32 whitespace-pre-wrap">
+            <pre className="mt-2 text-xs text-foreground-muted bg-surface-subtle rounded p-2 overflow-auto max-h-32 whitespace-pre-wrap border border-border">
               {typeof action.detail === 'string' ? action.detail : JSON.stringify(action.payload, null, 2)}
+            </pre>
+          )}
+          {action.type === 'kb_update' && action.payload?.patch != null && (
+            <pre className="mt-2 text-xs text-foreground-muted bg-surface-subtle rounded p-2 overflow-auto max-h-40 whitespace-pre-wrap border border-border">
+              {JSON.stringify(action.payload.patch, null, 2)}
             </pre>
           )}
         </div>
@@ -60,13 +66,13 @@ function ActionCard({
       <div className="flex gap-2">
         <button
           onClick={() => onStatusChange(action.id, 'approved')}
-          className="flex-1 py-1.5 text-xs font-medium bg-green-900/60 hover:bg-green-800/60 text-green-300 rounded transition-colors"
+          className="flex-1 py-1.5 text-xs font-medium bg-success/10 hover:bg-success/20 text-success rounded-lg transition-colors"
         >
           Approve
         </button>
         <button
           onClick={() => onStatusChange(action.id, 'rejected')}
-          className="flex-1 py-1.5 text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-colors"
+          className="flex-1 py-1.5 text-xs font-medium bg-surface-subtle hover:bg-border/60 text-foreground-muted rounded-lg transition-colors border border-border"
         >
           Reject
         </button>
@@ -109,14 +115,14 @@ export default function ActionQueue() {
   };
 
   if (loading) {
-    return <div className="text-xs text-gray-600 py-8 text-center">Loading queue...</div>;
+    return <div className="text-xs text-foreground-subtle py-8 text-center">Loading queue…</div>;
   }
 
   if (actions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-gray-700 space-y-2">
-        <div className="text-2xl">✓</div>
-        <div className="text-sm">No pending actions</div>
+      <div className="flex flex-col items-center justify-center py-16 text-foreground-subtle space-y-2">
+        <div className="text-2xl text-success">✓</div>
+        <div className="text-sm text-foreground-muted">No pending actions</div>
         <div className="text-xs">Agents will queue drafts and proposals here for your approval.</div>
       </div>
     );
@@ -128,17 +134,17 @@ export default function ActionQueue() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-400">{actions.length} pending</span>
+        <span className="text-sm text-foreground-muted">{actions.length} pending</span>
         <button
           onClick={handleClearAll}
-          className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+          className="text-xs text-foreground-subtle hover:text-foreground-muted transition-colors"
         >
           Clear resolved
         </button>
       </div>
       {high.length > 0 && (
         <div className="space-y-2">
-          <div className="text-[10px] font-mono text-red-400 uppercase tracking-wider">High priority</div>
+          <div className="text-[10px] font-mono text-danger uppercase tracking-wider">High priority</div>
           {high.map(a => (
             <ActionCard key={a.id} action={a} onStatusChange={handleStatusChange} />
           ))}
@@ -146,7 +152,7 @@ export default function ActionQueue() {
       )}
       {rest.length > 0 && (
         <div className="space-y-2">
-          {high.length > 0 && <div className="text-[10px] font-mono text-gray-600 uppercase tracking-wider">Normal</div>}
+          {high.length > 0 && <div className="text-[10px] font-mono text-foreground-subtle uppercase tracking-wider">Normal</div>}
           {rest.map(a => (
             <ActionCard key={a.id} action={a} onStatusChange={handleStatusChange} />
           ))}

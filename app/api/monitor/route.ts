@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import type { HarnessEvent } from '@/lib/harness/types';
 import { bootstrapEntity } from '@/lib/harness/bootstrap';
 import { dailyEntityConfig } from '@/lib/entities/daily';
+import { hasApiKey } from '@/lib/ai/provider';
+import { writeLatestBrief } from '@/lib/storage';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300;
+export const maxDuration = 1800;
 
 const MONITORS: Record<string, string> = {
   daily: 'daily-orchestrator',
@@ -14,7 +15,18 @@ const MONITORS: Record<string, string> = {
   relationships: 'relationship-monitor',
 };
 
+function authorizeCron(req: NextRequest): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return process.env.NODE_ENV !== 'production';
+  const auth = req.headers.get('authorization');
+  return auth === `Bearer ${secret}`;
+}
+
 export async function GET(req: NextRequest) {
+  if (!authorizeCron(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const name = searchParams.get('name') ?? 'daily';
 
@@ -22,9 +34,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `Unknown monitor: ${name}` }, { status: 400 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 });
+  if (!hasApiKey()) {
+    return NextResponse.json(
+      { error: 'Anthropic API key not configured — set ANTHROPIC_API_KEY in environment' },
+      { status: 500 }
+    );
   }
 
   const events: HarnessEvent[] = [];
@@ -32,12 +46,16 @@ export async function GET(req: NextRequest) {
   const sessionId = crypto.randomUUID();
 
   try {
-    const client = new Anthropic({ apiKey });
     const config = {
       ...dailyEntityConfig,
       rootAgentId: MONITORS[name],
     };
-    await bootstrapEntity(client, config, {}, send, sessionId);
+    const state = await bootstrapEntity(config, {}, send, sessionId);
+
+    if (name === 'daily' && state.data.morning_brief) {
+      await writeLatestBrief(state.data.morning_brief as Record<string, unknown>);
+    }
+
     return NextResponse.json({ ok: true, eventCount: events.length });
   } catch (err) {
     return NextResponse.json(

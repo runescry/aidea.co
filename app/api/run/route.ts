@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import type { HarnessEvent } from '@/lib/harness/types';
 import { getEntityConfig } from '@/lib/entities';
 import { bootstrapEntity } from '@/lib/harness/bootstrap';
+import { hasApiKey } from '@/lib/ai/provider';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 360;
+export const maxDuration = 1800;
 
 export interface HarnessRunRequest {
   entityType: 'company' | 'personal' | 'learning' | 'creator' | 'daily';
@@ -19,10 +19,9 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const sessionId = body.sessionId ?? crypto.randomUUID();
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  if (!hasApiKey()) {
     return new Response(
-      JSON.stringify({ error: 'ANTHROPIC_API_KEY not set' }),
+      JSON.stringify({ error: 'Anthropic API key not configured — set ANTHROPIC_API_KEY in environment' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
@@ -38,9 +37,8 @@ export async function POST(req: NextRequest) {
       };
 
       try {
-        const client = new Anthropic({ apiKey });
         const config = getEntityConfig(body.entityType ?? 'company');
-        await bootstrapEntity(client, config, body.input, send, sessionId);
+        await bootstrapEntity(config, body.input, send, sessionId);
       } catch (err) {
         send({
           type: 'error',

@@ -8,8 +8,14 @@
     "start": "next start"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^1.2.12",
     "@anthropic-ai/sdk": "^0.37.0",
+    "@nangohq/frontend": "^0.70.8",
+    "@nangohq/node": "^0.70.8",
+    "@vercel/kv": "^3.0.0",
+    "ai": "^4.3.16",
     "next": "^15.0.0",
+    "postgres": "^3.4.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

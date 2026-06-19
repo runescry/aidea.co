@@ -1,4 +1,5 @@
 // Foundation types — every harness file imports from here.
+import type { AgentOverridesMap } from '@/types/agent-overrides';
 
 // ── Enumerations ──────────────────────────────────────────────────────────────
 
@@ -241,6 +242,7 @@ export interface HarnessContext {
   cost: CostTracker;
   bus: MessageBus;
   send: SenderFn;
+  agentOverrides: AgentOverridesMap;
 }
 
 // ── SSE Events ────────────────────────────────────────────────────────────────

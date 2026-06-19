@@ -4,7 +4,7 @@ import { readAllKB, writeKB, writeManyKB } from '@/lib/harness/knowledge-base';
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const data = readAllKB();
+  const data = await readAllKB();
   return NextResponse.json(data);
 }
 

@@ -1,0 +1,128 @@
+import type { EntityState } from '@/lib/harness/types';
+import type { QueuedAction, ActionStatus, ActionType } from '@/lib/harness/queue';
+import type { AppSettings } from '@/lib/settings';
+import { ensureMigrated } from '@/lib/db/migrate';
+import { hasDatabase } from '@/lib/db/client';
+import * as fs from './filesystem';
+import * as pg from './postgres';
+
+export function getUserId(): string {
+  return process.env.DEFAULT_USER_ID ?? 'default';
+}
+
+function usePostgres(): boolean {
+  return hasDatabase();
+}
+
+async function ready(): Promise<void> {
+  if (usePostgres()) await ensureMigrated();
+}
+
+export async function readProfile(): Promise<Record<string, unknown>> {
+  await ready();
+  const userId = getUserId();
+  return usePostgres() ? pg.readProfile(userId) : fs.readProfile();
+}
+
+export async function writeProfile(data: Record<string, unknown>): Promise<void> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) await pg.writeProfile(userId, data);
+  else fs.writeProfile(data);
+}
+
+export async function mergeProfile(updates: Record<string, unknown>): Promise<void> {
+  const current = await readProfile();
+  for (const [k, v] of Object.entries(updates)) {
+    if (k.includes('.')) {
+      const { setNestedKey } = await import('./nested-keys');
+      setNestedKey(current, k, v);
+    } else {
+      current[k] = v;
+    }
+  }
+  await writeProfile(current);
+}
+
+export async function listQueuedActions(filter?: {
+  status?: ActionStatus;
+  type?: ActionType;
+}): Promise<QueuedAction[]> {
+  await ready();
+  const userId = getUserId();
+  const all = usePostgres() ? await pg.listQueue(userId) : fs.listQueue();
+  if (!filter) return all;
+  return all.filter(a => {
+    if (filter.status && a.status !== filter.status) return false;
+    if (filter.type && a.type !== filter.type) return false;
+    return true;
+  });
+}
+
+export async function saveQueuedAction(action: QueuedAction): Promise<void> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) await pg.saveQueueAction(userId, action);
+  else fs.saveQueueAction(action);
+}
+
+export async function replaceQueue(actions: QueuedAction[]): Promise<void> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) await pg.replaceQueue(userId, actions);
+  else fs.replaceQueue(actions);
+}
+
+export async function loadEntityStates(): Promise<EntityState[]> {
+  await ready();
+  const userId = getUserId();
+  return usePostgres() ? pg.loadEntities(userId) : fs.loadEntities();
+}
+
+export async function saveEntityState(state: EntityState): Promise<void> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) await pg.saveEntity(userId, state);
+  else fs.saveEntity(state);
+}
+
+export async function readLatestBrief(): Promise<Record<string, unknown> | null> {
+  await ready();
+  const userId = getUserId();
+  return usePostgres() ? pg.readLatestBrief(userId) : fs.readLatestBrief();
+}
+
+export async function writeLatestBrief(data: Record<string, unknown>): Promise<void> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) await pg.writeLatestBrief(userId, data);
+  else fs.writeLatestBrief(data);
+}
+
+export function isProductionDeploy(): boolean {
+  return process.env.VERCEL === '1';
+}
+
+export async function readStoredSettings(): Promise<AppSettings> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) return pg.readSettings(userId);
+  return fs.readSettings();
+}
+
+export async function writeStoredSettings(updates: Partial<AppSettings>): Promise<void> {
+  if (isProductionDeploy()) {
+    throw new Error('Settings cannot be written on Vercel — use Environment Variables');
+  }
+
+  await ready();
+  const userId = getUserId();
+  const current = usePostgres() ? await pg.readSettings(userId) : fs.readSettings();
+  for (const [key, value] of Object.entries(updates) as Array<[keyof AppSettings, unknown]>) {
+    if (value === undefined || value === '') delete current[key];
+    else if (typeof value === 'string') current[key] = value.trim() as AppSettings[keyof AppSettings];
+    else current[key] = value as AppSettings[keyof AppSettings];
+  }
+  if (usePostgres()) await pg.writeSettings(userId, current);
+  else fs.writeSettings(current);
+}

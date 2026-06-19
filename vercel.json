@@ -12,5 +12,16 @@
       "path": "/api/monitor?name=relationships",
       "schedule": "0 8 * * 1"
     }
-  ]
+  ],
+  "functions": {
+    "app/api/run/route.ts": {
+      "maxDuration": 1800
+    },
+    "app/api/message/route.ts": {
+      "maxDuration": 1800
+    },
+    "app/api/monitor/route.ts": {
+      "maxDuration": 1800
+    }
+  }
 }

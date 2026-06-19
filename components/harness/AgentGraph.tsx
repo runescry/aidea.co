@@ -71,7 +71,7 @@ export default function AgentGraph({ agents }: Props) {
 
   if (layout.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-600 text-sm">
+      <div className="flex items-center justify-center h-full text-foreground-subtle text-sm">
         Waiting for agents…
       </div>
     );
@@ -93,7 +93,7 @@ export default function AgentGraph({ agents }: Props) {
             key={`edge-${agent.id}`}
             x1={p.x} y1={p.y + 18}
             x2={c.x} y2={c.y - 18}
-            stroke="#374151"
+            stroke="#cbd5e1"
             strokeWidth={1.5}
             strokeDasharray={agent.status === 'idle' ? '4 3' : undefined}
           />
@@ -125,7 +125,7 @@ export default function AgentGraph({ agents }: Props) {
               textAnchor="middle"
               y={26}
               fontSize={8}
-              fill="#9ca3af"
+              fill="#64748b"
               fontFamily="monospace"
             >
               {agent.role.length > 12 ? agent.role.slice(0, 11) + '…' : agent.role}

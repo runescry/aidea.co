@@ -1,6 +1,7 @@
 import type { HarnessAgent, HarnessContext, AgentDefinition, Authority } from './types';
 import { registerAgent, addChildId, patchAgent } from './registry';
 import { AGENT_LIBRARY } from '@/lib/agents/library';
+import { resolveLibraryAgent } from '@/lib/agents/resolve';
 
 export function buildHarnessAgent(
   def: AgentDefinition,
@@ -48,7 +49,9 @@ export function spawnChildAgent(
   ctx: HarnessContext,
   runLoop: (agent: HarnessAgent, ctx: HarnessContext) => Promise<void>
 ): HarnessAgent {
-  const def = AGENT_LIBRARY[role];
+  const def = AGENT_LIBRARY[role]
+    ? resolveLibraryAgent(role, ctx.agentOverrides ?? {})
+    : null;
   if (!def) {
     // Dynamically create a definition for unknown roles using shared researcher pattern
     const fallbackDef: AgentDefinition = {

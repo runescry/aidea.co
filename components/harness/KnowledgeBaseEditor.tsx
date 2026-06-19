@@ -1,96 +1,31 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import type { KnowledgeBase } from '@/types/knowledge-base';
+import { WORKOUT_DAYS, TIMEZONES, PRONOUNS, COMPANY_STAGES } from '@/types/knowledge-base';
+import { Label, TextField, TextArea, TextArrayInput, SelectField, Section } from './forms';
+import PersonListEditor from './onboarding/PersonListEditor';
+import ProjectsEditor from './ProjectsEditor';
 
-interface KBData {
-  identity?: { name?: string; role?: string; company?: string };
-  family?: {
-    children?: Array<{ name?: string; school?: string; peDay?: string[]; activities?: Record<string, string> }>;
-    partner?: { name?: string; work?: string };
-  };
-  health?: {
-    workoutSchedule?: Record<string, string>;
-    dietaryPreferences?: string[];
-    goalCalories?: number;
-    currentGoals?: string[];
-  };
-  work?: {
-    role?: string;
-    currentProjects?: string[];
-    urgentFrom?: string[];
-    skipFrom?: string[];
-  };
-  preferences?: {
-    newsTopics?: string[];
-    briefingTime?: string;
-    defaultAutonomyLevel?: string;
-  };
+interface Props {
+  onRestartOnboarding?: () => void;
+  refreshKey?: number;
 }
 
-function TextArrayInput({ value, onChange, placeholder }: {
-  value: string[];
-  onChange: (v: string[]) => void;
-  placeholder?: string;
-}) {
-  return (
-    <textarea
-      rows={2}
-      className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm resize-none focus:outline-none focus:border-blue-600 placeholder-gray-600"
-      placeholder={placeholder ?? 'One per line'}
-      value={value.join('\n')}
-      onChange={e => onChange(e.target.value.split('\n').filter(Boolean))}
-    />
-  );
-}
-
-function TextField({ value, onChange, placeholder }: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <input
-      type="text"
-      className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-600 placeholder-gray-600"
-      placeholder={placeholder}
-      value={value}
-      onChange={e => onChange(e.target.value)}
-    />
-  );
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return <div className="text-xs text-gray-500 mb-1">{children}</div>;
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
-  return (
-    <div className="border border-gray-800 rounded-lg overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-900/50 hover:bg-gray-800/50 transition-colors text-left"
-      >
-        <span className="text-sm font-medium text-gray-200">{title}</span>
-        <span className="text-gray-600 text-xs">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && <div className="px-4 pb-4 pt-3 space-y-4 bg-gray-950/30">{children}</div>}
-    </div>
-  );
-}
-
-const WORKOUT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-export default function KnowledgeBaseEditor() {
-  const [data, setData] = useState<KBData>({});
+export default function KnowledgeBaseEditor({ onRestartOnboarding, refreshKey = 0 }: Props) {
+  const [data, setData] = useState<KnowledgeBase>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     fetch('/api/kb')
       .then(r => r.json())
-      .then(d => setData(d as KBData))
+      .then(d => setData(d as KnowledgeBase))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    reload();
+  }, [reload, refreshKey]);
 
   const save = useCallback(async (updates: Record<string, unknown>) => {
     setSaving(true);
@@ -111,141 +46,127 @@ export default function KnowledgeBaseEditor() {
   const handleSaveAll = () => {
     save({
       identity: data.identity ?? {},
+      work: data.work ?? {},
+      relationships: data.relationships ?? {},
       family: data.family ?? {},
       health: data.health ?? {},
-      work: data.work ?? {},
+      routines: data.routines ?? {},
+      goals: data.goals ?? {},
+      learning: data.learning ?? {},
       preferences: data.preferences ?? {},
     });
   };
 
-  const u = <K extends keyof KBData>(section: K, updates: Partial<KBData[K]>) => {
-    setData(d => ({ ...d, [section]: { ...(d[section] as object ?? {}), ...updates } as KBData[K] }));
+  const u = <K extends keyof KnowledgeBase>(section: K, updates: Partial<NonNullable<KnowledgeBase[K]>>) => {
+    setData(d => ({ ...d, [section]: { ...(d[section] as object ?? {}), ...updates } as KnowledgeBase[K] }));
   };
 
   return (
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-500">Your context — agents read this to personalise every output.</p>
-        <button
-          onClick={handleSaveAll}
-          disabled={saving}
-          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium rounded transition-colors"
-        >
-          {saved ? 'Saved ✓' : saving ? 'Saving...' : 'Save all'}
-        </button>
+        <p className="text-xs text-foreground-muted">Your full profile — agents read every section to personalise outputs.</p>
+        <div className="flex gap-2">
+          {onRestartOnboarding && (
+            <button onClick={onRestartOnboarding} className="px-3 py-1.5 btn-secondary text-xs">Re-run onboarding</button>
+          )}
+          <button onClick={handleSaveAll} disabled={saving} className="px-4 py-1.5 btn-primary text-xs">
+            {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save all'}
+          </button>
+        </div>
       </div>
 
-      <Section title="Identity">
+      <Section title="Identity" description="Who you are">
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Name</Label>
-            <TextField value={data.identity?.name ?? ''} onChange={v => u('identity', { name: v })} placeholder="Your name" />
-          </div>
-          <div>
-            <Label>Role</Label>
-            <TextField value={data.identity?.role ?? ''} onChange={v => u('identity', { role: v })} placeholder="Founder / CTO / Product Manager" />
-          </div>
+          <div><Label>Name</Label><TextField value={data.identity?.name ?? ''} onChange={v => u('identity', { name: v })} /></div>
+          <div><Label>Preferred name</Label><TextField value={data.identity?.preferredName ?? ''} onChange={v => u('identity', { preferredName: v })} /></div>
         </div>
-        <div>
-          <Label>Company</Label>
-          <TextField value={data.identity?.company ?? ''} onChange={v => u('identity', { company: v })} placeholder="Company or project name" />
-        </div>
-      </Section>
-
-      <Section title="Health">
-        <div>
-          <Label>Workout schedule (day → session type)</Label>
-          <div className="grid grid-cols-4 gap-2">
-            {WORKOUT_DAYS.map(day => (
-              <div key={day}>
-                <div className="text-[10px] text-gray-600 mb-1">{day}</div>
-                <input
-                  type="text"
-                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-600 placeholder-gray-700"
-                  placeholder="rest"
-                  value={(data.health?.workoutSchedule ?? {})[day] ?? ''}
-                  onChange={e => u('health', {
-                    workoutSchedule: { ...(data.health?.workoutSchedule ?? {}), [day]: e.target.value },
-                  })}
-                />
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div><Label>Pronouns</Label><SelectField value={data.identity?.pronouns ?? ''} onChange={v => u('identity', { pronouns: v })} options={PRONOUNS} /></div>
+          <div><Label>Age</Label><TextField value={data.identity?.age ?? ''} onChange={v => u('identity', { age: v })} /></div>
+          <div><Label>Role</Label><TextField value={data.identity?.role ?? ''} onChange={v => u('identity', { role: v })} /></div>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Daily calorie goal</Label>
-            <input
-              type="number"
-              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-600 placeholder-gray-600"
-              placeholder="2200"
-              value={data.health?.goalCalories ?? ''}
-              onChange={e => u('health', { goalCalories: Number(e.target.value) })}
-            />
-          </div>
+          <div><Label>Company</Label><TextField value={data.identity?.company ?? ''} onChange={v => u('identity', { company: v })} /></div>
+          <div><Label>Location</Label><TextField value={data.identity?.location ?? ''} onChange={v => u('identity', { location: v })} /></div>
         </div>
-        <div>
-          <Label>Dietary preferences / restrictions</Label>
-          <TextArrayInput
-            value={data.health?.dietaryPreferences ?? []}
-            onChange={v => u('health', { dietaryPreferences: v })}
-            placeholder="No gluten&#10;High protein&#10;Vegetarian"
-          />
-        </div>
-        <div>
-          <Label>Current health goals</Label>
-          <TextArrayInput
-            value={data.health?.currentGoals ?? []}
-            onChange={v => u('health', { currentGoals: v })}
-            placeholder="Lose 5kg&#10;Run 5k sub-25min"
-          />
+        <div><Label>Timezone</Label><SelectField value={data.identity?.timezone ?? ''} onChange={v => u('identity', { timezone: v })} options={TIMEZONES} /></div>
+        <div><Label>Bio</Label><TextArea value={data.identity?.bio ?? ''} onChange={v => u('identity', { bio: v })} rows={3} /></div>
+        <div><Label>Background</Label><TextArea value={data.identity?.background ?? ''} onChange={v => u('identity', { background: v })} rows={2} /></div>
+        <div><Label>Values</Label><TextArrayInput value={data.identity?.values ?? []} onChange={v => u('identity', { values: v })} /></div>
+        <div><Label>Strengths</Label><TextArrayInput value={data.identity?.strengths ?? []} onChange={v => u('identity', { strengths: v })} /></div>
+        <div><Label>Aspirations</Label><TextArea value={data.identity?.aspirations ?? ''} onChange={v => u('identity', { aspirations: v })} rows={2} /></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Work email</Label><TextField value={data.identity?.workEmail ?? ''} onChange={v => u('identity', { workEmail: v })} /></div>
+          <div><Label>Personal email</Label><TextField value={data.identity?.personalEmail ?? ''} onChange={v => u('identity', { personalEmail: v })} /></div>
         </div>
       </Section>
 
       <Section title="Work">
-        <div>
-          <Label>Current projects</Label>
-          <TextArrayInput
-            value={data.work?.currentProjects ?? []}
-            onChange={v => u('work', { currentProjects: v })}
-            placeholder="Project Alpha&#10;Q3 fundraise&#10;Product rebrand"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Work role</Label><TextField value={data.work?.role ?? ''} onChange={v => u('work', { role: v })} /></div>
+          <div><Label>Company stage</Label><SelectField value={data.work?.companyStage ?? ''} onChange={v => u('work', { companyStage: v })} options={COMPANY_STAGES} /></div>
         </div>
-        <div>
-          <Label>Always-urgent senders (email addresses)</Label>
-          <TextArrayInput
-            value={data.work?.urgentFrom ?? []}
-            onChange={v => u('work', { urgentFrom: v })}
-            placeholder="investor@vc.com&#10;ceo@company.com"
-          />
+        <PersonListEditor label="Key contacts" people={data.work?.keyContacts ?? []} onChange={v => u('work', { keyContacts: v })} showCompany />
+        <div><Label>Current projects</Label><ProjectsEditor value={data.work?.currentProjects} onChange={v => u('work', { currentProjects: v })} /></div>
+        <div><Label>Typical day</Label><TextArea value={data.work?.typicalDay ?? ''} onChange={v => u('work', { typicalDay: v })} rows={2} /></div>
+        <div><Label>Meeting preferences</Label><TextArea value={data.work?.meetingPreferences ?? ''} onChange={v => u('work', { meetingPreferences: v })} rows={2} /></div>
+        <div><Label>Communication style</Label><TextArea value={data.work?.communicationStyle ?? ''} onChange={v => u('work', { communicationStyle: v })} rows={2} /></div>
+        <div><Label>Urgent senders</Label><TextArrayInput value={data.work?.urgentFrom ?? []} onChange={v => u('work', { urgentFrom: v })} /></div>
+        <div><Label>Skip senders</Label><TextArrayInput value={data.work?.skipFrom ?? []} onChange={v => u('work', { skipFrom: v })} /></div>
+      </Section>
+
+      <Section title="Relationships">
+        <PersonListEditor label="Mentors" people={data.relationships?.mentors ?? []} onChange={v => u('relationships', { mentors: v })} showCompany />
+        <PersonListEditor label="Collaborators" people={data.relationships?.collaborators ?? []} onChange={v => u('relationships', { collaborators: v })} showCompany />
+        <PersonListEditor label="Friends" people={data.relationships?.friends ?? []} onChange={v => u('relationships', { friends: v })} />
+      </Section>
+
+      <Section title="Goals">
+        <div><Label>Life priorities</Label><TextArrayInput value={data.goals?.lifePriorities ?? []} onChange={v => u('goals', { lifePriorities: v })} /></div>
+        <div><Label>Short-term</Label><TextArrayInput value={data.goals?.shortTerm ?? []} onChange={v => u('goals', { shortTerm: v })} /></div>
+        <div><Label>Long-term</Label><TextArrayInput value={data.goals?.longTerm ?? []} onChange={v => u('goals', { longTerm: v })} /></div>
+        <div><Label>Non-negotiables</Label><TextArrayInput value={data.goals?.nonNegotiables ?? []} onChange={v => u('goals', { nonNegotiables: v })} /></div>
+      </Section>
+
+      <Section title="Family">
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Partner</Label><TextField value={data.family?.partner?.name ?? ''} onChange={v => u('family', { partner: { ...data.family?.partner, name: v } })} /></div>
+          <div><Label>Partner schedule</Label><TextField value={data.family?.partner?.work ?? ''} onChange={v => u('family', { partner: { ...data.family?.partner, work: v } })} /></div>
         </div>
-        <div>
-          <Label>Always-skip senders (newsletters, bots)</Label>
-          <TextArrayInput
-            value={data.work?.skipFrom ?? []}
-            onChange={v => u('work', { skipFrom: v })}
-            placeholder="noreply@newsletters.com&#10;updates@saas.com"
-          />
+        <div><Label>Household notes</Label><TextArea value={data.family?.householdNotes ?? ''} onChange={v => u('family', { householdNotes: v })} rows={2} /></div>
+      </Section>
+
+      <Section title="Health">
+        <div><Label>Workout schedule</Label>
+          <div className="grid grid-cols-4 gap-2">
+            {WORKOUT_DAYS.map(day => (
+              <div key={day}>
+                <div className="text-[10px] text-foreground-subtle mb-1">{day}</div>
+                <input type="text" className="input-field-sm" placeholder="rest"
+                  value={(data.health?.workoutSchedule ?? {})[day] ?? ''}
+                  onChange={e => u('health', { workoutSchedule: { ...(data.health?.workoutSchedule ?? {}), [day]: e.target.value } })} />
+              </div>
+            ))}
+          </div>
         </div>
+        <div><Label>Sleep</Label><TextField value={data.health?.sleepSchedule ?? ''} onChange={v => u('health', { sleepSchedule: v })} /></div>
+        <div><Label>Diet</Label><TextArrayInput value={data.health?.dietaryPreferences ?? []} onChange={v => u('health', { dietaryPreferences: v })} /></div>
+        <div><Label>Health goals</Label><TextArrayInput value={data.health?.currentGoals ?? []} onChange={v => u('health', { currentGoals: v })} /></div>
+      </Section>
+
+      <Section title="Routines">
+        <div><Label>Morning</Label><TextArea value={data.routines?.morningRoutine ?? ''} onChange={v => u('routines', { morningRoutine: v })} rows={2} /></div>
+        <div><Label>Evening</Label><TextArea value={data.routines?.eveningRoutine ?? ''} onChange={v => u('routines', { eveningRoutine: v })} rows={2} /></div>
       </Section>
 
       <Section title="Preferences">
-        <div>
-          <Label>News topics</Label>
-          <TextArrayInput
-            value={data.preferences?.newsTopics ?? []}
-            onChange={v => u('preferences', { newsTopics: v })}
-            placeholder="AI / machine learning&#10;UK startup funding&#10;SaaS pricing"
-          />
+        <div><Label>News topics</Label><TextArrayInput value={data.preferences?.newsTopics ?? []} onChange={v => u('preferences', { newsTopics: v })} /></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Brief time</Label><TextField value={data.preferences?.briefingTime ?? ''} onChange={v => u('preferences', { briefingTime: v })} /></div>
+          <div><Label>Focus hours</Label><TextField value={data.preferences?.focusHours ?? ''} onChange={v => u('preferences', { focusHours: v })} /></div>
         </div>
-        <div>
-          <Label>Morning brief time</Label>
-          <TextField
-            value={data.preferences?.briefingTime ?? ''}
-            onChange={v => u('preferences', { briefingTime: v })}
-            placeholder="06:30"
-          />
-        </div>
+        <div><Label>Writing tone</Label><TextArea value={data.preferences?.writingTone ?? ''} onChange={v => u('preferences', { writingTone: v })} rows={2} /></div>
+        <div><Label>Autonomy</Label><SelectField value={data.preferences?.defaultAutonomyLevel ?? ''} onChange={v => u('preferences', { defaultAutonomyLevel: v as NonNullable<KnowledgeBase['preferences']>['defaultAutonomyLevel'] })} options={['supervised', 'semi-autonomous', 'autonomous']} /></div>
       </Section>
     </div>
   );

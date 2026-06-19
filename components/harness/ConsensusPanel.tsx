@@ -6,7 +6,7 @@ function ConfidenceBar({ value }: { value: number }) {
   const color = pct >= 70 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
   return (
     <div className="flex items-center gap-1.5">
-      <div className="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden">
+      <div className="flex-1 h-1 bg-surface-subtle rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-[10px] text-gray-500 w-7 text-right">{pct}%</span>
@@ -25,7 +25,7 @@ export default function ConsensusPanel({ consensus }: Props) {
 
   if (records.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-600 text-sm">
+      <div className="flex items-center justify-center h-full text-foreground-subtle text-sm">
         No consensus rounds yet
       </div>
     );
@@ -56,20 +56,20 @@ export default function ConsensusPanel({ consensus }: Props) {
 function ConsensusCard({ record }: { record: ConsensusRecord }) {
   const isResolved = record.status === 'resolved';
   return (
-    <div className={`border rounded p-2 mb-2 ${isResolved ? 'border-gray-800' : 'border-amber-800/50 bg-amber-950/10'}`}>
+    <div className={`card p-2 mb-2 ${isResolved ? '' : 'border-warning/30 bg-warning/5'}`}>
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <span className={`font-semibold ${isResolved ? 'text-gray-300' : 'text-amber-300'}`}>
+        <span className={`font-semibold ${isResolved ? 'text-foreground' : 'text-warning'}`}>
           {record.topic}
         </span>
         {isResolved && (
           <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${
-            record.decidedBy === 'consensus' ? 'bg-green-900/50 text-green-400' : 'bg-purple-900/50 text-purple-400'
+            record.decidedBy === 'consensus' ? 'bg-success/10 text-success' : 'bg-accent/10 text-accent'
           }`}>
             {record.decidedBy === 'consensus' ? 'consensus' : 'parent override'}
           </span>
         )}
         {!isResolved && (
-          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-400">
+          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-warning/10 text-warning">
             voting
           </span>
         )}

@@ -1,11 +1,24 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { HarnessTool, HarnessAgent, HarnessContext, ToolInput } from './types';
 import { getAgentByRole } from './registry';
 import { setStateKey, getStateKeys } from './state';
 import { readKB, writeKB } from './knowledge-base';
 import { enqueueAction } from './queue';
 import { runConsensus } from './consensus';
-import { awaitHumanInput } from './pending-inputs';
+import { awaitHumanInput, markPendingInput } from './pending-inputs';
+import { getSetting } from '@/lib/settings';
+import { readGmailMessages, sendGmailMessage } from '@/lib/nango/gmail';
+import { readCalendarEvents, createCalendarEvent } from '@/lib/nango/calendar';
+import { getNango, gmailIntegrationId } from '@/lib/nango/client';
+import { listGmailConnections } from '@/lib/nango/connections';
+import {
+  buildKbPatch,
+  applyKbPatch,
+  getKbAutonomy,
+  shouldAutoApplyKb,
+  formatKbPatchSummary,
+  normalizeKbPatchInput,
+  type KbPatchInput,
+} from './kb-updates';
 
 // ── Tool Catalog ──────────────────────────────────────────────────────────────
 
@@ -128,7 +141,7 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
   kb_write: {
     key: 'kb_write',
     name: 'kb_write',
-    description: 'Write a value to the personal knowledge base. Persists across runs. Use this to record insights, update context, or store decisions.',
+    description: 'Write a value to the personal knowledge base directly (no approval queue). Prefer update_kb for profile changes unless you need a raw dot-key write.',
     requiresApproval: false,
     realWorld: false,
     inputSchema: {
@@ -141,6 +154,39 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
     },
   },
 
+  update_kb: {
+    key: 'update_kb',
+    name: 'update_kb',
+    description: 'Update the user profile/knowledge base. Job applications, goals, contacts, work context, etc. In semi-autonomous/supervised mode queues for user approval; in autonomous mode applies immediately. Always kb_read relevant keys first.',
+    requiresApproval: false,
+    realWorld: false,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string', description: 'One-line summary for the user, e.g. "Anthropic → Offer received"' },
+        reason: { type: 'string', description: 'Why this update (e.g. email from Natalie Mead, user said in chat)' },
+        updates: { type: 'object', description: 'Top-level KB sections to merge, e.g. { "work": { "careerFocus": "..." } }' },
+        jobApplication: {
+          type: 'object',
+          description: 'Update a job application by company name',
+          properties: {
+            company: { type: 'string' },
+            role: { type: 'string' },
+            status: { type: 'string' },
+            nextAction: { type: 'string' },
+            priority: { type: 'number' },
+          },
+          required: ['company'],
+        },
+        key: { type: 'string', description: 'Dot-notation key for a single-field update' },
+        value: { description: 'Value when using key' },
+        priority: { type: 'string', enum: ['high', 'normal', 'low'] },
+        requireApproval: { type: 'boolean', description: 'Force approval queue even in autonomous mode' },
+      },
+      required: ['summary'],
+    },
+  },
+
   queue_action: {
     key: 'queue_action',
     name: 'queue_action',
@@ -150,7 +196,7 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
     inputSchema: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['email_reply', 'email_send', 'calendar_event', 'task', 'reminder', 'message', 'alert', 'generic'] },
+        type: { type: 'string', enum: ['email_reply', 'email_send', 'calendar_event', 'task', 'reminder', 'message', 'alert', 'kb_update', 'generic'] },
         summary: { type: 'string', description: 'One-line summary shown to user: "Reply to Sarah: declining budget meeting"' },
         detail: { type: 'string', description: 'Full draft content or detailed description' },
         tool: { type: 'string', description: 'Harness tool to execute on approval (e.g. "gmail_send")' },
@@ -237,7 +283,8 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Gmail search query (e.g. "is:unread", "from:boss@company.com")' },
-        maxResults: { type: 'number', description: 'Max emails to return (default: 10)' },
+        maxResults: { type: 'number', description: 'Max emails to return per account (default: 10)' },
+        connectionId: { type: 'string', description: 'Optional — one connected Gmail account; omit for all' },
       },
       required: [],
     },
@@ -256,6 +303,7 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
         subject: { type: 'string', description: 'Email subject' },
         body: { type: 'string', description: 'Email body (plain text or HTML)' },
         replyToMessageId: { type: 'string', description: 'Gmail message ID if this is a reply' },
+        connectionId: { type: 'string', description: 'Nango connection to send from' },
       },
       required: ['to', 'subject', 'body'],
     },
@@ -273,6 +321,7 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
         to: { type: 'string' },
         subject: { type: 'string' },
         body: { type: 'string' },
+        connectionId: { type: 'string', description: 'Nango connection to send from' },
       },
       required: ['to', 'subject', 'body'],
     },
@@ -289,7 +338,8 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
       properties: {
         date: { type: 'string', description: 'ISO date to start from (default: today)' },
         daysAhead: { type: 'number', description: 'Number of days to look ahead (default: 1)' },
-        maxResults: { type: 'number', description: 'Max events to return (default: 20)' },
+        maxResults: { type: 'number', description: 'Max events to return per calendar (default: 20)' },
+        connectionId: { type: 'string', description: 'Optional — one connected calendar account' },
       },
       required: [],
     },
@@ -383,23 +433,9 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
   },
 };
 
-// ── Convert tool keys to Anthropic Tool format ────────────────────────────────
-
-export function buildAnthropicTools(toolKeys: string[]): Anthropic.Tool[] {
-  return toolKeys
-    .map(k => HARNESS_TOOLS[k])
-    .filter(Boolean)
-    .map(t => ({
-      name: t.name,
-      description: t.description,
-      input_schema: t.inputSchema as Anthropic.Tool['input_schema'],
-    }));
-}
-
 // ── Tool Executor ─────────────────────────────────────────────────────────────
 
 export async function executeHarnessTool(
-  client: Anthropic,
   toolName: string,
   input: ToolInput,
   callerAgent: HarnessAgent,
@@ -479,7 +515,7 @@ export async function executeHarnessTool(
       const { topic, stakeholderRoles, contextKeys } = input as {
         topic: string; stakeholderRoles: string[]; contextKeys: string[];
       };
-      const result = await runConsensus(client, ctx, stakeholderRoles, topic, contextKeys, callerAgent.role);
+      const result = await runConsensus(ctx, stakeholderRoles, topic, contextKeys, callerAgent.role);
       return { outcome: result.outcome, decidedBy: result.decidedBy, rounds: result.rounds };
     }
 
@@ -514,12 +550,76 @@ export async function executeHarnessTool(
     // ── Knowledge Base ─────────────────────────────────────────────────────────
 
     case 'kb_read':
-      return readKB((input as { keys: string[] }).keys);
+      return await readKB((input as { keys: string[] }).keys);
 
     case 'kb_write': {
       const { key, value } = input as { key: string; value: unknown };
       await writeKB(key, value);
       return { ok: true, key };
+    }
+
+    case 'update_kb': {
+      const patchInput = input as unknown as KbPatchInput & {
+        summary: string;
+        reason?: string;
+        priority?: import('./queue').QueuedAction['priority'];
+        requireApproval?: boolean;
+      };
+
+      const normalized = normalizeKbPatchInput(patchInput);
+      const patch = await buildKbPatch(normalized);
+      if (Object.keys(patch).length === 0 && normalized.key === undefined) {
+        return {
+          error: 'No profile fields to update — pass jobApplication, updates, or key/value',
+        };
+      }
+      const autonomy = await getKbAutonomy();
+      const autoApply = shouldAutoApplyKb(autonomy, patchInput.requireApproval);
+
+      if (autoApply) {
+        await applyKbPatch(normalized);
+        ctx.send({
+          type: 'state_updated',
+          sessionId: ctx.sessionId,
+          entityId: ctx.entityId,
+          agentId: callerAgent.id,
+          agentRole: callerAgent.role,
+          data: { kbUpdated: true, summary: patchInput.summary, applied: true },
+          timestamp: new Date().toISOString(),
+        });
+        return { ok: true, applied: true, summary: patchInput.summary };
+      }
+
+      const action = await enqueueAction({
+        type: 'kb_update',
+        summary: patchInput.summary || formatKbPatchSummary(normalized),
+        detail: patchInput.reason,
+        tool: 'update_kb',
+        payload: {
+          patch,
+          input: {
+            jobApplication: normalized.jobApplication,
+            updates: normalized.updates,
+            key: normalized.key,
+            value: normalized.value,
+          },
+          reason: patchInput.reason,
+          source: callerAgent.role,
+        },
+        priority: patchInput.priority ?? 'normal',
+        agentRole: callerAgent.role,
+        entityId: ctx.entityId,
+      });
+      ctx.send({
+        type: 'state_updated',
+        sessionId: ctx.sessionId,
+        entityId: ctx.entityId,
+        agentId: callerAgent.id,
+        agentRole: callerAgent.role,
+        data: { queuedActionId: action.id, summary: action.summary, kbQueued: true },
+        timestamp: new Date().toISOString(),
+      });
+      return { ok: true, queued: true, actionId: action.id, summary: action.summary };
     }
 
     // ── Action Queue ───────────────────────────────────────────────────────────
@@ -566,6 +666,7 @@ export async function executeHarnessTool(
         data: { requestId, prompt, context: context ?? '' },
         timestamp: new Date().toISOString(),
       });
+      await markPendingInput(requestId);
       try {
         const userInput = await awaitHumanInput(requestId, timeoutMs);
         return { userInput, requestId };
@@ -578,8 +679,8 @@ export async function executeHarnessTool(
 
     case 'web_search': {
       const { query, maxResults = 5 } = input as { query: string; maxResults?: number };
-      const apiKey = process.env.BRAVE_SEARCH_API_KEY;
-      if (!apiKey) return { error: 'BRAVE_SEARCH_API_KEY not set', query };
+      const apiKey = getSetting('braveSearchApiKey');
+      if (!apiKey) return { error: 'Brave Search API key not configured — add it in Settings', query };
       const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${maxResults}`;
       const res = await fetch(url, { headers: { 'Accept': 'application/json', 'X-Subscription-Token': apiKey } });
       if (!res.ok) return { error: `Brave API error: ${res.status}`, query };
@@ -605,8 +706,8 @@ export async function executeHarnessTool(
 
     case 'news_search': {
       const { topics, maxPerTopic = 3 } = input as { topics: string[]; maxPerTopic?: number };
-      const apiKey = process.env.BRAVE_SEARCH_API_KEY;
-      if (!apiKey) return { error: 'BRAVE_SEARCH_API_KEY not set' };
+      const apiKey = getSetting('braveSearchApiKey');
+      if (!apiKey) return { error: 'Brave Search API key not configured — add it in Settings' };
       const allResults: Array<{ topic: string; title: string; url: string; snippet: string }> = [];
       for (const topic of topics) {
         const url = `https://api.search.brave.com/res/v1/news/search?q=${encodeURIComponent(topic)}&count=${maxPerTopic}&freshness=pd`;
@@ -623,45 +724,26 @@ export async function executeHarnessTool(
     // ── Gmail ─────────────────────────────────────────────────────────────────
 
     case 'gmail_read': {
-      const { query = 'is:unread', maxResults = 10 } = input as { query?: string; maxResults?: number };
-      const tokens = getGoogleTokens();
-      if (!tokens) return { error: 'Google credentials not configured' };
-      const accessToken = await refreshGoogleToken(tokens);
-      const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
-      const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
-      if (!listRes.ok) return { error: `Gmail API error: ${listRes.status}` };
-      const listData = await listRes.json() as { messages?: Array<{ id: string }> };
-      const messages = listData.messages ?? [];
-      const emails = await Promise.all(messages.map(async m => {
-        const msgRes = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-        if (!msgRes.ok) return null;
-        const msg = await msgRes.json() as {
-          id: string;
-          snippet: string;
-          labelIds: string[];
-          payload?: { headers?: Array<{ name: string; value: string }> };
-        };
-        const headers = msg.payload?.headers ?? [];
-        const get = (name: string) => headers.find(h => h.name === name)?.value ?? '';
-        return { id: msg.id, from: get('From'), subject: get('Subject'), date: get('Date'), snippet: msg.snippet, isUnread: msg.labelIds.includes('UNREAD') };
-      }));
-      return { emails: emails.filter(Boolean), query };
+      const { query = 'is:unread', maxResults = 10, connectionId } = input as {
+        query?: string; maxResults?: number; connectionId?: string;
+      };
+      try {
+        return await readGmailMessages({ query, maxResults, connectionId });
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
+      }
     }
 
     case 'gmail_draft': {
-      const { to, subject, body, replyToMessageId } = input as {
-        to: string; subject: string; body: string; replyToMessageId?: string;
+      const { to, subject, body, replyToMessageId, connectionId } = input as {
+        to: string; subject: string; body: string; replyToMessageId?: string; connectionId?: string;
       };
-      // Queue for approval rather than creating draft directly
       const action = await enqueueAction({
         type: 'email_reply',
         summary: `Email to ${to}: ${subject}`,
         detail: body,
         tool: 'gmail_send',
-        payload: { to, subject, body, replyToMessageId },
+        payload: { to, subject, body, replyToMessageId, connectionId },
         priority: 'normal',
         agentRole: callerAgent.role,
         entityId: ctx.entityId,
@@ -679,54 +761,27 @@ export async function executeHarnessTool(
     }
 
     case 'gmail_send': {
-      const { to, subject, body } = input as { to: string; subject: string; body: string };
-      const tokens = getGoogleTokens();
-      if (!tokens) return { error: 'Google credentials not configured' };
-      const accessToken = await refreshGoogleToken(tokens);
-      const raw = btoa(`To: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/plain\r\n\r\n${body}`).replace(/\+/g, '-').replace(/\//g, '_');
-      const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw }),
-      });
-      if (!res.ok) return { error: `Gmail send error: ${res.status}` };
-      const sent = await res.json() as { id: string };
-      return { ok: true, messageId: sent.id, to, subject };
+      const { to, subject, body, connectionId } = input as {
+        to: string; subject: string; body: string; connectionId?: string;
+      };
+      try {
+        return await sendGmailMessage({ to, subject, body, connectionId });
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
+      }
     }
 
     // ── Calendar ──────────────────────────────────────────────────────────────
 
     case 'calendar_read': {
-      const { date, daysAhead = 1, maxResults = 20 } = input as {
-        date?: string; daysAhead?: number; maxResults?: number;
+      const { date, daysAhead = 1, maxResults = 20, connectionId } = input as {
+        date?: string; daysAhead?: number; maxResults?: number; connectionId?: string;
       };
-      const tokens = getGoogleTokens();
-      if (!tokens) return { error: 'Google credentials not configured' };
-      const accessToken = await refreshGoogleToken(tokens);
-      const timeMin = date ? new Date(date).toISOString() : new Date().toISOString();
-      const timeMax = new Date(new Date(timeMin).getTime() + daysAhead * 86400_000).toISOString();
-      const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&maxResults=${maxResults}&singleEvents=true&orderBy=startTime`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-      if (!res.ok) return { error: `Calendar API error: ${res.status}` };
-      const data = await res.json() as {
-        items?: Array<{
-          summary?: string;
-          start?: { dateTime?: string; date?: string };
-          end?: { dateTime?: string; date?: string };
-          attendees?: Array<{ email: string; displayName?: string }>;
-          location?: string;
-          description?: string;
-        }>;
-      };
-      const events = (data.items ?? []).map(e => ({
-        title: e.summary ?? '(no title)',
-        start: e.start?.dateTime ?? e.start?.date ?? '',
-        end: e.end?.dateTime ?? e.end?.date ?? '',
-        attendees: (e.attendees ?? []).map(a => a.displayName ?? a.email),
-        location: e.location ?? '',
-        description: (e.description ?? '').slice(0, 200),
-      }));
-      return { events, date: timeMin, daysAhead };
+      try {
+        return await readCalendarEvents({ date, daysAhead, maxResults, connectionId });
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
+      }
     }
 
     case 'calendar_draft': {
@@ -747,21 +802,14 @@ export async function executeHarnessTool(
     }
 
     case 'calendar_create': {
-      const { title, start, durationMinutes, description } = input as {
-        title: string; start: string; durationMinutes: number; description?: string;
+      const { title, start, durationMinutes, description, attendees } = input as {
+        title: string; start: string; durationMinutes: number; description?: string; attendees?: string[];
       };
-      const tokens = getGoogleTokens();
-      if (!tokens) return { error: 'Google credentials not configured' };
-      const accessToken = await refreshGoogleToken(tokens);
-      const endTime = new Date(new Date(start).getTime() + durationMinutes * 60_000).toISOString();
-      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ summary: title, start: { dateTime: start }, end: { dateTime: endTime }, description }),
-      });
-      if (!res.ok) return { error: `Calendar create error: ${res.status}` };
-      const event = await res.json() as { id: string; htmlLink: string };
-      return { ok: true, eventId: event.id, link: event.htmlLink };
+      try {
+        return await createCalendarEvent({ title, start, durationMinutes, description, attendees });
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
+      }
     }
 
     case 'github_commit':
@@ -769,35 +817,42 @@ export async function executeHarnessTool(
 
     case 'contacts_read': {
       const { query, maxResults = 20 } = input as { query?: string; maxResults?: number };
-      const tokens = getGoogleTokens();
-      if (!tokens) return { error: 'Google credentials not configured' };
-      const accessToken = await refreshGoogleToken(tokens);
-      const params = new URLSearchParams({
-        pageSize: String(maxResults),
-        personFields: 'names,emailAddresses,metadata,biographies,userDefined',
-        ...(query ? { query } : {}),
-      });
-      const endpoint = query
-        ? `https://people.googleapis.com/v1/people:searchContacts?${params}`
-        : `https://people.googleapis.com/v1/people/me/connections?${params}`;
-      const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${accessToken}` } });
-      if (!res.ok) return { error: `Contacts API error: ${res.status}` };
-      const data = await res.json() as {
-        connections?: Array<{ names?: Array<{ displayName: string }>; emailAddresses?: Array<{ value: string }>; metadata?: { sources?: Array<{ updateTime: string }> } }>;
-        results?: Array<{ person: { names?: Array<{ displayName: string }>; emailAddresses?: Array<{ value: string }> } }>;
-      };
-      type PersonData = {
-        names?: Array<{ displayName: string }>;
-        emailAddresses?: Array<{ value: string }>;
-        metadata?: { sources?: Array<{ updateTime: string }> };
-      };
-      const people: PersonData[] = data.connections ?? (data.results ?? []).map(r => r.person as PersonData);
-      const contacts = people.map(p => ({
-        name: p.names?.[0]?.displayName ?? 'Unknown',
-        email: p.emailAddresses?.[0]?.value ?? '',
-        lastUpdated: p.metadata?.sources?.[0]?.updateTime ?? '',
-      }));
-      return { contacts, count: contacts.length };
+      try {
+        const connections = await listGmailConnections();
+        if (connections.length === 0) {
+          return { error: 'Gmail not connected — connect in Settings' };
+        }
+        const conn = connections[0];
+        const nango = getNango();
+        const res = await nango.get<{
+          connections?: Array<{ names?: Array<{ displayName: string }>; emailAddresses?: Array<{ value: string }>; metadata?: { sources?: Array<{ updateTime: string }> } }>;
+          results?: Array<{ person: { names?: Array<{ displayName: string }>; emailAddresses?: Array<{ value: string }> } }>;
+        }>({
+          providerConfigKey: gmailIntegrationId(),
+          connectionId: conn.connectionId,
+          endpoint: query ? '/people/v1/people:searchContacts' : '/people/v1/people/me/connections',
+          params: {
+            pageSize: maxResults,
+            personFields: 'names,emailAddresses,metadata',
+            ...(query ? { query } : {}),
+          },
+        });
+        const data = res.data;
+        type PersonData = {
+          names?: Array<{ displayName: string }>;
+          emailAddresses?: Array<{ value: string }>;
+          metadata?: { sources?: Array<{ updateTime: string }> };
+        };
+        const people: PersonData[] = data.connections ?? (data.results ?? []).map(r => r.person as PersonData);
+        const contacts = people.map(p => ({
+          name: p.names?.[0]?.displayName ?? 'Unknown',
+          email: p.emailAddresses?.[0]?.value ?? '',
+          lastUpdated: p.metadata?.sources?.[0]?.updateTime ?? '',
+        }));
+        return { contacts, count: contacts.length };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
+      }
     }
 
     case 'document_parse': {
@@ -824,32 +879,6 @@ export async function executeHarnessTool(
     default:
       return { error: `Tool ${toolName} not implemented` };
   }
-}
-
-// ── Google OAuth helpers ──────────────────────────────────────────────────────
-
-function getGoogleTokens() {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
-  if (!clientId || !clientSecret || !refreshToken) return null;
-  return { clientId, clientSecret, refreshToken };
-}
-
-async function refreshGoogleToken(tokens: { clientId: string; clientSecret: string; refreshToken: string }): Promise<string> {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: tokens.clientId,
-      client_secret: tokens.clientSecret,
-      refresh_token: tokens.refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
-  const data = await res.json() as { access_token?: string; error?: string };
-  if (!data.access_token) throw new Error(`OAuth refresh failed: ${data.error}`);
-  return data.access_token;
 }
 
 // ── Dry-run mock responses ────────────────────────────────────────────────────
