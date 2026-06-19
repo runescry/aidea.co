@@ -1,37 +1,5 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import type { EntityState, EntityType } from './types';
-
-const STATE_PATH = path.join(process.cwd(), 'data', 'harness-state.json');
-
-interface StateFile {
-  version: string;
-  entities: EntityState[];
-}
-
-let writeLock = false;
-
-async function withLock(fn: () => void): Promise<void> {
-  while (writeLock) await new Promise(r => setTimeout(r, 10));
-  writeLock = true;
-  try { fn(); } finally { writeLock = false; }
-}
-
-function ensureDataDir(): void {
-  const dir = path.dirname(STATE_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
-function readFile(): StateFile {
-  ensureDataDir();
-  if (!fs.existsSync(STATE_PATH)) return { version: '1.0', entities: [] };
-  return JSON.parse(fs.readFileSync(STATE_PATH, 'utf-8')) as StateFile;
-}
-
-function writeFile(file: StateFile): void {
-  ensureDataDir();
-  fs.writeFileSync(STATE_PATH, JSON.stringify(file, null, 2), 'utf-8');
-}
+import { saveEntityState as persistState, loadEntityStates } from '@/lib/storage';
 
 export function createEntityState(
   entityId: string,
@@ -53,20 +21,14 @@ export function createEntityState(
 
 export async function persistEntityState(state: EntityState): Promise<void> {
   state.updatedAt = new Date().toISOString();
-  await withLock(() => {
-    const file = readFile();
-    const idx = file.entities.findIndex(e => e.entityId === state.entityId);
-    if (idx === -1) file.entities.push(state);
-    else file.entities[idx] = state;
-    writeFile(file);
-  });
+  await persistState(state);
 }
 
-export function findEntityState(entityId: string): EntityState | undefined {
-  return readFile().entities.find(e => e.entityId === entityId);
+export async function findEntityState(entityId: string): Promise<EntityState | undefined> {
+  const entities = await loadEntityStates();
+  return entities.find(e => e.entityId === entityId);
 }
 
-// Atomic key write — updates in-memory state + persists
 export async function setStateKey(
   state: EntityState,
   key: string,

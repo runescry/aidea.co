@@ -1,23 +1,20 @@
-import Anthropic from '@anthropic-ai/sdk';
-import type { EntityConfig, EntityInput, HarnessContext, HarnessAgent } from './types';
+import type { EntityConfig, EntityInput, HarnessContext, EntityState, SenderFn } from './types';
 import { DEFAULT_COST_CONFIG } from './types';
 import { createRegistry, registerAgent } from './registry';
 import { createEntityState, persistEntityState } from './state';
 import { createMessageBus } from './bus';
-import { createEventSystem } from './events';
 import { createCostTracker } from './cost';
 import { buildHarnessAgent } from './spawn';
 import { runAgentLoop } from './executor';
-import { AGENT_LIBRARY } from '@/lib/agents/library';
-import type { SenderFn } from './types';
+import { loadAgentOverrides, resolveLibraryAgent } from '@/lib/agents/resolve';
+import { hasNangoConnections } from '@/lib/nango/connections';
 
 export async function bootstrapEntity(
-  client: Anthropic,
   config: EntityConfig,
   input: EntityInput,
   send: SenderFn,
   sessionId: string
-): Promise<void> {
+): Promise<EntityState> {
   const entityId = crypto.randomUUID();
 
   // ── Build initial state ─────────────────────────────────────────────────────
@@ -27,10 +24,20 @@ export async function bootstrapEntity(
 
   // ── Build registry & infrastructure ────────────────────────────────────────
   const registry = createRegistry(entityId);
+  const bus = createMessageBus();
+
+  let realWorldMode =
+    config.costConfig?.realWorldToolMode ?? DEFAULT_COST_CONFIG.realWorldToolMode;
+  if (realWorldMode === 'dry-run' && await hasNangoConnections()) {
+    realWorldMode = 'auto';
+  }
+
   const cost = createCostTracker(
     { ...DEFAULT_COST_CONFIG, ...config.costConfig },
-    config.costConfig?.realWorldToolMode ?? DEFAULT_COST_CONFIG.realWorldToolMode
+    realWorldMode,
   );
+
+  const agentOverrides = await loadAgentOverrides();
 
   const ctx: HarnessContext = {
     entityId,
@@ -39,7 +46,9 @@ export async function bootstrapEntity(
     registry,
     state,
     cost,
+    bus,
     send,
+    agentOverrides,
   };
 
   send({
@@ -56,11 +65,7 @@ export async function bootstrapEntity(
   });
 
   // ── Spawn root agent ────────────────────────────────────────────────────────
-  const rootDef = AGENT_LIBRARY[config.rootAgentId];
-  if (!rootDef) {
-    throw new Error(`Root agent '${config.rootAgentId}' not found in agent library`);
-  }
-
+  const rootDef = resolveLibraryAgent(config.rootAgentId, agentOverrides);
   const taskSpec = config.buildInitialTask(input);
   const rootAgent = buildHarnessAgent(rootDef, entityId, null, 0, taskSpec.description);
   rootAgent.stateReadKeys = [...rootDef.stateReadKeys, ...taskSpec.contextKeys];
@@ -81,7 +86,7 @@ export async function bootstrapEntity(
 
   // ── Run entity ──────────────────────────────────────────────────────────────
   try {
-    await runAgentLoop(client, rootAgent, ctx);
+    await runAgentLoop(rootAgent, ctx);
 
     // Wait for all spawned agents to complete
     await waitForAllAgents(registry, ctx);
@@ -96,6 +101,8 @@ export async function bootstrapEntity(
       data: { cost: cost.snapshot() },
       timestamp: new Date().toISOString(),
     });
+
+    return state;
 
   } catch (err) {
     state.status = 'error';

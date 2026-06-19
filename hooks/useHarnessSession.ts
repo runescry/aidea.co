@@ -34,6 +34,12 @@ export interface ConsensusRecord {
   openedAt: string;
 }
 
+export interface PendingHumanInput {
+  requestId: string;
+  question: string;
+  agentRole: string;
+}
+
 export interface HarnessState {
   sessionId?: string;
   entityType?: string;
@@ -47,13 +53,14 @@ export interface HarnessState {
   cost?: CostSnapshot;
   eventLog: HarnessEvent[];
   error?: string;
-  // Derived convenience
   rootAgentId?: string;
+  pendingInput: PendingHumanInput | null;
 }
 
 type Action =
   | { type: 'HARNESS_EVENT'; event: HarnessEvent }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  | { type: 'CLEAR_PENDING_INPUT' };
 
 const INITIAL_STATE: HarnessState = {
   status: 'idle',
@@ -63,10 +70,12 @@ const INITIAL_STATE: HarnessState = {
   toolCalls: [],
   consensus: {},
   eventLog: [],
+  pendingInput: null,
 };
 
 function reducer(state: HarnessState, action: Action): HarnessState {
   if (action.type === 'RESET') return { ...INITIAL_STATE };
+  if (action.type === 'CLEAR_PENDING_INPUT') return { ...state, pendingInput: null };
 
   const { event } = action;
   const log = [...state.eventLog.slice(-200), event];
@@ -169,9 +178,16 @@ function reducer(state: HarnessState, action: Action): HarnessState {
         input: event.data.input as Record<string, unknown>,
         calledAt: event.timestamp,
       };
+      // Eagerly capture write_state values so StateExplorer/ArtifactBrowser have data
+      const toolInput = event.data.input as Record<string, unknown>;
+      const newEntityState =
+        event.data.tool === 'write_state' && toolInput.key
+          ? { ...state.entityState, [toolInput.key as string]: toolInput.value }
+          : state.entityState;
       return {
         ...state,
         toolCalls: [...state.toolCalls.slice(-100), record],
+        entityState: newEntityState,
         eventLog: log,
       };
     }
@@ -251,6 +267,18 @@ function reducer(state: HarnessState, action: Action): HarnessState {
       };
     }
 
+    case 'human_input_requested': {
+      return {
+        ...state,
+        pendingInput: {
+          requestId: event.data.requestId as string,
+          question: event.data.question as string,
+          agentRole: event.agentRole ?? 'agent',
+        },
+        eventLog: log,
+      };
+    }
+
     case 'cost_update':
     case 'cost_warning':
     case 'budget_exceeded':
@@ -269,8 +297,12 @@ export function useHarnessSession() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const abortRef = useRef<AbortController | null>(null);
 
+  const clearPendingInput = useCallback(() => {
+    dispatch({ type: 'CLEAR_PENDING_INPUT' });
+  }, []);
+
   const startSession = useCallback(async (
-    entityType: 'company' | 'personal' | 'learning' | 'creator',
+    entityType: 'company' | 'personal' | 'learning' | 'creator' | 'daily',
     input: Record<string, unknown>
   ) => {
     abortRef.current?.abort();
@@ -328,5 +360,5 @@ export function useHarnessSession() {
     dispatch({ type: 'RESET' });
   }, []);
 
-  return { state, startSession, reset };
+  return { state, startSession, reset, clearPendingInput };
 }

@@ -92,7 +92,7 @@ export default function StateExplorer({ entityState }: Props) {
 
   if (keys.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-600 text-sm">
+      <div className="flex items-center justify-center h-full text-foreground-subtle text-sm">
         State is empty — agents write here as they work
       </div>
     );
@@ -111,21 +111,21 @@ function StateKey({ stateKey, value }: { stateKey: string; value: unknown }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border border-gray-800 rounded bg-gray-900/50">
+    <div className="card overflow-hidden">
       <button
-        className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-gray-800/40 transition-colors"
+        className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-surface-subtle transition-colors"
         onClick={() => setOpen(o => !o)}
       >
-        <span className="text-gray-500">{open ? '▾' : '▸'}</span>
-        <span className="text-amber-300 font-semibold">{stateKey}</span>
-        <span className="ml-auto text-gray-600 text-[10px]">
+        <span className="text-foreground-subtle">{open ? '▾' : '▸'}</span>
+        <span className="text-warning font-semibold">{stateKey}</span>
+        <span className="ml-auto text-foreground-subtle text-[10px]">
           {typeof value === 'object' && value !== null
             ? `${Object.keys(value as object).length} keys`
             : typeof value}
         </span>
       </button>
       {open && (
-        <div className="px-2 pb-2 pt-1 border-t border-gray-800">
+        <div className="px-2 pb-2 pt-1 border-t border-border">
           <JsonValue val={value} depth={0} />
         </div>
       )}

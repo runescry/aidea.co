@@ -1,6 +1,13 @@
 node_modules/
 .next/
 .env.local
+data/settings.json
+data/knowledge-base.json
+data/harness-state.json
+data/latest-brief.json
+data/action-queue.json
+data/profile-import.json
 data/memory.json
 data/artifacts/
 *.tsbuildinfo
+.vercel

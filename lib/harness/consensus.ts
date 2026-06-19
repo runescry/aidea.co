@@ -1,4 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText } from 'ai';
+import { getModel } from '@/lib/ai/provider';
 import type { HarnessContext, Decision, Vote } from './types';
 import { getAgentByRole } from './registry';
 import { getStateKeys } from './state';
@@ -84,7 +85,6 @@ export interface ConsensusResult {
 }
 
 export async function runConsensus(
-  client: Anthropic,
   ctx: HarnessContext,
   stakeholderRoles: string[],
   topic: string,
@@ -128,22 +128,22 @@ export async function runConsensus(
         if (!agent) return null;
 
         const prompt = buildVotePrompt(role, agent.domain, topic, contextData, decision.votes, round);
+        const voteModel = agent.model.includes('haiku') ? agent.model : 'claude-haiku-4-5-20251001';
 
-        const resp = await client.messages.create({
-          model: agent.model.includes('haiku') ? agent.model : 'claude-haiku-4-5-20251001',
-          max_tokens: 512,
-          messages: [{ role: 'user', content: prompt }],
+        const resp = await generateText({
+          model: getModel(voteModel),
+          prompt,
+          maxTokens: 512,
         });
 
-        const text = resp.content.find(b => b.type === 'text')?.text ?? '{}';
         ctx.cost.recordUsage(
-          resp.usage.input_tokens,
-          resp.usage.output_tokens,
-          resp.usage.cache_read_input_tokens ?? 0,
-          resp.usage.cache_creation_input_tokens ?? 0
+          resp.usage?.promptTokens ?? 0,
+          resp.usage?.completionTokens ?? 0,
+          0,
+          0
         );
 
-        const parsed = extractJSON<{ position: string; confidence: number; reasoning: string }>(text);
+        const parsed = extractJSON<{ position: string; confidence: number; reasoning: string }>(resp.text);
 
         const vote: Vote = {
           agentId: agent.id,
@@ -195,7 +195,6 @@ export async function runConsensus(
     }
   }
 
-  // Escalate to parent
   decision.phase = 'escalating';
   ctx.send({
     type: 'consensus_escalated',
@@ -209,24 +208,29 @@ export async function runConsensus(
   if (!parentAgent) throw new Error(`Parent agent '${parentRole}' not in registry for escalation`);
 
   const arbPrompt = buildArbitrationPrompt(parentRole, decision, contextData);
-  const arbResp = await client.messages.create({
-    model: parentAgent.model,
-    max_tokens: 1024,
-    messages: [{ role: 'user', content: arbPrompt }],
+  const arbResp = await generateText({
+    model: getModel(parentAgent.model),
+    prompt: arbPrompt,
+    maxTokens: 1024,
     ...(parentAgent.useThinking
-      ? { thinking: { type: 'enabled', budget_tokens: parentAgent.thinkingBudget ?? 1000 } }
+      ? {
+          providerOptions: {
+            anthropic: {
+              thinking: { type: 'enabled', budgetTokens: parentAgent.thinkingBudget ?? 1000 },
+            },
+          },
+        }
       : {}),
   });
 
   ctx.cost.recordUsage(
-    arbResp.usage.input_tokens,
-    arbResp.usage.output_tokens,
-    arbResp.usage.cache_read_input_tokens ?? 0,
-    arbResp.usage.cache_creation_input_tokens ?? 0
+    arbResp.usage?.promptTokens ?? 0,
+    arbResp.usage?.completionTokens ?? 0,
+    0,
+    0
   );
 
-  const arbText = arbResp.content.find(b => b.type === 'text')?.text ?? '{}';
-  const arb = extractJSON<{ decision: string; rationale: string }>(arbText);
+  const arb = extractJSON<{ decision: string; rationale: string }>(arbResp.text);
 
   decision.outcome = arb.decision;
   decision.decidedBy = 'parent';

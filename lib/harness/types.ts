@@ -1,4 +1,5 @@
 // Foundation types — every harness file imports from here.
+import type { AgentOverridesMap } from '@/types/agent-overrides';
 
 // ── Enumerations ──────────────────────────────────────────────────────────────
 
@@ -8,7 +9,7 @@ export type Authority = 'directive' | 'advisory' | 'executor';
 // executor:  produces artifacts only; reads state; no spawning
 
 export type MessageType = 'inform' | 'request' | 'flag' | 'delegate' | 'escalate' | 'vote';
-export type EntityType = 'company' | 'personal' | 'learning' | 'creator' | 'custom';
+export type EntityType = 'company' | 'personal' | 'learning' | 'creator' | 'daily' | 'custom';
 export type AutonomyLevel = 'supervised' | 'semi-auto' | 'full-auto';
 export type AgentStatus = 'idle' | 'running' | 'waiting' | 'complete' | 'error';
 export type ConsensusPhase = 'collecting' | 'negotiating' | 'escalating' | 'resolved';
@@ -239,7 +240,9 @@ export interface HarnessContext {
   registry: AgentRegistry;
   state: EntityState;
   cost: CostTracker;
+  bus: MessageBus;
   send: SenderFn;
+  agentOverrides: AgentOverridesMap;
 }
 
 // ── SSE Events ────────────────────────────────────────────────────────────────
@@ -252,6 +255,7 @@ export type HarnessEventType =
   | 'state_updated'
   | 'consensus_started' | 'consensus_vote'     | 'consensus_resolved' | 'consensus_escalated'
   | 'cost_update'       | 'cost_warning'       | 'budget_exceeded'
+  | 'human_input_requested'
   | 'error';
 
 export interface HarnessEvent {

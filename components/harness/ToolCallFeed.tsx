@@ -58,7 +58,7 @@ export default function ToolCallFeed({ toolCalls }: Props) {
 
   if (toolCalls.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-600 text-sm">
+      <div className="flex items-center justify-center h-full text-foreground-subtle text-sm">
         No tool calls yet
       </div>
     );
@@ -67,17 +67,17 @@ export default function ToolCallFeed({ toolCalls }: Props) {
   return (
     <div className="overflow-y-auto h-full pr-1 space-y-0.5 text-xs font-mono">
       {toolCalls.map((tc, i) => (
-        <div key={i} className="border-l-2 border-gray-700 pl-2 py-1">
+        <div key={i} className="border-l-2 border-border pl-2 py-1">
           <div className="flex items-baseline gap-2">
-            <span className="text-gray-500 shrink-0">{tc.calledAt.slice(11, 19)}</span>
-            <span className="text-gray-400 shrink-0">[{tc.agentRole}]</span>
-            <span className={`font-semibold shrink-0 ${TOOL_COLOR[tc.tool] ?? 'text-white'}`}>
+            <span className="text-foreground-subtle shrink-0">{tc.calledAt.slice(11, 19)}</span>
+            <span className="text-foreground-muted shrink-0">[{tc.agentRole}]</span>
+            <span className={`font-semibold shrink-0 ${TOOL_COLOR[tc.tool] ?? 'text-foreground'}`}>
               {tc.tool}
             </span>
-            <span className="text-gray-500 truncate">{summariseInput(tc.tool, tc.input)}</span>
+            <span className="text-foreground-muted truncate">{summariseInput(tc.tool, tc.input)}</span>
           </div>
           {tc.result !== undefined && (
-            <div className="ml-[5.5rem] text-gray-500 truncate">
+            <div className="ml-[5.5rem] text-foreground-subtle truncate">
               ↳ {summariseResult(tc.result)}
             </div>
           )}

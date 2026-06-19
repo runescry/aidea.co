@@ -1,0 +1,27 @@
+{
+  "crons": [
+    {
+      "path": "/api/monitor?name=daily",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/monitor?name=inbox",
+      "schedule": "*/15 7-22 * * *"
+    },
+    {
+      "path": "/api/monitor?name=relationships",
+      "schedule": "0 8 * * 1"
+    }
+  ],
+  "functions": {
+    "app/api/run/route.ts": {
+      "maxDuration": 1800
+    },
+    "app/api/message/route.ts": {
+      "maxDuration": 1800
+    },
+    "app/api/monitor/route.ts": {
+      "maxDuration": 1800
+    }
+  }
+}
