@@ -140,3 +140,10 @@ export async function writeChatStore(data: ChatStore): Promise<void> {
   if (usePostgres()) await pg.writeChatStore(userId, data);
   else fs.writeChatStore(data);
 }
+
+export async function deleteChatConversation(id: string): Promise<ChatStore> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) return pg.deleteChatConversation(userId, id);
+  return fs.deleteChatConversation(id);
+}

@@ -40,3 +40,22 @@ CREATE TABLE IF NOT EXISTS chat_store (
   data JSONB NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS chat_conversations (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  messages JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS chat_meta (
+  user_id TEXT PRIMARY KEY,
+  active_conversation_id TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_conversations_user_updated
+  ON chat_conversations (user_id, updated_at DESC);

@@ -106,11 +106,6 @@ async function pushStoreToServer(store: ChatStore): Promise<void> {
   });
 }
 
-function persistStore(store: ChatStore): void {
-  saveLocalStore(store);
-  pushStoreToServer(store).catch(() => {});
-}
-
 interface ChatContextValue {
   conversations: ChatConversation[];
   activeConversation: ChatConversation;
@@ -204,22 +199,43 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     setStore(prev => {
-      const deletedConversationIds = [...new Set([...(prev.deletedConversationIds ?? []), id])];
-      let conversations = prev.conversations.filter(c => c.id !== id);
-      let activeId = prev.activeId;
-
-      if (conversations.length === 0) {
-        const next = newConversation();
-        conversations = [next];
-        activeId = next.id;
-      } else if (activeId === id) {
-        activeId = conversations[0].id;
-      }
-
-      const nextStore: ChatStore = { conversations, activeId, deletedConversationIds };
-      persistStore(nextStore);
-      return nextStore;
+      const conversations = prev.conversations.filter(c => c.id !== id);
+      const activeId = conversations.length === 0
+        ? prev.activeId
+        : prev.activeId === id
+          ? conversations[0].id
+          : prev.activeId;
+      return conversations.length === 0
+        ? prev
+        : { conversations, activeId };
     });
+
+    fetch(`/api/chat?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      .then(async res => {
+        if (!res.ok) throw new Error('Delete failed');
+        const data = await res.json() as { store?: ChatStore | null };
+        const normalized = data.store ? normalizeChatStore(data.store) : null;
+        if (!normalized) return;
+        setStore(normalized);
+        saveLocalStore(normalized);
+      })
+      .catch(() => {
+        setStore(prev => {
+          const conversations = prev.conversations.filter(c => c.id !== id);
+          if (conversations.length === 0) {
+            const next = newConversation();
+            const nextStore: ChatStore = { conversations: [next], activeId: next.id };
+            saveLocalStore(nextStore);
+            pushStoreToServer(nextStore).catch(() => {});
+            return nextStore;
+          }
+          const activeId = prev.activeId === id ? conversations[0].id : prev.activeId;
+          const nextStore: ChatStore = { conversations, activeId };
+          saveLocalStore(nextStore);
+          pushStoreToServer(nextStore).catch(() => {});
+          return nextStore;
+        });
+      });
   }, [streaming]);
 
   const closeConversation = deleteConversation;

@@ -3,9 +3,18 @@ import * as path from 'path';
 import type { EntityState } from '@/lib/harness/types';
 import type { QueuedAction } from '@/lib/harness/queue';
 import type { AppSettings } from '@/lib/settings';
-import type { ChatStore } from '@/types/chat';
+import type { ChatConversation, ChatStore } from '@/types/chat';
+import { emptyChatStore, normalizeChatStore } from '@/lib/chat/store-utils';
+import {
+  ensureActiveId,
+  parseLegacyChatStore,
+} from './chat-conversations';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
+const CHAT_DIR = path.join(DATA_DIR, 'chat');
+const CHAT_CONVERSATIONS_DIR = path.join(CHAT_DIR, 'conversations');
+const CHAT_META_FILE = path.join(CHAT_DIR, 'meta.json');
+const LEGACY_CHAT_FILE = 'chat-store.json';
 
 function ensureDir(): void {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -84,10 +93,115 @@ export function writeSettings(data: AppSettings): void {
   writeJson('settings.json', data);
 }
 
+function migrateLegacyChatStoreFs(): void {
+  if (fs.existsSync(CHAT_META_FILE)) return;
+
+  const legacy = readJson<ChatStore | null>(LEGACY_CHAT_FILE, null);
+  if (!legacy) return;
+
+  const parsed = parseLegacyChatStore(legacy);
+  if (!parsed) return;
+
+  writeChatStore(parsed);
+
+  const legacyPath = path.join(DATA_DIR, LEGACY_CHAT_FILE);
+  if (fs.existsSync(legacyPath)) fs.unlinkSync(legacyPath);
+}
+
+function readChatMeta(): { activeId: string } | null {
+  ensureDir();
+  if (!fs.existsSync(CHAT_DIR)) return null;
+  if (!fs.existsSync(CHAT_META_FILE)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(CHAT_META_FILE, 'utf-8')) as { activeId: string };
+  } catch {
+    return null;
+  }
+}
+
+function writeChatMeta(activeId: string): void {
+  ensureDir();
+  if (!fs.existsSync(CHAT_DIR)) fs.mkdirSync(CHAT_DIR, { recursive: true });
+  fs.writeFileSync(CHAT_META_FILE, JSON.stringify({ activeId }, null, 2), 'utf-8');
+}
+
+function listConversationFiles(): string[] {
+  ensureDir();
+  if (!fs.existsSync(CHAT_CONVERSATIONS_DIR)) return [];
+  return fs.readdirSync(CHAT_CONVERSATIONS_DIR).filter(f => f.endsWith('.json'));
+}
+
+function readConversationFile(fileName: string): ChatConversation | null {
+  try {
+    const raw = JSON.parse(
+      fs.readFileSync(path.join(CHAT_CONVERSATIONS_DIR, fileName), 'utf-8'),
+    );
+    if (!raw?.id || !raw?.title) return null;
+    return raw as ChatConversation;
+  } catch {
+    return null;
+  }
+}
+
 export function readChatStore(): ChatStore | null {
-  return readJson<ChatStore | null>('chat-store.json', null);
+  migrateLegacyChatStoreFs();
+
+  const files = listConversationFiles();
+  if (files.length === 0) return null;
+
+  const conversations = files
+    .map(readConversationFile)
+    .filter((c): c is ChatConversation => c !== null);
+
+  if (conversations.length === 0) return null;
+
+  const meta = readChatMeta();
+  return normalizeChatStore({
+    conversations,
+    activeId: meta?.activeId ?? conversations[0].id,
+  });
 }
 
 export function writeChatStore(data: ChatStore): void {
-  writeJson('chat-store.json', data);
+  const store = ensureActiveId(data);
+  ensureDir();
+  if (!fs.existsSync(CHAT_CONVERSATIONS_DIR)) {
+    fs.mkdirSync(CHAT_CONVERSATIONS_DIR, { recursive: true });
+  }
+
+  const keepIds = new Set(store.conversations.map(c => c.id));
+  for (const file of listConversationFiles()) {
+    const id = file.replace(/\.json$/, '');
+    if (!keepIds.has(id)) {
+      fs.unlinkSync(path.join(CHAT_CONVERSATIONS_DIR, file));
+    }
+  }
+
+  for (const conversation of store.conversations) {
+    fs.writeFileSync(
+      path.join(CHAT_CONVERSATIONS_DIR, `${conversation.id}.json`),
+      JSON.stringify(conversation, null, 2),
+      'utf-8',
+    );
+  }
+
+  writeChatMeta(store.activeId);
+}
+
+export function deleteChatConversation(id: string): ChatStore {
+  migrateLegacyChatStoreFs();
+
+  const filePath = path.join(CHAT_CONVERSATIONS_DIR, `${id}.json`);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+  let store = readChatStore();
+  if (!store || store.conversations.length === 0) {
+    store = emptyChatStore();
+    writeChatStore(store);
+    return store;
+  }
+
+  store = ensureActiveId(store);
+  writeChatMeta(store.activeId);
+  return store;
 }
