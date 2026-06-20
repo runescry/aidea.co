@@ -72,7 +72,7 @@ Call queue_action with:
   summary: 'Reply to [Sender]: [topic]'
   detail: '<full draft body>'
   tool: 'gmail_send'
-  payload: { to: '<reply-to email>', subject: 'Re: ...', body: '<same as detail>', replyToMessageId: '<gmail id>' }
+  payload: { to: '<reply-to email>', subject: 'Re: ...', body: '<same as detail>', replyToMessageId: '<gmail id>', connectionId: '<from gmail_read>' }
 
 STEP 6: Write triage output to write_state key "inbox_triage":
 {

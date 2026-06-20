@@ -1,5 +1,6 @@
 import { getNango, gmailIntegrationId } from './client';
-import { resolveGmailConnections, type NangoConnectionPublic } from './connections';
+import { resolveGmailConnections, listGmailConnectionsLite, type NangoConnectionPublic } from './connections';
+import { formatGmailApiError, isGmailForbidden } from './gmail-errors';
 
 export interface GmailMessage {
   id: string;
@@ -121,24 +122,60 @@ async function getGmailMessageMeta(
   messageIdHeader: string;
 }> {
   const nango = getNango();
-  const res = await nango.get<{
-    threadId: string;
-    payload?: { headers?: Array<{ name: string; value: string }> };
-  }>({
-    providerConfigKey: gmailIntegrationId(),
-    connectionId: conn.connectionId,
-    endpoint: `/gmail/v1/users/me/messages/${messageId}`,
-    params: { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Message-ID', 'Reply-To'] },
-  });
-  const headers = res.data.payload?.headers ?? [];
-  const get = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
-  return {
-    threadId: res.data.threadId,
-    from: get('From'),
-    replyTo: get('Reply-To') || get('From'),
-    subject: get('Subject'),
-    messageIdHeader: get('Message-ID'),
-  };
+  try {
+    const res = await nango.get<{
+      threadId: string;
+      payload?: { headers?: Array<{ name: string; value: string }> };
+    }>({
+      providerConfigKey: gmailIntegrationId(),
+      connectionId: conn.connectionId,
+      endpoint: `/gmail/v1/users/me/messages/${messageId}`,
+      params: { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Message-ID', 'Reply-To'] },
+    });
+    const headers = res.data.payload?.headers ?? [];
+    const get = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
+    return {
+      threadId: res.data.threadId,
+      from: get('From'),
+      replyTo: get('Reply-To') || get('From'),
+      subject: get('Subject'),
+      messageIdHeader: get('Message-ID'),
+    };
+  } catch (err) {
+    throw new Error(formatGmailApiError(err, 'read'));
+  }
+}
+
+async function resolveConnectionForReply(
+  messageId: string,
+  preferredConnectionId?: string,
+): Promise<{ conn: NangoConnectionPublic; meta: Awaited<ReturnType<typeof getGmailMessageMeta>> }> {
+  const connections = await listGmailConnectionsLite();
+  if (connections.length === 0) {
+    throw new Error('Gmail not connected — use Settings → Connect Google Mail');
+  }
+
+  const ordered = preferredConnectionId
+    ? [
+        ...connections.filter(c => c.connectionId === preferredConnectionId),
+        ...connections.filter(c => c.connectionId !== preferredConnectionId),
+      ]
+    : connections;
+
+  let lastErr: unknown;
+  for (const conn of ordered) {
+    try {
+      const meta = await getGmailMessageMeta(conn, messageId);
+      return { conn, meta };
+    } catch (err) {
+      lastErr = err;
+      if (!isGmailForbidden(err) && !/not found/i.test(String(err))) throw err;
+    }
+  }
+
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error('Could not access this email on any connected Gmail account');
 }
 
 export async function createGmailDraft(input: {
@@ -148,16 +185,18 @@ export async function createGmailDraft(input: {
   replyToMessageId?: string;
   connectionId?: string;
 }): Promise<{ draftId: string; messageId: string; subject: string; connectionId: string }> {
-  const [conn] = await resolveGmailConnections(input.connectionId);
   const nango = getNango();
 
+  let conn: NangoConnectionPublic;
   let to = input.to?.trim() ?? '';
   let subject = input.subject?.trim() ?? '';
   let threadId: string | undefined;
   let inReplyTo: string | undefined;
 
   if (input.replyToMessageId) {
-    const meta = await getGmailMessageMeta(conn, input.replyToMessageId);
+    const resolved = await resolveConnectionForReply(input.replyToMessageId, input.connectionId);
+    conn = resolved.conn;
+    const meta = resolved.meta;
     threadId = meta.threadId;
     if (!to) to = parseEmailAddress(meta.replyTo);
     if (!subject) {
@@ -165,6 +204,8 @@ export async function createGmailDraft(input: {
       subject = base.toLowerCase().startsWith('re:') ? meta.subject : `Re: ${base}`;
     }
     inReplyTo = meta.messageIdHeader || undefined;
+  } else {
+    [conn] = await resolveGmailConnections(input.connectionId);
   }
 
   if (!subject) throw new Error('Draft missing subject');
@@ -180,19 +221,23 @@ export async function createGmailDraft(input: {
   ];
   const raw = encodeRawEmail(headerLines.join('\r\n'));
 
-  const res = await nango.post<{ id: string; message: { id: string; threadId?: string } }>({
-    providerConfigKey: gmailIntegrationId(),
-    connectionId: conn.connectionId,
-    endpoint: '/gmail/v1/users/me/drafts',
-    data: { message: { raw, threadId } },
-  });
+  try {
+    const res = await nango.post<{ id: string; message: { id: string; threadId?: string } }>({
+      providerConfigKey: gmailIntegrationId(),
+      connectionId: conn.connectionId,
+      endpoint: '/gmail/v1/users/me/drafts',
+      data: { message: { raw, threadId } },
+    });
 
-  return {
-    draftId: res.data.id,
-    messageId: res.data.message.id,
-    subject,
-    connectionId: conn.connectionId,
-  };
+    return {
+      draftId: res.data.id,
+      messageId: res.data.message.id,
+      subject,
+      connectionId: conn.connectionId,
+    };
+  } catch (err) {
+    throw new Error(formatGmailApiError(err, 'draft'));
+  }
 }
 
 export async function sendGmailMessage(input: {

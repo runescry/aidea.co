@@ -5,6 +5,7 @@ export interface CachedGmail {
   subject: string;
   snippet: string;
   account?: string;
+  connectionId?: string;
 }
 
 export interface InboxTriagePayload {
@@ -144,4 +145,12 @@ export function cacheGmailRead(
 export function getGmailCache(stateData: Record<string, unknown>): Map<string, CachedGmail> {
   const raw = stateData._gmailById as Record<string, CachedGmail> | undefined;
   return new Map(Object.entries(raw ?? {}));
+}
+
+export function getGmailConnectionForMessage(
+  stateData: Record<string, unknown>,
+  messageId: string,
+): string | undefined {
+  const raw = stateData._gmailById as Record<string, CachedGmail> | undefined;
+  return raw?.[messageId]?.connectionId;
 }

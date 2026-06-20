@@ -36,13 +36,17 @@ export async function saveQueuedEmailDraft(action: QueuedAction): Promise<unknow
     throw new Error('Draft missing body text');
   }
   const payload = normalized.payload ?? {};
-  const { to, subject, body, replyToMessageId, connectionId } = payload as {
+  const { to, subject, body, connectionId } = payload as {
     to?: string;
     subject?: string;
     body: string;
     replyToMessageId?: string;
+    messageId?: string;
     connectionId?: string;
   };
+  const replyToMessageId = String(
+    payload.replyToMessageId ?? payload.messageId ?? '',
+  ) || undefined;
   return createGmailDraft({ to, subject, body, replyToMessageId, connectionId });
 }
 

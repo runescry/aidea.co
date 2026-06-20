@@ -24,6 +24,7 @@ import { addCalendarDays } from '@/lib/calendar/dates';
 import {
   cacheGmailRead,
   getGmailCache,
+  getGmailConnectionForMessage,
   sanitizeInboxTriage,
   type CachedGmail,
 } from './inbox-sanitize';
@@ -666,6 +667,18 @@ export async function executeHarnessTool(
       const draftBody = raw.detail ?? raw.suggestedReply;
       let payload = raw.payload ?? {};
       if (draftBody && !payload.body) payload = { ...payload, body: draftBody };
+
+      const replyId = (payload.replyToMessageId ?? payload.messageId) as string | undefined;
+      if (replyId && !payload.connectionId) {
+        const cached = getGmailConnectionForMessage(ctx.state.data, replyId);
+        if (cached) payload = { ...payload, connectionId: cached };
+      }
+      const messageId = payload.messageId as string | undefined;
+      if (messageId && !payload.connectionId) {
+        const cached = getGmailConnectionForMessage(ctx.state.data, messageId);
+        if (cached) payload = { ...payload, connectionId: cached };
+      }
+
       const tool = raw.tool
         ?? (raw.type === 'email_reply' || raw.type === 'email_send' ? 'gmail_send' : 'generic');
       const action = await enqueueAction({
@@ -777,6 +790,7 @@ export async function executeHarnessTool(
           snippet: e.snippet.slice(0, 220),
           isUnread: e.isUnread,
           account: e.account,
+          connectionId: e.connectionId,
         }));
         cacheGmailRead(ctx.state.data, emails as CachedGmail[]);
         return { ...result, emails };

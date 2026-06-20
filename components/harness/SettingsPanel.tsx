@@ -248,7 +248,8 @@ export default function SettingsPanel() {
 
         {nangoConfigured && (
           <p className="text-[11px] text-foreground-subtle font-mono">
-            Expected Nango integration keys: google-mail, google-calendar (override via env)
+            Nango integrations: google-mail, google-calendar. Gmail drafts/send need scope{' '}
+            <span className="text-foreground-muted">gmail.compose</span> — add in Nango, then reconnect.
           </p>
         )}
 
