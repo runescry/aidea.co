@@ -140,5 +140,6 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - 2026-06-20 — P5 batch (visual system, quick onboarding, audit trail, deploy docs) — `EntityTypeIcon`, `QuickStartOnboarding`, `queue-audit`, `docs/DEPLOYMENT.md`
 - 2026-06-20 — P6 performance (Work feed, fast chat, caches, CEO tier) — `useWorkFeed`, `fast-chat`, `4348afb`
 - 2026-06-21 — P7.0 deploy — pushed `e9b6d55` to main; prod smoke pass (Home, Inbox API, /docs/plan)
+- 2026-06-21 — P7.1 audit trail viewer — Settings queue activity panel; `AuditTrailPanel`
 - 2026-06-21 — P7.1 suggestion dismiss/snooze — profile persistence; TaskFeed buttons; `/api/tasks/suggestions`
 - 2026-06-21 — P7.1 morning brief on Home — Inbox row + chat card; `latestBriefToTask`, `/api/tasks`
