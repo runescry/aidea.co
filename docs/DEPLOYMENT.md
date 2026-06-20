@@ -64,3 +64,11 @@ On first API hit, tables are created. Profile and queue data persist in Postgres
 ## Audit trail
 
 Queue approve/reject/execute/fail events append to `action_audit` (Postgres) or `data/action-audit.json` (filesystem). Read via `GET /api/queue/audit`.
+
+## Performance & runtime
+
+- **Chat:** Simple messages use fast-path Haiku (`lib/harness/fast-chat.ts`). Inbox/calendar/drafts/research use full harness dispatch — expect multi-second latency.
+- **Daily OS / Studio runs:** Multi-agent workflows; CEO agents use Sonnet. Daily brief spawns five parallel sub-agents — the main remaining slow path.
+- **Work feed:** Client uses a single `WorkFeedProvider` poll — not duplicate `/api/tasks` fetchers.
+- **Dev vs prod:** Use `npm run build && npm start` locally when testing perceived UI speed; `next dev` is slower.
+- **Cold starts:** First request after idle on Vercel may add latency; Postgres + AI Gateway should be in the same region where possible.

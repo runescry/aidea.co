@@ -2,7 +2,9 @@
 
 Personal AI chief-of-staff platform. Active UI: `HarnessDashboard` → Home (chat + Work feed), Agents, Studio, Context, Settings.
 
-**Do not recreate the removed legacy stack** (Dashboard, orchestrator, `useAgentSession`, `lib/prompts/*`, imperative leads/working-groups). All agent runs go through `lib/harness/bootstrap.ts`.
+**Do not recreate the removed legacy stack** (Dashboard, orchestrator, `useAgentSession`, `lib/prompts/*`, imperative leads/working-groups). Agent runs go through `lib/harness/bootstrap.ts`, except **fast-path chat** (see below).
+
+**Deploy:** [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)
 
 ---
 
@@ -66,25 +68,36 @@ Do **not** copy TextEncoder/ReadableStream/buffer-split logic into new files.
 
 ---
 
+### Chat dispatch (`POST /api/message`)
+
+Two paths — same SSE event shape (`agent_text_delta`, `agent_complete`, etc.):
+
+| Path | When | Module |
+|------|------|--------|
+| **Fast** | Greetings, general Q&A, planning advice — no tools | `shouldUseFastChat` + `runFastChat` in `lib/harness/fast-chat.ts` |
+| **Full** | Inbox/calendar/drafts, research, profile updates, follow-ups on numbered items | `bootstrapEntity` + `dispatchEntityConfig` |
+
+Extend routing in `shouldUseFastChat` (and tests in `fast-chat.test.ts`) — do not add a third parallel chat stack.
+
+---
+
 ### Queue & tasks (client)
 
 | Helper | Path | Use when |
 |--------|------|----------|
 | `patchQueueAction` | `lib/client/queue.ts` | Approve/reject a queued action from UI |
 | `ACTION_TYPE_LABELS` | `lib/harness/action-labels.ts` | Human-readable labels for `ActionType` |
-| `usePollingFetch` | `hooks/usePollingFetch.ts` | Poll an API on an interval |
+| `useWorkFeed` | `hooks/useWorkFeed.tsx` | **Work feed + nav badge** — single shared poll (wrap app in `WorkFeedProvider`) |
+| `usePollingFetch` | `hooks/usePollingFetch.ts` | Generic polling elsewhere — **not** for Work feed |
 
 **Labels:** Import from `@/lib/harness/action-labels` in client components. Do **not** import from `lib/harness/queue.ts` in client code (pulls server storage).
 
-**Polling example:**
+**Work feed:** `HarnessDashboard` mounts `WorkFeedProvider`; `TaskFeed` and nav badge consume `useWorkFeed()`. Intervals: ~20s idle on Home, ~6s while agents run or chat streams, ~45s summary-only off Home; paused when tab hidden. Manual refresh via `refresh()` after chat complete or queue PATCH.
 
-```typescript
-const { data, loading, refresh } = usePollingFetch(
-  async () => (await fetch('/api/tasks')).json(),
-  8000,
-  [refreshKey],
-);
-```
+**Tasks API:**
+
+- `GET /api/tasks` — full feed `{ tasks, needsYou, autonomy }`
+- `GET /api/tasks?summary=1` — badge only `{ needsYou }`
 
 Work feed UI lives in `components/harness/home/TaskFeed.tsx`. Do not add a separate `ActionQueue` component.
 
@@ -114,6 +127,7 @@ For custom error handling (e.g. Agent Library), manage errors locally; still pre
 |--------|------|----------|
 | `mergeProfile` | `lib/storage` | Merge top-level or dot-key updates into profile |
 | `writeManyKB` | `lib/harness/knowledge-base.ts` | Batch KB writes — delegates to `mergeProfile` |
+| `readKB` / `readAllKB` | `lib/harness/knowledge-base.ts` | Profile reads (15s in-process cache; invalidated on write) |
 
 Do not reimplement read-merge-write against `readProfile`/`writeProfile`.
 
@@ -136,7 +150,8 @@ Agent definitions live in `lib/agents/library/`. User overrides persist at `prof
 
 ## UI conventions
 
-- **Home** = chat (`ChatInterface variant="home"`) + **Work** (`TaskFeed`)
+- **Home** = chat (`ChatInterface variant="home"`) + **Work** (`TaskFeed` via `useWorkFeed`)
+- **Onboarding** = 3-step `QuickStartOnboarding` on first launch; full `OnboardingWizard` from Context → Re-run onboarding
 - **Studio** = `RunStudio` (harness debug + entity runs)
 - **Agents** = `AgentLibrary` (view/customize workforce)
 - **Context** = `KnowledgeBaseEditor`
@@ -151,6 +166,8 @@ Agent definitions live in `lib/agents/library/`. User overrides persist at `prof
 3. New queue action UI? → extend `TaskFeed`, use `patchQueueAction` + `ACTION_TYPE_LABELS`
 4. New agent? → add to `lib/agents/library/`, register in entity config; optional group in `app/api/agents/route.ts`
 5. New save panel? → `useSaveFeedback` unless you need granular error states
+6. Faster chat routing? → extend `shouldUseFastChat` in `lib/harness/fast-chat.ts` (keep fast vs full split)
+7. Work feed refresh? → `useWorkFeed().refresh()` or bump `WorkFeedProvider` `refreshKey` — do not add a second `/api/tasks` poller
 
 ---
 
@@ -195,6 +212,19 @@ Reads `.env.local` for `AI_GATEWAY_API_KEY` (preferred) or `ANTHROPIC_API_KEY`. 
 Scenarios: agent library load + override round-trip, Work feed + queue reject, optional chat dispatch SSE completion (skipped if API key is missing or placeholder).
 
 Client bundles must not import server-only modules (`lib/storage`, `lib/harness/queue` value exports). Use `action-labels.ts` for shared constants.
+
+---
+
+## Performance notes
+
+| Area | Behaviour |
+|------|-----------|
+| **Simple chat** | Fast path — Haiku, no harness bootstrap (~1–3s) |
+| **Tool chat** | Full dispatcher — multi-round tools + external APIs |
+| **Daily OS** | Six agents (orchestrator + 5 specialists) — slow by design; lite mode is backlog (ROADMAP P6) |
+| **Studio CEOs** | Sonnet (Company/Learning/Creator) |
+| **Local dev** | `npm run build && npm start` is faster than `npm run dev` for UI testing |
+| **Production** | Co-locate Vercel region with Postgres; prefer `AI_GATEWAY_API_KEY` on Vercel |
 
 ---
 

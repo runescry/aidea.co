@@ -19,11 +19,11 @@ Used in `ChatInterface.tsx` and `useHarnessSession.ts`. Pass `AbortSignal` on `f
 ## Work queue UI
 
 - Single feed: `components/harness/home/TaskFeed.tsx`
+- Data: `useWorkFeed()` from `@/hooks/useWorkFeed` inside `WorkFeedProvider` (mounted in `HarnessDashboard`)
 - Approve/reject: `patchQueueAction(id, status)`
 - Labels: `ACTION_TYPE_LABELS` from `@/lib/harness/action-labels`
-- Poll tasks: `usePollingFetch(() => fetch('/api/tasks').then(r => r.json()), 8000, deps)`
 
-Do not create parallel queue components or duplicate `TYPE_LABELS` maps.
+Do **not** poll `/api/tasks` separately for badge + feed. Do not create parallel queue components or duplicate `TYPE_LABELS` maps.
 
 ## Forms & save
 

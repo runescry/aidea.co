@@ -10,9 +10,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-20  
-**Phase:** Roadmap complete (P0–P5)  
-**Next up:** None — all planned items shipped  
-**Session:** P5 committed and pushed to main.
+**Phase:** P6 — Performance (complete)  
+**Next up:** Optional — Daily lite brief, auth/multi-user  
+**Session:** Performance batch pushed (`4348afb`) — Work feed, fast chat, CEO tiering.
 
 ---
 
@@ -68,12 +68,28 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 ---
 
+## P6 — Performance
+
+- [x] **Shared Work feed** — `WorkFeedProvider` dedupes polling; adaptive intervals; pauses when tab hidden
+- [x] **Tasks summary API** — `GET /api/tasks?summary=1` returns `{ needsYou }` for nav badge off Home
+- [x] **Fast-path chat** — Simple Home messages use Haiku via `lib/harness/fast-chat.ts` (no full bootstrap)
+- [x] **Home chat progress** — Step indicators + tool status while dispatcher runs
+- [x] **Server caches** — Profile read cache (15s); Nango connection check cache (60s)
+- [x] **Studio CEO tier** — Company/Learning/Creator CEOs use Sonnet (not Opus + thinking)
+
+### P6 backlog (not started)
+
+- [ ] **Daily lite brief** — Single-agent morning brief mode (skip 5 parallel sub-agents)
+
+---
+
 ## Done
 
 - [x] Home: chat left + Work feed right
 - [x] Agent Library (view, customize, runtime overrides)
 - [x] Legacy stack removed; shared helpers (SSE, queue, polling, save feedback)
 - [x] AGENTS.md + Cursor rules for helpers
+- [x] Home performance pass (Work feed provider, fast chat, caches)
 
 ---
 
@@ -87,3 +103,4 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 - 2026-06-20 — P3 batch (learning/creator agents, Home run launcher) — `lib/agents/library/learning`, `lib/agents/library/creator`, `EntityRunLauncher.tsx`
 - 2026-06-20 — P4 batch (proactive Work, autonomy UI, running filter) — `lib/harness/proactive-tasks.ts`, `TaskFeed.tsx`, `/api/tasks`
 - 2026-06-20 — P5 batch (visual system, quick onboarding, audit trail, deploy docs) — `EntityTypeIcon`, `QuickStartOnboarding`, `queue-audit`, `docs/DEPLOYMENT.md`
+- 2026-06-20 — P6 performance (Work feed, fast chat, caches, CEO tier) — `useWorkFeed`, `fast-chat`, `4348afb`

@@ -13,7 +13,8 @@ Before adding streaming, polling, queue, or save logic, check `AGENTS.md` and us
 - **API SSE:** `harnessSSEResponse` from `@/lib/api/sse` — never duplicate ReadableStream boilerplate
 - **Queue PATCH:** `patchQueueAction` from `@/lib/client/queue`
 - **Action labels:** `ACTION_TYPE_LABELS` from `@/lib/harness/action-labels` (not `queue.ts` in client code)
-- **Polling:** `usePollingFetch` from `@/hooks/usePollingFetch`
+- **Work feed:** `useWorkFeed` + `WorkFeedProvider` from `@/hooks/useWorkFeed` (not ad-hoc `/api/tasks` polling)
+- **Generic polling:** `usePollingFetch` from `@/hooks/usePollingFetch` — only when Work feed is not the consumer
 - **Save panels:** `useSaveFeedback` from `@/hooks/useSaveFeedback`
 - **KB batch write:** `writeManyKB` / `mergeProfile` — not manual profile merge loops
 - **Agent overrides:** `resolveLibraryAgent` + `loadAgentOverrides` from `@/lib/agents/resolve`
