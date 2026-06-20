@@ -27,6 +27,28 @@ function tagEmail(tags?: Record<string, string>): string | undefined {
   return tags?.end_user_email || tags?.end_user_email_address;
 }
 
+function endUserTag(conn: ListedConnection): string {
+  return conn.tags?.end_user_id ?? getEndUserId();
+}
+
+async function persistConnectionMetadata(
+  conn: ListedConnection,
+  email: string,
+  displayName?: string,
+): Promise<void> {
+  if (conn.metadata?.email === email) return;
+  try {
+    const nango = getNango();
+    await nango.setMetadata(conn.provider_config_key, conn.connection_id, {
+      ...(conn.metadata ?? {}),
+      email,
+      ...(displayName ? { displayName } : {}),
+    });
+  } catch {
+    // non-fatal
+  }
+}
+
 async function fetchGoogleIdentity(
   integrationId: string,
   connectionId: string,
@@ -65,7 +87,10 @@ async function enrichConnection(conn: ListedConnection): Promise<NangoConnection
     conn.end_user?.email
     ?? tagEmail(conn.tags)
     ?? (typeof conn.metadata?.email === 'string' ? conn.metadata.email : undefined);
-  let displayName = conn.end_user?.display_name ?? undefined;
+  let displayName =
+    (typeof conn.metadata?.displayName === 'string' ? conn.metadata.displayName : undefined)
+    ?? conn.end_user?.display_name
+    ?? undefined;
 
   if (!email) {
     try {
@@ -86,16 +111,8 @@ async function enrichConnection(conn: ListedConnection): Promise<NangoConnection
     displayName = displayName ?? profile.displayName;
   }
 
-  if (email && !conn.metadata?.email) {
-    try {
-      await nango.setMetadata(conn.provider_config_key, conn.connection_id, {
-        ...(conn.metadata ?? {}),
-        email,
-        ...(displayName ? { displayName } : {}),
-      });
-    } catch {
-      // non-fatal — listing still works
-    }
+  if (email) {
+    await persistConnectionMetadata(conn, email, displayName);
   }
 
   return {
@@ -105,6 +122,35 @@ async function enrichConnection(conn: ListedConnection): Promise<NangoConnection
     displayName: displayName ?? undefined,
     createdAt: conn.created,
   };
+}
+
+/** Calendar tokens often lack email scope — borrow identity from Gmail on the same end user. */
+async function enrichConnections(conns: ListedConnection[]): Promise<NangoConnectionPublic[]> {
+  const results = await Promise.all(conns.map(enrichConnection));
+
+  const identityByTag = new Map<string, { email: string; displayName?: string }>();
+  for (let i = 0; i < results.length; i++) {
+    if (!results[i].email) continue;
+    identityByTag.set(endUserTag(conns[i]), {
+      email: results[i].email!,
+      displayName: results[i].displayName,
+    });
+  }
+
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].email) continue;
+    const sibling = identityByTag.get(endUserTag(conns[i]));
+    if (!sibling) continue;
+
+    results[i] = {
+      ...results[i],
+      email: sibling.email,
+      displayName: results[i].displayName ?? sibling.displayName,
+    };
+    await persistConnectionMetadata(conns[i], sibling.email, results[i].displayName);
+  }
+
+  return results;
 }
 
 export async function hasNangoConnections(): Promise<boolean> {
@@ -124,7 +170,7 @@ export async function listNangoConnections(integrationId?: string): Promise<Nang
     c => !integrationId || c.provider_config_key === integrationId,
   ) as ListedConnection[];
 
-  return Promise.all(filtered.map(enrichConnection));
+  return enrichConnections(filtered);
 }
 
 export async function listGmailConnections(): Promise<NangoConnectionPublic[]> {
