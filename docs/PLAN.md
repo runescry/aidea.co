@@ -313,7 +313,7 @@ Mark `[x]` only when `npm run typecheck`, `npm test`, `npm run test:contract`, a
 
 ### P7.0 — Ship & stabilize
 
-- [ ] **Commit post-P6 polish** — Inbox, email edit, drafts, streaming, chat persist, reset, mobile, queue-types
+- [x] **Commit post-P6 polish** — Inbox, email edit, drafts, streaming, chat persist, reset, mobile, queue-types (`bd3a01b`)
 - [ ] **Deploy to aidea-co** — explicit user request; verify prod matches local Home/Inbox UX
 
 ### P7.1 — UX on existing data
