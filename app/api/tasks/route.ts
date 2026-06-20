@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { listActions } from '@/lib/harness/queue';
 import { buildUnifiedTaskFeed } from '@/lib/harness/tasks';
 import type { KnowledgeBase } from '@/types/knowledge-base';
@@ -8,7 +8,9 @@ import { autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const summary = new URL(req.url).searchParams.get('summary') === '1';
+
   const [actions, entities, kb] = await Promise.all([
     listActions(),
     loadEntityStates(),
@@ -19,6 +21,10 @@ export async function GET() {
     entities,
     kb: kb as KnowledgeBase,
   });
+
+  if (summary) {
+    return NextResponse.json({ needsYou });
+  }
 
   return NextResponse.json({
     tasks,

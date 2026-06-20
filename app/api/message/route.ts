@@ -3,6 +3,7 @@ import { bootstrapEntity } from '@/lib/harness/bootstrap';
 import { dispatchEntityConfig } from '@/lib/entities/daily';
 import { hasApiKey } from '@/lib/ai/provider';
 import { harnessSSEResponse } from '@/lib/api/sse';
+import { shouldUseFastChat, runFastChat } from '@/lib/harness/fast-chat';
 import type { ChatHistoryEntry } from '@/types/chat';
 
 export const runtime = 'nodejs';
@@ -35,6 +36,11 @@ export async function POST(req: NextRequest) {
   const history = Array.isArray(body.history) ? body.history.slice(-16) : [];
 
   return harnessSSEResponse(sessionId, async (send) => {
+    if (shouldUseFastChat(command, history)) {
+      await runFastChat(command, history, send, sessionId);
+      return;
+    }
+
     await bootstrapEntity(
       dispatchEntityConfig,
       { command, history },

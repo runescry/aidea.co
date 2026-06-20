@@ -21,9 +21,18 @@ function ToolPill({ tool, summary }: { tool: string; summary: string }) {
   );
 }
 
-function AssistantContent({ msg }: { msg: ChatMessage }) {
-  if (msg.status === 'streaming' && !msg.content) {
+function AssistantContent({ msg, variant }: { msg: ChatMessage; variant: 'default' | 'home' }) {
+  const isHome = variant === 'home';
+  const streaming = msg.status === 'streaming';
+
+  if (streaming && !msg.content) {
     return <span className="text-foreground-subtle animate-pulse">Working…</span>;
+  }
+
+  if (streaming && isHome && msg.content && !msg.content.includes('\n\n')) {
+    return (
+      <span className="text-foreground-muted animate-pulse">{msg.content}</span>
+    );
   }
 
   if (msg.status === 'error') {
@@ -66,11 +75,23 @@ function ChatMessageRow({ msg, variant }: { msg: ChatMessage; variant: 'default'
     );
   }
 
-  const showToolPills = variant !== 'home' && msg.toolCalls && msg.toolCalls.length > 0;
+  const showToolPills = msg.toolCalls && msg.toolCalls.length > 0;
+  const homeSteps = variant === 'home' && showToolPills;
 
   return (
     <div className="flex flex-col gap-1 max-w-[90%]">
-      {showToolPills && (
+      {homeSteps && (
+        <div className="text-[11px] text-foreground-subtle px-1">
+          {msg.status === 'streaming' ? (
+            <span className="animate-pulse">
+              Step {msg.toolCalls!.length}: {msg.toolCalls![msg.toolCalls!.length - 1].tool.replace(/_/g, ' ')}
+            </span>
+          ) : (
+            <span>{msg.toolCalls!.length} step{msg.toolCalls!.length === 1 ? '' : 's'}</span>
+          )}
+        </div>
+      )}
+      {showToolPills && variant !== 'home' && (
         <details className="px-1 group">
           <summary className="text-[11px] text-foreground-subtle cursor-pointer hover:text-foreground-muted list-none flex items-center gap-1">
             <span className="group-open:rotate-90 transition-transform inline-block">›</span>
@@ -87,8 +108,8 @@ function ChatMessageRow({ msg, variant }: { msg: ChatMessage; variant: 'default'
         variant === 'home'
           ? 'rounded-xl border border-border bg-surface-subtle/30 px-4 py-3 max-w-full'
           : 'bg-surface border border-border rounded-2xl rounded-bl-md px-4 py-2.5 shadow-sm'
-      } ${msg.status === 'streaming' && variant !== 'home' ? 'border-accent/30' : ''}`}>
-        <AssistantContent msg={msg} />
+      } ${msg.status === 'streaming' && variant !== 'home' ? 'border-accent/30' : ''} ${msg.status === 'streaming' && variant === 'home' ? 'border-accent/20' : ''}`}>
+        <AssistantContent msg={msg} variant={variant} />
       </div>
     </div>
   );
@@ -134,8 +155,8 @@ export default function ChatInterface({
   }, [streaming, onMessageComplete]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, activeConversation.id]);
+    bottomRef.current?.scrollIntoView({ behavior: streaming ? 'auto' : 'smooth' });
+  }, [messages, activeConversation.id, streaming]);
 
   useEffect(() => {
     if (isHome) inputRef.current?.focus();

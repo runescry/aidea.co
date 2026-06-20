@@ -153,11 +153,20 @@ async function enrichConnections(conns: ListedConnection[]): Promise<NangoConnec
   return results;
 }
 
+let _hasConnectionsCache: { at: number; value: boolean } | null = null;
+const NANGO_HAS_CONNECTIONS_MS = 60_000;
+
 export async function hasNangoConnections(): Promise<boolean> {
   if (!nangoConfigured()) return false;
+  const now = Date.now();
+  if (_hasConnectionsCache && now - _hasConnectionsCache.at < NANGO_HAS_CONNECTIONS_MS) {
+    return _hasConnectionsCache.value;
+  }
   const nango = getNango();
   const res = await nango.listConnections({ tags: { end_user_id: getEndUserId() } });
-  return (res.connections ?? []).length > 0;
+  const value = (res.connections ?? []).length > 0;
+  _hasConnectionsCache = { at: now, value };
+  return value;
 }
 
 function mapConnectionLite(conn: ListedConnection): NangoConnectionPublic {

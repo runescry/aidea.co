@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import type { ActionStatus } from '@/lib/harness/queue';
 import { ACTION_TYPE_LABELS } from '@/lib/harness/action-labels';
 import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
@@ -8,7 +8,7 @@ import { formatTaskTime, sessionToTask, sortTaskItems, taskToChatPrompt } from '
 import { queueActionAutonomyNote } from '@/lib/harness/proactive-tasks';
 import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
 import { patchQueueAction } from '@/lib/client/queue';
-import { usePollingFetch } from '@/hooks/usePollingFetch';
+import { useWorkFeed } from '@/hooks/useWorkFeed';
 
 type Filter = 'all' | 'needs_you' | 'running' | 'done';
 
@@ -43,7 +43,6 @@ interface SessionInfo {
 interface Props {
   session?: SessionInfo;
   onOpenStudio?: () => void;
-  refreshKey?: number;
   onDiscussInChat?: (prompt: string) => void;
   onTasksChanged?: () => void;
 }
@@ -198,34 +197,12 @@ function TaskDetail({
   );
 }
 
-export default function TaskFeed({ session, onOpenStudio, refreshKey = 0, onDiscussInChat, onTasksChanged }: Props) {
+export default function TaskFeed({ session, onOpenStudio, onDiscussInChat, onTasksChanged }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'ok' | 'err'; message: string } | null>(null);
 
-  const { data, loading, refresh } = usePollingFetch(
-    async () => {
-      const res = await fetch('/api/tasks');
-      if (!res.ok) {
-        return { tasks: [] as TaskItem[], needsYou: 0, autonomy: null };
-      }
-      return res.json() as Promise<{
-        tasks: TaskItem[];
-        needsYou: number;
-        autonomy: { level: UserAutonomyPreference; label: string; hint: string } | null;
-      }>;
-    },
-    8000,
-    [refreshKey],
-  );
-
-  useEffect(() => {
-    if (refreshKey > 0) refresh();
-  }, [refreshKey, refresh]);
-
-  const tasks = data?.tasks ?? [];
-  const needsYouCount = data?.needsYou ?? 0;
-  const autonomy = data?.autonomy ?? null;
+  const { tasks, needsYou: needsYouCount, autonomy, loading, refresh } = useWorkFeed();
 
   const allTasks = useMemo(() => {
     if (!session || session.status === 'idle') return tasks;

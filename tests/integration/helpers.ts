@@ -72,8 +72,9 @@ export async function postAgent(body: Record<string, unknown>): Promise<Response
 
 export async function getTasks(): Promise<Response> {
   if (testBaseUrl()) return httpFetch('/api/tasks');
+  const { NextRequest } = await import('next/server');
   const { GET } = await import('@/app/api/tasks/route');
-  return GET();
+  return GET(new NextRequest('http://localhost/api/tasks'));
 }
 
 export async function patchQueue(body: { id: string; status: string }): Promise<Response> {

@@ -22,7 +22,6 @@ interface Props {
   onOpenSettings?: () => void;
   onStartRun?: (entityType: HomeRunnableEntity, input: Record<string, unknown>) => void;
   runInProgress?: boolean;
-  taskRefreshKey?: number;
   onTaskRefresh?: () => void;
 }
 
@@ -33,7 +32,6 @@ export default function HomeScreen({
   onOpenSettings,
   onStartRun,
   runInProgress,
-  taskRefreshKey,
   onTaskRefresh,
 }: Props) {
   const [chatPrefill, setChatPrefill] = useState<string | null>(null);
@@ -46,7 +44,6 @@ export default function HomeScreen({
     <TaskFeed
       session={session}
       onOpenStudio={onOpenStudio}
-      refreshKey={taskRefreshKey}
       onDiscussInChat={handleDiscussInChat}
       onTasksChanged={onTaskRefresh}
     />
@@ -74,7 +71,7 @@ export default function HomeScreen({
           </div>
         </div>
 
-        <IntegrationStatusBar onOpenSettings={onOpenSettings} refreshKey={taskRefreshKey} />
+        <IntegrationStatusBar onOpenSettings={onOpenSettings} />
 
         {onStartRun && (
           <div className="shrink-0 px-3 py-2 border-b border-border lg:px-6">
