@@ -1,6 +1,6 @@
 'use client';
 import { useReducer, useRef, useCallback } from 'react';
-import type { HarnessEvent, HarnessEventType, CostSnapshot } from '@/lib/harness/types';
+import type { HarnessEvent, HarnessEventType, CostSnapshot, EntityType } from '@/lib/harness/types';
 import { consumeHarnessSSE } from '@/lib/client/sse';
 
 export interface AgentNode {
@@ -303,7 +303,7 @@ export function useHarnessSession() {
   }, []);
 
   const startSession = useCallback(async (
-    entityType: 'company' | 'personal' | 'learning' | 'creator' | 'daily',
+    entityType: EntityType,
     input: Record<string, unknown>
   ) => {
     abortRef.current?.abort();

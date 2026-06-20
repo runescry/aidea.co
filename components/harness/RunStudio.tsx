@@ -7,51 +7,12 @@ import ToolCallFeed from './ToolCallFeed';
 import StateExplorer from './StateExplorer';
 import ConsensusPanel from './ConsensusPanel';
 import ArtifactBrowser from './ArtifactBrowser';
-import type { CostSnapshot } from '@/lib/harness/types';
+import type { CostSnapshot, EntityType } from '@/lib/harness/types';
+import { STUDIO_ENTITY_META } from '@/lib/entities/run-meta';
 
-type EntityType = 'company' | 'personal' | 'learning' | 'creator' | 'daily';
 type Panel = 'graph' | 'tools' | 'state' | 'consensus' | 'artifacts';
 
-const ENTITY_META: Record<EntityType, {
-  label: string;
-  fields: Array<{ key: string; label: string; placeholder: string; type?: string }>;
-}> = {
-  company: {
-    label: 'Company',
-    fields: [
-      { key: 'idea', label: 'Startup idea', placeholder: 'A B2B SaaS tool that automates invoice reconciliation for SMBs' },
-    ],
-  },
-  personal: {
-    label: 'Personal OS',
-    fields: [
-      { key: 'prompt', label: 'Life context', placeholder: 'I\'m a 32-year-old engineer who wants to transition to founding my own company in 18 months' },
-      { key: 'priorities', label: 'Top priorities (comma-separated)', placeholder: 'financial independence, health, meaningful relationships' },
-    ],
-  },
-  learning: {
-    label: 'Learning OS',
-    fields: [
-      { key: 'goal', label: 'What do you want to learn?', placeholder: 'Become proficient in machine learning engineering' },
-      { key: 'skillLevel', label: 'Current skill level', placeholder: 'Intermediate Python dev, no ML experience' },
-      { key: 'hoursPerWeek', label: 'Hours/week available', placeholder: '8', type: 'number' },
-      { key: 'timeframe', label: 'Timeframe', placeholder: '6 months' },
-    ],
-  },
-  creator: {
-    label: 'Creator Studio',
-    fields: [
-      { key: 'prompt', label: 'Creator context', placeholder: 'I make YouTube videos about personal finance and want to monetise my 5k audience' },
-      { key: 'platform', label: 'Primary platform', placeholder: 'YouTube' },
-      { key: 'niche', label: 'Niche', placeholder: 'Personal finance for millennials' },
-      { key: 'monetisationGoal', label: 'Monetisation goal', placeholder: '$5k/month within 12 months' },
-    ],
-  },
-  daily: {
-    label: 'Daily OS',
-    fields: [],
-  },
-};
+const ENTITY_META = STUDIO_ENTITY_META;
 
 const PANELS: Array<{ id: Panel; label: string }> = [
   { id: 'artifacts', label: 'Output' },
@@ -120,7 +81,7 @@ export default function RunStudio({ state, startSession, reset }: Props) {
         </div>
 
         <div className="flex gap-1.5 flex-wrap">
-          {(Object.keys(ENTITY_META) as EntityType[]).map(e => (
+          {(Object.keys(ENTITY_META).filter(e => e !== 'custom') as EntityType[]).map(e => (
             <button
               key={e}
               type="button"

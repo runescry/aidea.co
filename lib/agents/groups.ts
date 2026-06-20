@@ -41,4 +41,14 @@ export const AGENT_GROUP_DEFS: AgentGroupDef[] = [
     label: 'Shared',
     agentIds: ['shared-researcher', 'shared-planner'],
   },
+  {
+    id: 'learning',
+    label: 'Learning OS',
+    agentIds: ['learning-ceo', 'curriculum-director', 'practice-coach', 'knowledge-synthesizer'],
+  },
+  {
+    id: 'creator',
+    label: 'Creator Studio',
+    agentIds: ['creator-ceo', 'content-director', 'production-director', 'distribution-director'],
+  },
 ];

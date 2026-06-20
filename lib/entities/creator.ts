@@ -1,13 +1,19 @@
 import type { EntityConfig } from '@/lib/harness/types';
 
-// Stub — full agent library for creator entity (Content Director, Production Director, etc.) in next phase
 export const creatorEntityConfig: EntityConfig = {
   type: 'creator',
   name: 'Creator Studio',
   mission: 'Build a content strategy, production workflow, and distribution plan for a creator building an audience and monetising their work.',
-  rootAgentId: 'ceo',        // reuses company CEO until creator-ceo is built
-  agentIds: ['ceo', 'cmo', 'cpo', 'shared-researcher', 'copywriter'],
-  availableTools: ['spawn_agent', 'wait_for_agents', 'write_state', 'read_state', 'send_message'],
+  rootAgentId: 'creator-ceo',
+  agentIds: [
+    'creator-ceo',
+    'content-director',
+    'production-director',
+    'distribution-director',
+    'shared-researcher',
+    'copywriter',
+  ],
+  availableTools: ['spawn_agent', 'wait_for_agents', 'write_state', 'read_state', 'send_message', 'kb_read', 'web_search'],
   autonomy: 'semi-auto',
   consensusThreshold: 0.66,
   costConfig: {

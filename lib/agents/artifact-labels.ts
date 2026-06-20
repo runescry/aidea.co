@@ -6,6 +6,8 @@ const ENTITY_ARTIFACT_LABELS: Record<string, string> = {
   ceo_directive: 'CEO Directive (Cycle 1)',
   ceo_directive_cycle2: 'CEO Directive (Cycle 2)',
   life_context: 'Life Context',
+  learning_context: 'Learning Context',
+  creator_context: 'Creator Context',
 };
 
 export function getArtifactLabel(key: string): string {

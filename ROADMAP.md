@@ -10,9 +10,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-20  
-**Phase:** P3 — Entity modes  
-**Next up:** Learning OS agents  
-**Session:** P2 complete (3/3). P0–P2 all local, uncommitted. Loop unreliable — work continues in chat.
+**Phase:** P4 — Workforce depth  
+**Next up:** Proactive Work items  
+**Session:** P3 complete (3/3). P0–P2 committed (`2ff945a`). P3 local, uncommitted.
 
 ---
 
@@ -45,9 +45,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 ## P3 — Entity modes (stubs)
 
-- [ ] **Learning OS agents** — Dedicated library + entity config (replace `life-ceo` stub in `lib/entities/learning.ts`)
-- [ ] **Creator Studio agents** — Content/Production/Distribution agents (replace `ceo` stub in `lib/entities/creator.ts`)
-- [ ] **Invoke modes from Home** — Chat or command palette can start company/learning/creator runs without opening Studio
+- [x] **Learning OS agents** — Dedicated library + entity config (replace `life-ceo` stub in `lib/entities/learning.ts`)
+- [x] **Creator Studio agents** — Content/Production/Distribution agents (replace `ceo` stub in `lib/entities/creator.ts`)
+- [x] **Invoke modes from Home** — Chat or command palette can start company/learning/creator runs without opening Studio
 
 ---
 
@@ -84,3 +84,4 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 - 2026-06-20 — P0 batch (chat context, instant refresh, nav badge, mobile stack) — `HomeScreen`, `ChatInterface`, `TaskFeed`, `AppSidebar`, `MobileBottomNav`, `HarnessDashboard`
 - 2026-06-20 — P1 batch (integration bar, chat restore UX, Work previews, approve feedback) — `lib/integrations.ts`, `IntegrationStatusBar`, `TaskFeed`, `ChatInterface`
 - 2026-06-20 — P2 batch (ProfileSections, artifact labels, agent groups) — `profile/ProfileSections.tsx`, `lib/agents/artifact-labels.ts`, `lib/agents/groups.ts`
+- 2026-06-20 — P3 batch (learning/creator agents, Home run launcher) — `lib/agents/library/learning`, `lib/agents/library/creator`, `EntityRunLauncher.tsx`

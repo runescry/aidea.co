@@ -102,6 +102,11 @@ export default function HarnessDashboard() {
               onOpenStudio={() => setView('studio')}
               onOpenSettings={() => setView('settings')}
               onOpenChats={() => setChatDrawerOpen(true)}
+              onStartRun={(entityType, input) => {
+                startSession(entityType, input);
+                setTaskRefreshKey(k => k + 1);
+              }}
+              runInProgress={agentsRunning}
               taskRefreshKey={taskRefreshKey}
               onTaskRefresh={() => setTaskRefreshKey(k => k + 1)}
             />

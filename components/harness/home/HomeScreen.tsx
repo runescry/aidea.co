@@ -4,7 +4,9 @@ import { useState, useCallback } from 'react';
 import ChatInterface from '../ChatInterface';
 import TaskFeed from './TaskFeed';
 import IntegrationStatusBar from './IntegrationStatusBar';
+import EntityRunLauncher from './EntityRunLauncher';
 import { IconMenu } from '../sidebar/icons';
+import { HOME_RUN_ENTITIES, type HomeRunnableEntity } from '@/lib/entities/run-meta';
 
 interface SessionInfo {
   status: 'idle' | 'running' | 'paused' | 'complete' | 'error';
@@ -18,6 +20,8 @@ interface Props {
   onOpenStudio?: () => void;
   onOpenChats?: () => void;
   onOpenSettings?: () => void;
+  onStartRun?: (entityType: HomeRunnableEntity, input: Record<string, unknown>) => void;
+  runInProgress?: boolean;
   taskRefreshKey?: number;
   onTaskRefresh?: () => void;
 }
@@ -27,6 +31,8 @@ export default function HomeScreen({
   onOpenStudio,
   onOpenChats,
   onOpenSettings,
+  onStartRun,
+  runInProgress,
   taskRefreshKey,
   onTaskRefresh,
 }: Props) {
@@ -69,6 +75,12 @@ export default function HomeScreen({
         </div>
 
         <IntegrationStatusBar onOpenSettings={onOpenSettings} refreshKey={taskRefreshKey} />
+
+        {onStartRun && (
+          <div className="shrink-0 px-3 py-2 border-b border-border lg:px-6">
+            <EntityRunLauncher disabled={runInProgress} onStartRun={onStartRun} />
+          </div>
+        )}
 
         <div className="flex-1 min-h-0 flex flex-col px-3 py-2 sm:px-4 lg:px-6 lg:py-3">
           <ChatInterface

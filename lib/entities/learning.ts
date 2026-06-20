@@ -1,13 +1,19 @@
 import type { EntityConfig } from '@/lib/harness/types';
 
-// Stub — full agent library for learning entity to be built in next phase
 export const learningEntityConfig: EntityConfig = {
   type: 'learning',
   name: 'Learning OS',
   mission: 'Design a personalised curriculum and produce a concrete learning plan with resources, practice schedule, and knowledge synthesis framework.',
-  rootAgentId: 'life-ceo',   // reuses life-ceo as root until learning-ceo is built
-  agentIds: ['life-ceo', 'growth-director', 'shared-researcher', 'shared-planner'],
-  availableTools: ['spawn_agent', 'wait_for_agents', 'write_state', 'read_state', 'send_message'],
+  rootAgentId: 'learning-ceo',
+  agentIds: [
+    'learning-ceo',
+    'curriculum-director',
+    'practice-coach',
+    'knowledge-synthesizer',
+    'shared-researcher',
+    'shared-planner',
+  ],
+  availableTools: ['spawn_agent', 'wait_for_agents', 'write_state', 'read_state', 'send_message', 'kb_read'],
   autonomy: 'semi-auto',
   consensusThreshold: 0.70,
   costConfig: {

@@ -34,6 +34,19 @@ import { mentalHealthDirectorDef } from './personal/mental-health-director';
 import { valuesDirectorDef } from './personal/values-director';
 import { relationshipMonitorDef } from './personal/relationship-monitor';
 
+import {
+  learningCeoDef,
+  curriculumDirectorDef,
+  practiceCoachDef,
+  knowledgeSynthesizerDef,
+} from './learning';
+import {
+  creatorCeoDef,
+  contentDirectorDef,
+  productionDirectorDef,
+  distributionDirectorDef,
+} from './creator';
+
 export const AGENT_LIBRARY: Record<string, AgentDefinition> = {
   // Company
   'ceo': ceoDef,
@@ -71,6 +84,18 @@ export const AGENT_LIBRARY: Record<string, AgentDefinition> = {
   // Shared
   'shared-researcher': sharedResearcherDef,
   'shared-planner': sharedPlannerDef,
+
+  // Learning OS
+  'learning-ceo': learningCeoDef,
+  'curriculum-director': curriculumDirectorDef,
+  'practice-coach': practiceCoachDef,
+  'knowledge-synthesizer': knowledgeSynthesizerDef,
+
+  // Creator Studio
+  'creator-ceo': creatorCeoDef,
+  'content-director': contentDirectorDef,
+  'production-director': productionDirectorDef,
+  'distribution-director': distributionDirectorDef,
 };
 
 export function getAgentDef(id: string): AgentDefinition {
