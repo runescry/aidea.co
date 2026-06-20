@@ -143,6 +143,30 @@ export function entityStateToTask(entity: EntityState): TaskItem {
 }
 
 const RECENT_ENTITY_MS = 7 * 24 * 60 * 60 * 1000;
+/** Runs left "running" after disconnect/timeout — treat as failed in Work feed. */
+export const STALE_RUNNING_ENTITY_MS = 45 * 60 * 1000;
+/** Runs that never wrote artifacts — likely a dropped SSE / killed function. */
+export const STALE_EMPTY_RUN_MS = 5 * 60 * 1000;
+
+const BOOTSTRAP_DATA_KEYS = new Set([
+  'currentDate', 'currentTime', 'dayOfWeek', 'command', 'conversationHistory',
+]);
+
+function entityHasRunProgress(entity: EntityState): boolean {
+  return Object.keys(entity.data).some(key => !BOOTSTRAP_DATA_KEYS.has(key));
+}
+
+export function isStaleRunningEntity(entity: EntityState, now = Date.now()): boolean {
+  if (entity.status !== 'running' && entity.status !== 'paused') return false;
+  const age = now - new Date(entity.updatedAt).getTime();
+  if (!entityHasRunProgress(entity) && age > STALE_EMPTY_RUN_MS) return true;
+  return age > STALE_RUNNING_ENTITY_MS;
+}
+
+export function normalizeEntityForFeed(entity: EntityState, now = Date.now()): EntityState {
+  if (!isStaleRunningEntity(entity, now)) return entity;
+  return { ...entity, status: 'error' };
+}
 
 export function buildUnifiedTaskFeed(input: {
   actions: QueuedAction[];
@@ -155,10 +179,11 @@ export function buildUnifiedTaskFeed(input: {
 
   const entityTasks = input.entities
     .filter(entity => {
-      if (entity.status === 'running' || entity.status === 'paused') return true;
-      return now - new Date(entity.updatedAt).getTime() <= RECENT_ENTITY_MS;
+      const normalized = normalizeEntityForFeed(entity, now);
+      if (normalized.status === 'running' || normalized.status === 'paused') return true;
+      return now - new Date(normalized.updatedAt).getTime() <= RECENT_ENTITY_MS;
     })
-    .map(entityStateToTask);
+    .map(entity => entityStateToTask(normalizeEntityForFeed(entity, now)));
 
   const proactiveTasks = input.kb ? buildProactiveTasks({ kb: input.kb, entities: input.entities }) : [];
   const existingIds = new Set([...queueTasks, ...entityTasks].map(t => t.id));

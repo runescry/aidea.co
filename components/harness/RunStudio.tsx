@@ -117,7 +117,11 @@ export default function RunStudio({ state, startSession, reset }: Props) {
               ) : state.status === 'running' ? (
                 <>
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse mr-1.5 align-middle" />
-                  {activeAgents} agent{activeAgents !== 1 ? 's' : ''} running
+                  {activeAgents > 0
+                    ? `${activeAgents} agent${activeAgents !== 1 ? 's' : ''} running`
+                    : Object.keys(state.agents).length > 0
+                      ? `${Object.keys(state.agents).length} agent${Object.keys(state.agents).length !== 1 ? 's' : ''} · starting up…`
+                      : 'Connecting to agents…'}
                 </>
               ) : (
                 `${Object.keys(state.agents).length} agents · ${state.toolCalls.length} tool calls · ${state.status}`
@@ -189,10 +193,17 @@ export default function RunStudio({ state, startSession, reset }: Props) {
             )}
             {panel === 'artifacts' && (
               <div className="h-full card p-4 overflow-y-auto">
-                {state.status === 'starting' && Object.keys(state.agents).length === 0 ? (
+                {(state.status === 'starting' || state.status === 'running')
+                  && Object.keys(state.entityState).length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-center gap-3">
                     <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                    <p className="text-caption text-foreground-muted">Connecting to agent workforce…</p>
+                    <p className="text-caption text-foreground-muted">
+                      {state.status === 'starting'
+                        ? 'Connecting to agent workforce…'
+                        : state.toolCalls.length > 0
+                          ? `Agents working — ${state.toolCalls.length} tool call${state.toolCalls.length !== 1 ? 's' : ''} so far`
+                          : 'Agents are thinking — first output usually appears within a minute'}
+                    </p>
                   </div>
                 ) : (
                   <ArtifactBrowser entityState={state.entityState} />

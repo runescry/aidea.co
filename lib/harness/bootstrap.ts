@@ -16,15 +16,22 @@ export async function bootstrapEntity(
   sessionId: string
 ): Promise<EntityState> {
   const entityId = crypto.randomUUID();
-
-  // ── Build initial state ─────────────────────────────────────────────────────
   const initialData = config.buildInitialContext(input);
   const state = createEntityState(entityId, config.type, config.name, initialData);
-  if (!config.deferStatePersist) {
-    await persistEntityState(state);
-  }
 
-  // ── Build registry & infrastructure ────────────────────────────────────────
+  send({
+    type: 'entity_started',
+    sessionId,
+    entityId,
+    data: {
+      entityType: config.type,
+      entityName: config.name,
+      mission: config.mission,
+      inputKeys: Object.keys(input),
+    },
+    timestamp: new Date().toISOString(),
+  });
+
   const registry = createRegistry(entityId);
   const bus = createMessageBus();
 
@@ -32,6 +39,10 @@ export async function bootstrapEntity(
     hasNangoConnections(),
     loadAgentOverrides(),
   ]);
+
+  if (!config.deferStatePersist) {
+    await persistEntityState(state);
+  }
 
   let realWorldMode =
     config.costConfig?.realWorldToolMode ?? DEFAULT_COST_CONFIG.realWorldToolMode;
@@ -62,20 +73,6 @@ export async function bootstrapEntity(
     agentOverrides,
   };
 
-  send({
-    type: 'entity_started',
-    sessionId,
-    entityId,
-    data: {
-      entityType: config.type,
-      entityName: config.name,
-      mission: config.mission,
-      inputKeys: Object.keys(input),
-    },
-    timestamp: new Date().toISOString(),
-  });
-
-  // ── Spawn root agent ────────────────────────────────────────────────────────
   const rootDef = resolveLibraryAgent(config.rootAgentId, agentOverrides);
   const taskSpec = config.buildInitialTask(input);
   const rootAgent = buildHarnessAgent(rootDef, entityId, null, 0, taskSpec.description);
@@ -95,11 +92,13 @@ export async function bootstrapEntity(
     timestamp: new Date().toISOString(),
   });
 
-  // ── Run entity ──────────────────────────────────────────────────────────────
+  if (config.deferStatePersist) {
+    await persistEntityState(state);
+  }
+
   try {
     await runAgentLoop(rootAgent, ctx);
 
-    // Wait for all spawned agents to complete
     await waitForAllAgents(registry, ctx);
 
     state.status = 'complete';
@@ -146,7 +145,6 @@ async function waitForAllAgents(
     await new Promise(r => setTimeout(r, 1000));
   }
 
-  // Mark remaining agents as errored
   for (const [id, agent] of registry.agents) {
     if (agent.status === 'running' || agent.status === 'idle' || agent.status === 'waiting') {
       ctx.send({

@@ -1,6 +1,6 @@
 'use client';
-import { useReducer, useRef, useCallback } from 'react';
-import type { HarnessEvent, HarnessEventType, CostSnapshot, EntityType } from '@/lib/harness/types';
+import { useReducer, useRef, useCallback, useEffect } from 'react';
+import type { HarnessEvent, HarnessEventType, CostSnapshot, EntityType, EntityState } from '@/lib/harness/types';
 import { consumeHarnessSSE } from '@/lib/client/sse';
 
 export interface AgentNode {
@@ -61,6 +61,7 @@ export interface HarnessState {
 type Action =
   | { type: 'HARNESS_EVENT'; event: HarnessEvent }
   | { type: 'SESSION_START'; entityType: EntityType }
+  | { type: 'ENTITY_SYNC'; entity: EntityState }
   | { type: 'RESET' }
   | { type: 'CLEAR_PENDING_INPUT' };
 
@@ -82,6 +83,27 @@ function reducer(state: HarnessState, action: Action): HarnessState {
   if (action.type === 'CLEAR_PENDING_INPUT') return { ...state, pendingInput: null };
   if (action.type === 'SESSION_START') {
     return { ...INITIAL_STATE, status: 'starting', entityType: action.entityType };
+  }
+
+  if (action.type === 'ENTITY_SYNC') {
+    const entity = action.entity;
+    const entityState = { ...state.entityState, ...entity.data };
+    const base = {
+      ...state,
+      entityId: entity.entityId,
+      entityType: entity.entityType,
+      entityState,
+    };
+    if (entity.status === 'complete' && state.status !== 'complete') {
+      return { ...base, status: 'complete' as const };
+    }
+    if (entity.status === 'error' && state.status !== 'error') {
+      return { ...base, status: 'error' as const, error: 'Run failed on server' };
+    }
+    if (state.status === 'starting') {
+      return { ...base, status: 'running' as const };
+    }
+    return base;
   }
 
   const { event } = action;
@@ -311,6 +333,29 @@ function reducer(state: HarnessState, action: Action): HarnessState {
 export function useHarnessSession() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!state.entityId || (state.status !== 'starting' && state.status !== 'running')) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/entity/${state.entityId}`);
+        if (!res.ok || cancelled) return;
+        const entity = await res.json() as EntityState;
+        if (!cancelled) dispatch({ type: 'ENTITY_SYNC', entity });
+      } catch {
+        // ignore poll errors
+      }
+    };
+
+    void poll();
+    const interval = setInterval(poll, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [state.entityId, state.status]);
 
   const clearPendingInput = useCallback(() => {
     dispatch({ type: 'CLEAR_PENDING_INPUT' });
