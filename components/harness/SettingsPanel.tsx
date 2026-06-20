@@ -12,7 +12,25 @@ interface NangoConnection {
   connectionId: string;
   integrationId: string;
   email?: string;
+  displayName?: string;
   createdAt?: string;
+}
+
+const INTEGRATION_LABELS: Record<string, string> = {
+  'google-mail': 'Gmail',
+  'google-calendar': 'Calendar',
+};
+
+function connectionTitle(conn: NangoConnection): string {
+  if (conn.email) return conn.email;
+  if (conn.displayName) return conn.displayName;
+  return conn.connectionId;
+}
+
+function connectionSubtitle(conn: NangoConnection): string {
+  const label = INTEGRATION_LABELS[conn.integrationId] ?? conn.integrationId;
+  if (conn.displayName && conn.email) return `${label} · ${conn.displayName}`;
+  return label;
 }
 
 interface SettingField {
@@ -52,6 +70,7 @@ export default function SettingsPanel() {
   const [nangoConfigured, setNangoConfigured] = useState(false);
   const [connections, setConnections] = useState<NangoConnection[]>([]);
   const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   const loadConnections = useCallback(async () => {
     const res = await fetch('/api/nango/connections');
@@ -91,6 +110,7 @@ export default function SettingsPanel() {
 
   const handleConnectGoogle = async () => {
     setConnecting(true);
+    setConnectError(null);
     try {
       const res = await fetch('/api/nango/session', {
         method: 'POST',
@@ -99,7 +119,8 @@ export default function SettingsPanel() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { error?: string };
-        alert(err.error ?? 'Failed to start Google connect');
+        const message = err.error ?? `Failed to start Google connect (${res.status})`;
+        setConnectError(message);
         return;
       }
       const { sessionToken } = await res.json() as { sessionToken: string };
@@ -111,13 +132,14 @@ export default function SettingsPanel() {
         },
       });
       connect.setSessionToken(sessionToken);
-    } catch {
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : 'Failed to start Google connect');
       setConnecting(false);
     }
   };
 
   const handleDisconnect = async (conn: NangoConnection) => {
-    if (!confirm(`Disconnect ${conn.email ?? conn.connectionId}?`)) return;
+    if (!confirm(`Disconnect ${connectionTitle(conn)}?`)) return;
     await fetch(
       `/api/nango/connections?connectionId=${encodeURIComponent(conn.connectionId)}&integrationId=${encodeURIComponent(conn.integrationId)}`,
       { method: 'DELETE' },
@@ -218,14 +240,26 @@ export default function SettingsPanel() {
           </p>
         )}
 
+        {connectError && (
+          <p className="text-xs text-red-600 dark:text-red-400 whitespace-pre-wrap">
+            {connectError}
+          </p>
+        )}
+
+        {nangoConfigured && (
+          <p className="text-[11px] text-foreground-subtle font-mono">
+            Expected Nango integration keys: google-mail, google-calendar (override via env)
+          </p>
+        )}
+
         {connections.length > 0 ? (
           <ul className="divide-y divide-border rounded-md border border-border">
             {connections.map(conn => (
               <li key={conn.connectionId} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <StatusDot configured />
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{conn.email ?? conn.connectionId}</div>
-                  <div className="text-[11px] text-foreground-subtle">{conn.integrationId}</div>
+                  <div className="font-medium truncate">{connectionTitle(conn)}</div>
+                  <div className="text-[11px] text-foreground-subtle">{connectionSubtitle(conn)}</div>
                 </div>
                 <button
                   onClick={() => handleDisconnect(conn)}
