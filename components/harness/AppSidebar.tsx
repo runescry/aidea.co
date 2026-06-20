@@ -65,7 +65,7 @@ export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStud
 
   return (
     <aside
-      className={`shrink-0 flex flex-col h-full border-r border-border bg-surface transition-[width] duration-200 ease-out ${
+      className={`hidden md:flex shrink-0 flex-col h-full border-r border-border bg-surface transition-[width] duration-200 ease-out ${
         expanded ? 'w-60' : 'w-14'
       }`}
     >

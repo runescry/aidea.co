@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useHarnessSession } from '@/hooks/useHarnessSession';
 import { ChatProvider } from '@/hooks/useChatConversations';
 import AppSidebar, { type MainView } from './AppSidebar';
+import MobileBottomNav from './MobileBottomNav';
+import ConversationDrawer from './sidebar/ConversationDrawer';
 import HomeScreen from './home/HomeScreen';
 import RunStudio from './RunStudio';
 import KnowledgeBaseEditor from './KnowledgeBaseEditor';
@@ -17,6 +19,7 @@ export default function HarnessDashboard() {
   const [view, setView] = useState<MainView>('home');
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [taskRefreshKey, setTaskRefreshKey] = useState(0);
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/onboarding')
@@ -30,6 +33,7 @@ export default function HarnessDashboard() {
 
   const navigate = (next: MainView) => {
     setView(next);
+    setChatDrawerOpen(false);
     if (next === 'context') setTaskRefreshKey(k => k + 1);
   };
 
@@ -47,7 +51,7 @@ export default function HarnessDashboard() {
 
   return (
     <ChatProvider>
-      <div className="h-screen bg-surface-muted text-foreground flex overflow-hidden">
+      <div className="h-[100dvh] bg-surface-muted text-foreground flex overflow-hidden">
         <HumanInputOverlay
           pending={state.pendingInput ?? null}
           onSubmit={(_requestId, _answer) => {
@@ -63,7 +67,12 @@ export default function HarnessDashboard() {
           onOpenStudio={() => setView('studio')}
         />
 
-        <main className="flex-1 flex flex-col min-w-0 min-h-0">
+        <ConversationDrawer
+          open={chatDrawerOpen && view === 'home'}
+          onClose={() => setChatDrawerOpen(false)}
+        />
+
+        <main className="flex-1 flex flex-col min-w-0 min-h-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
           {view === 'home' && (
             <HomeScreen
               session={{
@@ -72,6 +81,7 @@ export default function HarnessDashboard() {
                 activeAgents,
               }}
               onOpenStudio={() => setView('studio')}
+              onOpenChats={() => setChatDrawerOpen(true)}
               taskRefreshKey={taskRefreshKey}
               onTaskRefresh={() => setTaskRefreshKey(k => k + 1)}
             />
@@ -84,7 +94,7 @@ export default function HarnessDashboard() {
           )}
 
           {view === 'context' && (
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6">
               <KnowledgeBaseEditor
                 refreshKey={taskRefreshKey}
                 onRestartOnboarding={() => setShowOnboarding(true)}
@@ -93,11 +103,17 @@ export default function HarnessDashboard() {
           )}
 
           {view === 'settings' && (
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6">
               <SettingsPanel />
             </div>
           )}
         </main>
+
+        <MobileBottomNav
+          view={view}
+          onNavigate={navigate}
+          agentsRunning={agentsRunning}
+        />
       </div>
     </ChatProvider>
   );

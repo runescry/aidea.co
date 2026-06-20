@@ -27,7 +27,7 @@ export default function ConversationList() {
               type="button"
               onClick={() => switchConversation(conv.id)}
               disabled={streaming && !active}
-              className={`w-full text-left px-2.5 py-2 rounded-lg text-[13px] truncate transition-colors ${
+              className={`w-full text-left px-2.5 py-2.5 rounded-lg text-[13px] truncate transition-colors ${
                 active
                   ? 'bg-surface-subtle text-foreground font-medium'
                   : 'text-foreground-muted hover:text-foreground hover:bg-surface-subtle/70'

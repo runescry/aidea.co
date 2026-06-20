@@ -164,8 +164,12 @@ export default function AgentLibrary() {
   }
 
   return (
-    <div className="flex-1 flex min-h-0">
-      <aside className="w-[300px] shrink-0 border-r border-border bg-surface overflow-y-auto">
+    <div className="flex-1 flex flex-col md:flex-row min-h-0">
+      <aside
+        className={`${
+          selectedId ? 'hidden md:flex' : 'flex flex-1 md:flex-none min-h-0'
+        } w-full md:w-[280px] lg:w-[300px] shrink-0 border-b md:border-b-0 md:border-r border-border bg-surface overflow-y-auto`}
+      >
         <div className="px-4 py-3 border-b border-border">
           <h2 className="text-[13px] font-semibold text-foreground">Agent library</h2>
           <p className="text-[11px] text-foreground-subtle mt-0.5">
@@ -201,13 +205,20 @@ export default function AgentLibrary() {
         ))}
       </aside>
 
-      <main className="flex-1 overflow-y-auto min-w-0">
+      <main className={`${!selectedId ? 'hidden md:block' : 'block'} flex-1 overflow-y-auto min-w-0 min-h-0`}>
         {!selected ? (
-          <div className="flex items-center justify-center h-full text-sm text-foreground-muted">
+          <div className="hidden md:flex items-center justify-center h-full text-sm text-foreground-muted">
             Select an agent
           </div>
         ) : (
-          <div className="max-w-2xl mx-auto p-6 space-y-6">
+          <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-6">
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              className="md:hidden text-[12px] text-foreground-muted hover:text-foreground -mt-1 mb-2"
+            >
+              ← All agents
+            </button>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-lg font-semibold text-foreground">{selected.displayName}</h1>
@@ -228,7 +239,7 @@ export default function AgentLibrary() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div className="rounded-lg border border-border p-3">
                 <div className="text-[10px] uppercase tracking-wider text-foreground-subtle mb-1">Archetype</div>
                 <div className="text-foreground capitalize">{selected.archetype}</div>

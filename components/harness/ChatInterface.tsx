@@ -132,7 +132,7 @@ export default function ChatInterface({ variant = 'default', onMessageComplete }
   };
 
   const composer = (
-    <div className={isHome ? 'shrink-0 pt-4 pb-5' : 'border-t border-border pt-4'}>
+    <div className={isHome ? 'shrink-0 pt-3 pb-3 md:pt-4 md:pb-5' : 'border-t border-border pt-4'}>
       {isHome && (
         <label htmlFor="chief-of-staff-input" className="block text-[11px] font-medium text-foreground-muted mb-2">
           Message
@@ -174,7 +174,7 @@ export default function ChatInterface({ variant = 'default', onMessageComplete }
         </button>
       </div>
       {isHome && (
-        <p className="text-[10px] text-foreground-subtle mt-2">Enter to send · Shift+Enter for new line</p>
+        <p className="text-[10px] text-foreground-subtle mt-2 hidden sm:block">Enter to send · Shift+Enter for new line</p>
       )}
     </div>
   );
