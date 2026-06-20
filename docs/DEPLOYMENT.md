@@ -1,0 +1,66 @@
+# Deployment — Vercel + Postgres
+
+aidea runs locally with JSON files under `data/`. For production (especially multi-user), point storage at Postgres via `DATABASE_URL`.
+
+## Quick checklist
+
+1. Deploy the Next.js app to [Vercel](https://vercel.com).
+2. Create a Postgres database (Neon, Supabase, Vercel Postgres, or RDS).
+3. Set environment variables in Vercel (Project → Settings → Environment Variables).
+4. Redeploy so migrations run on first request.
+
+## Required environment variables
+
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | Postgres connection string. Also accepts `POSTGRES_URL` or `POSTGRES_PRISMA_URL`. |
+| `ANTHROPIC_API_KEY` | Claude models for agents |
+| `DEFAULT_USER_ID` | Tenant id for single-user deploys (default: `default`). Set per user when you add auth. |
+
+## Optional integrations
+
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Gmail & Calendar |
+| `BRAVE_SEARCH_API_KEY` | Web search tool |
+| `NANGO_SECRET_KEY` | OAuth connection management |
+| `AI_GATEWAY_API_KEY` | Vercel AI Gateway (alternative to direct Anthropic) |
+
+Copy from [`.env.local.example`](../.env.local.example) for local development.
+
+## How storage switches
+
+- **No `DATABASE_URL`:** reads/writes `data/*.json` on the local filesystem.
+- **With `DATABASE_URL`:** uses Postgres tables defined in [`lib/db/schema.sql`](../lib/db/schema.sql). Schema is applied automatically via [`lib/db/migrate.ts`](../lib/db/migrate.ts) on first DB access.
+
+Tables include: `profiles`, `action_queue`, `action_audit`, `harness_entities`, `chat_conversations`, `app_settings`, and others.
+
+## Vercel-specific notes
+
+- **Settings panel writes are disabled on Vercel** (`isProductionDeploy()`). API keys must be set as Vercel environment variables, not via the in-app Settings form.
+- **Serverless:** the Postgres client uses `max: 1` connection per instance — suitable for Neon/serverless Postgres.
+- **Build:** run locally before shipping:
+
+```bash
+npm run typecheck && npm test && npm run test:contract && npm run build
+```
+
+## Single-user vs multi-user
+
+Today, `DEFAULT_USER_ID` scopes all rows. For true multi-user:
+
+1. Add authentication (e.g. Clerk, Auth.js) and set `DEFAULT_USER_ID` from the session in middleware or API routes.
+2. Ensure every storage call uses `getUserId()` (already centralized in [`lib/storage/index.ts`](../lib/storage/index.ts)).
+
+## Verify Postgres locally
+
+```bash
+export DATABASE_URL="postgresql://user:pass@localhost:5432/aidea"
+npm run dev
+```
+
+On first API hit, tables are created. Profile and queue data persist in Postgres instead of `data/`.
+
+## Audit trail
+
+Queue approve/reject/execute/fail events append to `action_audit` (Postgres) or `data/action-audit.json` (filesystem). Read via `GET /api/queue/audit`.

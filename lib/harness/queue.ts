@@ -4,6 +4,7 @@ import {
 } from '@/lib/storage';
 import { applyKbPatch, kbPatchInputFromPayload } from './kb-updates';
 import { executeQueuedAction } from './execute-queued-action';
+import { recordQueueAudit } from './queue-audit';
 
 export type ActionType =
   | 'email_reply'
@@ -63,8 +64,10 @@ export async function updateActionStatus(
   if (idx === -1) return null;
 
   const action = all[idx];
-  all[idx] = { ...action, status, resolvedAt: new Date().toISOString() };
+  const resolvedAt = new Date().toISOString();
+  all[idx] = { ...action, status, resolvedAt };
   await replaceQueue(all);
+  await recordQueueAudit({ ...action, status, resolvedAt });
 
   if (status === 'approved') {
     try {
@@ -78,11 +81,13 @@ export async function updateActionStatus(
       } else if (action.tool === 'gmail_send' || action.tool === 'calendar_create') {
         await executeQueuedAction(action);
       }
-      all[idx] = { ...all[idx], status: 'executed' };
+      all[idx] = { ...all[idx], status: 'executed', resolvedAt: new Date().toISOString() };
       await replaceQueue(all);
+      await recordQueueAudit(all[idx]);
     } catch {
-      all[idx] = { ...all[idx], status: 'failed' };
+      all[idx] = { ...all[idx], status: 'failed', resolvedAt: new Date().toISOString() };
       await replaceQueue(all);
+      await recordQueueAudit(all[idx]);
     }
   }
 

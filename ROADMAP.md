@@ -10,9 +10,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-20  
-**Phase:** P5 — Brand & scale  
-**Next up:** Visual system pass  
-**Session:** P4 complete (3/3). P0–P3 on main. P4 ready to commit.
+**Phase:** Roadmap complete (P0–P5)  
+**Next up:** None — all planned items shipped  
+**Session:** P5 committed and pushed to main.
 
 ---
 
@@ -61,10 +61,10 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 ## P5 — Brand & scale
 
-- [ ] **Visual system pass** — Typography, icons (replace emoji entity chips in Studio), output-first templates
-- [ ] **Onboarding quick start** — 3-step path; defer full 18-step wizard to Context
-- [ ] **Action audit trail** — Log approved/rejected queue items with timestamp
-- [ ] **Multi-user / Postgres production path** — Document and verify Vercel + Postgres deploy
+- [x] **Visual system pass** — Typography, icons (replace emoji entity chips in Studio), output-first templates
+- [x] **Onboarding quick start** — 3-step path; defer full 18-step wizard to Context
+- [x] **Action audit trail** — Log approved/rejected queue items with timestamp
+- [x] **Multi-user / Postgres production path** — Document and verify Vercel + Postgres deploy
 
 ---
 
@@ -86,3 +86,4 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 - 2026-06-20 — P2 batch (ProfileSections, artifact labels, agent groups) — `profile/ProfileSections.tsx`, `lib/agents/artifact-labels.ts`, `lib/agents/groups.ts`
 - 2026-06-20 — P3 batch (learning/creator agents, Home run launcher) — `lib/agents/library/learning`, `lib/agents/library/creator`, `EntityRunLauncher.tsx`
 - 2026-06-20 — P4 batch (proactive Work, autonomy UI, running filter) — `lib/harness/proactive-tasks.ts`, `TaskFeed.tsx`, `/api/tasks`
+- 2026-06-20 — P5 batch (visual system, quick onboarding, audit trail, deploy docs) — `EntityTypeIcon`, `QuickStartOnboarding`, `queue-audit`, `docs/DEPLOYMENT.md`

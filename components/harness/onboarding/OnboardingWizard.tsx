@@ -140,7 +140,12 @@ export default function OnboardingWizard({ onComplete }: Props) {
         <div className="max-w-xl mx-auto space-y-5">
           {current.id === 'welcome' && (
             <div className="text-center space-y-4 py-6">
-              <div className="text-5xl">☀</div>
+              <div className="mx-auto w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
+                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+                  <circle cx="12" cy="12" r="4" />
+                  <path strokeLinecap="round" d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2" />
+                </svg>
+              </div>
               <h1 className="text-2xl font-semibold text-foreground">Let&apos;s build your profile</h1>
               <p className="text-foreground-muted leading-relaxed">
                 Your chief of staff needs real context — not generic prompts. We&apos;ll walk through
@@ -650,7 +655,11 @@ export default function OnboardingWizard({ onComplete }: Props) {
 
           {current.id === 'complete' && (
             <div className="text-center space-y-4 py-6">
-              <div className="text-5xl">✓</div>
+              <div className="mx-auto w-14 h-14 rounded-full bg-success/10 flex items-center justify-center text-success">
+                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 6 9 17l-5-5" />
+                </svg>
+              </div>
               <h1 className="text-2xl font-semibold text-foreground">Profile complete, {firstName}</h1>
               <p className="text-foreground-muted leading-relaxed">
                 {countFilledSections(data)} sections saved. Agents will read this for every run.

@@ -113,8 +113,19 @@ export default function ArtifactBrowser({ entityState }: Props) {
 
   if (all.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-foreground-subtle text-sm">
-        No artifacts yet — agents produce these as they work
+      <div className="flex flex-col items-center justify-center h-full gap-3 px-4">
+        <p className="text-caption text-foreground-muted text-center max-w-sm">
+          Artifacts appear here as agents write state — briefs, drafts, research notes, and deliverables.
+        </p>
+        <div className="card p-3 w-full max-w-xs space-y-2">
+          <div className="text-micro font-medium text-foreground-subtle uppercase tracking-wide">Example output</div>
+          {['Morning brief', 'Email draft', 'Research summary'].map(label => (
+            <div key={label} className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-accent/40 shrink-0" aria-hidden />
+              <span className="text-caption text-foreground-muted">{label}</span>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

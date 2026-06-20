@@ -59,3 +59,15 @@ CREATE TABLE IF NOT EXISTS chat_meta (
 
 CREATE INDEX IF NOT EXISTS idx_chat_conversations_user_updated
   ON chat_conversations (user_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS action_audit (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL DEFAULT 'default',
+  action_id TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  resolved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_action_audit_user_resolved
+  ON action_audit (user_id, resolved_at DESC);

@@ -225,3 +225,31 @@ export async function deleteChatConversation(userId: string, id: string): Promis
   await upsertChatMeta(userId, store.activeId);
   return store;
 }
+
+export async function listQueueAudit(
+  userId: string
+): Promise<import('@/lib/harness/queue-audit').QueueAuditEntry[]> {
+  const sql = getSql();
+  const rows = await sql<{ payload: import('@/lib/harness/queue-audit').QueueAuditEntry }[]>`
+    SELECT payload FROM action_audit WHERE user_id = ${userId} ORDER BY resolved_at ASC
+  `;
+  return rows.map(r => r.payload);
+}
+
+export async function appendQueueAudit(
+  userId: string,
+  entry: import('@/lib/harness/queue-audit').QueueAuditEntry
+): Promise<void> {
+  const sql = getSql();
+  await sql`
+    INSERT INTO action_audit (id, user_id, action_id, payload, resolved_at)
+    VALUES (
+      ${entry.id},
+      ${userId},
+      ${entry.actionId},
+      ${sql.json(toJson(entry))},
+      ${entry.resolvedAt}
+    )
+    ON CONFLICT (id, user_id) DO NOTHING
+  `;
+}

@@ -147,3 +147,20 @@ export async function deleteChatConversation(id: string): Promise<ChatStore> {
   if (usePostgres()) return pg.deleteChatConversation(userId, id);
   return fs.deleteChatConversation(id);
 }
+
+export async function listQueueAuditEntries(): Promise<
+  import('@/lib/harness/queue-audit').QueueAuditEntry[]
+> {
+  await ready();
+  const userId = getUserId();
+  return usePostgres() ? pg.listQueueAudit(userId) : fs.listQueueAudit();
+}
+
+export async function appendQueueAuditEntry(
+  entry: import('@/lib/harness/queue-audit').QueueAuditEntry
+): Promise<void> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) await pg.appendQueueAudit(userId, entry);
+  else fs.appendQueueAudit(entry);
+}

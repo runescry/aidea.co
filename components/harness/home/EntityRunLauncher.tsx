@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { ENTITY_RUN_META, HOME_RUN_ENTITIES, type HomeRunnableEntity } from '@/lib/entities/run-meta';
+import EntityTypeIcon from '../studio/EntityTypeIcon';
 
 interface Props {
   disabled?: boolean;
@@ -39,8 +40,9 @@ export default function EntityRunLauncher({ disabled, onStartRun }: Props) {
             type="button"
             disabled={disabled}
             onClick={() => { setOpenEntity(entity); setFields({}); }}
-            className="px-2.5 py-1 rounded-md text-[11px] font-medium text-foreground-muted hover:text-foreground hover:bg-surface-subtle border border-border disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-micro font-medium text-foreground-muted hover:text-foreground hover:bg-surface-subtle border border-border disabled:opacity-50 transition-colors"
           >
+            <EntityTypeIcon entity={entity} className="w-3 h-3 shrink-0" />
             Run {ENTITY_RUN_META[entity].label}
           </button>
         ))}

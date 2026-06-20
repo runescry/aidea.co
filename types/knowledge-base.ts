@@ -160,6 +160,7 @@ export interface KnowledgeBase {
     decisionSpeed?: string;
     notificationPreferences?: string;
     onboardingComplete?: boolean;
+    onboardingMode?: 'quick' | 'full';
   };
   _notes?: string[];
 }

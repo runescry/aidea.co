@@ -60,6 +60,18 @@ export function replaceQueue(actions: QueuedAction[]): void {
   writeJson('action-queue.json', actions);
 }
 
+export function listQueueAudit(): import('@/lib/harness/queue-audit').QueueAuditEntry[] {
+  return readJson('action-audit.json', []);
+}
+
+export function appendQueueAudit(
+  entry: import('@/lib/harness/queue-audit').QueueAuditEntry
+): void {
+  const all = listQueueAudit();
+  all.push(entry);
+  writeJson('action-audit.json', all);
+}
+
 interface StateFile {
   version: string;
   entities: EntityState[];

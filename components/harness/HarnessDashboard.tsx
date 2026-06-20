@@ -12,12 +12,14 @@ import KnowledgeBaseEditor from './KnowledgeBaseEditor';
 import SettingsPanel from './SettingsPanel';
 import AgentLibrary from './AgentLibrary';
 import OnboardingWizard from './onboarding/OnboardingWizard';
+import QuickStartOnboarding from './onboarding/QuickStartOnboarding';
 import HumanInputOverlay from './HumanInputOverlay';
 
 export default function HarnessDashboard() {
   const { state, startSession, reset, clearPendingInput } = useHarnessSession();
   const [view, setView] = useState<MainView>('home');
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [onboardingMode, setOnboardingMode] = useState<'quick' | 'full'>('quick');
   const [taskRefreshKey, setTaskRefreshKey] = useState(0);
   const [workPendingCount, setWorkPendingCount] = useState(0);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
@@ -63,7 +65,22 @@ export default function HarnessDashboard() {
   }
 
   if (showOnboarding) {
-    return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />;
+    if (onboardingMode === 'full') {
+      return (
+        <OnboardingWizard
+          onComplete={() => {
+            setShowOnboarding(false);
+            setOnboardingMode('quick');
+          }}
+        />
+      );
+    }
+    return (
+      <QuickStartOnboarding
+        onComplete={() => setShowOnboarding(false)}
+        onFullProfile={() => setOnboardingMode('full')}
+      />
+    );
   }
 
   return (
@@ -122,7 +139,10 @@ export default function HarnessDashboard() {
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
               <KnowledgeBaseEditor
                 refreshKey={taskRefreshKey}
-                onRestartOnboarding={() => setShowOnboarding(true)}
+                onRestartOnboarding={() => {
+                  setOnboardingMode('full');
+                  setShowOnboarding(true);
+                }}
               />
             </div>
           )}

@@ -9,6 +9,8 @@ import ConsensusPanel from './ConsensusPanel';
 import ArtifactBrowser from './ArtifactBrowser';
 import type { CostSnapshot, EntityType } from '@/lib/harness/types';
 import { STUDIO_ENTITY_META } from '@/lib/entities/run-meta';
+import EntityTypeIcon from './studio/EntityTypeIcon';
+import OutputEmptyState from './studio/OutputEmptyState';
 
 type Panel = 'graph' | 'tools' | 'state' | 'consensus' | 'artifacts';
 
@@ -72,8 +74,8 @@ export default function RunStudio({ state, startSession, reset }: Props) {
       <div className="shrink-0 border-b border-border bg-surface px-4 py-3 md:px-6 md:py-4 space-y-3 md:space-y-4">
         <div className="flex items-start justify-between gap-3 md:gap-4">
           <div>
-            <h2 className="text-[15px] font-semibold text-foreground">Studio</h2>
-            <p className="text-xs text-foreground-muted mt-0.5 max-w-xl">
+            <h2 className="text-title text-foreground">Studio</h2>
+            <p className="text-caption text-foreground-muted mt-0.5 max-w-xl">
               Run agent workflows directly — simulations, daily ops, research sprints. Outputs appear in Work on the home screen when queued.
             </p>
           </div>
@@ -87,12 +89,13 @@ export default function RunStudio({ state, startSession, reset }: Props) {
               type="button"
               disabled={isActive}
               onClick={() => { setEntity(e); setFields({}); }}
-              className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-caption font-medium transition-colors ${
                 entity === e
                   ? 'bg-foreground text-surface'
                   : 'text-foreground-muted hover:text-foreground hover:bg-surface-subtle disabled:opacity-50'
               }`}
             >
+              <EntityTypeIcon entity={e} className="w-3.5 h-3.5 shrink-0" />
               {ENTITY_META[e].label}
             </button>
           ))}
@@ -221,8 +224,8 @@ export default function RunStudio({ state, startSession, reset }: Props) {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-foreground-subtle text-sm">
-          Pick a workflow and run it to inspect agent output here.
+        <div className="flex-1 flex items-center justify-center py-8">
+          <OutputEmptyState />
         </div>
       )}
     </div>
