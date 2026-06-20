@@ -76,7 +76,7 @@ export default function AuditTrailPanel() {
                 <span>{entry.agentRole}</span>
                 <span>·</span>
                 <span className="font-medium text-foreground-muted">
-                  {auditStatusLabel(entry.status)}
+                  {auditStatusLabel(entry.status, entry.type)}
                 </span>
               </div>
             </li>

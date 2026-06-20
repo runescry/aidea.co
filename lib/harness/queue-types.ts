@@ -22,6 +22,11 @@ export interface QueueEditOverrides {
   subject?: string;
   to?: string;
   cc?: string;
+  title?: string;
+  start?: string;
+  durationMinutes?: number;
+  description?: string;
+  attendees?: string;
 }
 
 export interface QueuedAction {

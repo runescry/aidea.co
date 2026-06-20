@@ -2,8 +2,9 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import type { QueueEditOverrides, QueueIntent } from '@/lib/harness/queue-types';
-import { ACTION_TYPE_LABELS } from '@/lib/harness/action-labels';
-import { isEmailQueueAction, normalizeEmailQueueAction } from '@/lib/harness/normalize-queue-action';
+import { ACTION_TYPE_LABELS, queueApproveLabel, queueApprovedFeedback, queueExecutedFeedback } from '@/lib/harness/action-labels';
+import { isEmailQueueAction, isCalendarQueueAction, normalizeEmailQueueAction, normalizeCalendarQueueAction } from '@/lib/harness/normalize-queue-action';
+import { calendarPayloadFromAction, formatCalendarDuration, formatCalendarStart } from '@/lib/harness/calendar-display';
 import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
 import { formatTaskTime, sessionToTask, sortTaskItems, taskToChatPrompt } from '@/lib/harness/tasks';
 import { queueActionAutonomyNote } from '@/lib/harness/proactive-tasks';
@@ -175,6 +176,27 @@ function payloadString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+function buildCalendarEdits(
+  draftTitle: string,
+  initialTitle: string,
+  draftStart: string,
+  initialStart: string,
+  draftDuration: number,
+  initialDuration: number,
+  draftDescription: string,
+  initialDescription: string,
+  draftAttendees: string,
+  initialAttendees: string,
+): QueueEditOverrides | undefined {
+  const edits: QueueEditOverrides = {};
+  if (draftTitle !== initialTitle) edits.title = draftTitle;
+  if (draftStart !== initialStart) edits.start = draftStart;
+  if (draftDuration !== initialDuration) edits.durationMinutes = draftDuration;
+  if (draftDescription !== initialDescription) edits.description = draftDescription;
+  if (draftAttendees !== initialAttendees) edits.attendees = draftAttendees;
+  return Object.keys(edits).length > 0 ? edits : undefined;
+}
+
 function buildEmailEdits(
   draftBody: string,
   initialBody: string,
@@ -213,11 +235,20 @@ function TaskDetail({
   const action = task.action;
   const showSave = action != null && isEmailQueueAction(action);
   const isKbUpdate = action?.type === 'kb_update';
-  const approveLabel = isKbUpdate ? 'Apply update' : 'Approve & send';
+  const isCalendarDraft = action != null && isCalendarQueueAction(action) && task.status === 'needs_you';
+  const approveLabel = action ? queueApproveLabel(action.type) : 'Approve';
   const isEmailDraft = action != null && showSave && task.status === 'needs_you';
   const normalized = useMemo(
     () => (action ? normalizeEmailQueueAction(action) : null),
     [action],
+  );
+  const calendarNormalized = useMemo(
+    () => (action && isCalendarQueueAction(action) ? normalizeCalendarQueueAction(action) : null),
+    [action],
+  );
+  const calendarInitial = useMemo(
+    () => (action && calendarNormalized ? calendarPayloadFromAction({ ...action, payload: calendarNormalized.payload }) : null),
+    [action, calendarNormalized],
   );
   const initialBody = normalized?.detail ?? '';
   const initialSubject = typeof normalized?.payload.subject === 'string'
@@ -225,21 +256,46 @@ function TaskDetail({
     : '';
   const initialTo = payloadString(normalized?.payload.to);
   const initialCc = payloadString(normalized?.payload.cc);
+  const initialTitle = calendarInitial?.title ?? '';
+  const initialStart = calendarInitial?.start ?? '';
+  const initialDuration = calendarInitial?.durationMinutes ?? 60;
+  const initialDescription = calendarInitial?.description ?? action?.detail ?? '';
+  const initialAttendees = calendarInitial?.attendees?.join(', ') ?? '';
   const [draftBody, setDraftBody] = useState(initialBody);
   const [draftSubject, setDraftSubject] = useState(initialSubject);
   const [draftTo, setDraftTo] = useState(initialTo);
   const [draftCc, setDraftCc] = useState(initialCc);
+  const [draftTitle, setDraftTitle] = useState(initialTitle);
+  const [draftStart, setDraftStart] = useState(initialStart);
+  const [draftDuration, setDraftDuration] = useState(initialDuration);
+  const [draftDescription, setDraftDescription] = useState(initialDescription);
+  const [draftAttendees, setDraftAttendees] = useState(initialAttendees);
 
   useEffect(() => {
     setDraftBody(initialBody);
     setDraftSubject(initialSubject);
     setDraftTo(initialTo);
     setDraftCc(initialCc);
-  }, [action?.id, initialBody, initialSubject, initialTo, initialCc]);
+    setDraftTitle(initialTitle);
+    setDraftStart(initialStart);
+    setDraftDuration(initialDuration);
+    setDraftDescription(initialDescription);
+    setDraftAttendees(initialAttendees);
+  }, [action?.id, initialBody, initialSubject, initialTo, initialCc, initialTitle, initialStart, initialDuration, initialDescription, initialAttendees]);
 
   const emailEdits = isEmailDraft
     ? buildEmailEdits(draftBody, initialBody, draftSubject, initialSubject, draftTo, initialTo, draftCc, initialCc)
     : undefined;
+  const calendarEdits = isCalendarDraft
+    ? buildCalendarEdits(
+      draftTitle, initialTitle,
+      draftStart, initialStart,
+      draftDuration, initialDuration,
+      draftDescription, initialDescription,
+      draftAttendees, initialAttendees,
+    )
+    : undefined;
+  const queueEdits = emailEdits ?? calendarEdits;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -348,7 +404,71 @@ function TaskDetail({
               />
             </div>
           </div>
-        ) : action?.detail ? (
+        ) : isCalendarDraft ? (
+          <div className="space-y-3">
+            <div>
+              <Label>Event title</Label>
+              <TextField
+                value={draftTitle}
+                onChange={setDraftTitle}
+                disabled={actionPending}
+                placeholder="Meeting title"
+              />
+            </div>
+            <div>
+              <Label>Start</Label>
+              <TextField
+                value={draftStart}
+                onChange={setDraftStart}
+                disabled={actionPending}
+                placeholder="2026-06-01T14:00:00.000Z"
+              />
+              {draftStart && (
+                <p className="text-[11px] text-foreground-subtle mt-1">
+                  {formatCalendarStart(draftStart)}
+                </p>
+              )}
+            </div>
+            <div>
+              <Label>Duration (minutes)</Label>
+              <TextField
+                value={String(draftDuration)}
+                onChange={v => {
+                  const n = parseInt(v, 10);
+                  if (!Number.isNaN(n) && n > 0) setDraftDuration(n);
+                  else if (v === '') setDraftDuration(0);
+                }}
+                disabled={actionPending}
+                placeholder="30"
+              />
+              {draftDuration > 0 && (
+                <p className="text-[11px] text-foreground-subtle mt-1">
+                  {formatCalendarDuration(draftDuration)}
+                </p>
+              )}
+            </div>
+            <div>
+              <Label>Attendees</Label>
+              <TextField
+                value={draftAttendees}
+                onChange={setDraftAttendees}
+                disabled={actionPending}
+                placeholder="Optional — comma-separated emails"
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <TextArea
+                value={draftDescription}
+                onChange={setDraftDescription}
+                rows={4}
+                disabled={actionPending}
+                className="rounded-lg bg-surface-subtle/80 text-sm text-foreground leading-relaxed border border-border/50"
+                placeholder="Optional notes for the event"
+              />
+            </div>
+          </div>
+        ) : action?.detail && !isKbUpdate ? (
           <div className="rounded-lg bg-surface-subtle/80 p-3 text-sm text-foreground-muted leading-relaxed whitespace-pre-wrap border border-border/50">
             {action.detail}
           </div>
@@ -372,7 +492,7 @@ function TaskDetail({
           </p>
         )}
 
-        {action && !action.detail && action.type !== 'kb_update' && task.status !== 'needs_you' && (
+        {action && !action.detail && action.type !== 'kb_update' && action.type !== 'calendar_event' && task.status !== 'needs_you' && (
           <p className="text-xs text-foreground-subtle">
             {ACTION_TYPE_LABELS[action.type] ?? action.type} queued by {action.agentRole}
           </p>
@@ -414,7 +534,7 @@ function TaskDetail({
           <button
             type="button"
             disabled={actionPending}
-            onClick={() => onIntent(action.id, 'approve', emailEdits)}
+            onClick={() => onIntent(action.id, 'approve', queueEdits)}
             className="w-full py-3 text-sm font-semibold bg-foreground text-surface rounded-lg hover:bg-foreground/90 transition-colors disabled:opacity-50"
           >
             {actionPending ? 'Working…' : approveLabel}
@@ -423,7 +543,7 @@ function TaskDetail({
             <button
               type="button"
               disabled={actionPending}
-              onClick={() => onIntent(action.id, 'save', emailEdits)}
+              onClick={() => onIntent(action.id, 'save', queueEdits)}
               className="flex-1 py-3 text-sm font-semibold text-foreground rounded-lg border border-accent/40 bg-accent/5 hover:bg-accent/10 transition-colors disabled:opacity-50"
             >
               Save to drafts
@@ -558,9 +678,9 @@ export default function TaskFeed({
         message = action.status === 'saved' ? 'Saved to Gmail drafts' : 'Done';
       } else if (intent === 'approve') {
         if (action.status === 'executed') {
-          message = action.type === 'kb_update' ? 'Profile updated' : 'Sent';
+          message = queueExecutedFeedback(action.type);
         } else {
-          message = action.type === 'kb_update' ? 'Update approved' : 'Approved';
+          message = queueApprovedFeedback(action.type);
         }
       }
 

@@ -328,7 +328,7 @@ Mark `[x]` only when `npm run typecheck`, `npm test`, `npm run test:contract`, a
 
 - [ ] **Health-briefer → Inbox** — Workout/meal guidance as Inbox row or approval when actionable
 - [ ] **Relationship-monitor → Inbox** — Cooling contacts as queue or structured suggestion cards (not only KB nudge)
-- [ ] **Calendar approval cards** — Polished Inbox UX for `calendar_event` queue items (`TaskFeed`, `execute-queued-action.ts`)
+- [x] **Calendar approval cards** — Polished Inbox UX for `calendar_event` queue items (`TaskFeed`, `execute-queued-action.ts`)
 - [ ] **KB update approval cards** — Polished Inbox UX for `kb_update` queue items
 - [ ] **request_human_input on Home** — Surface harness human-input prompts in Inbox or chat modal (not Studio-only)
 

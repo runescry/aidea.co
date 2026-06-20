@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canExecuteEmailAction, canSaveEmailDraft, normalizeEmailQueueAction, applyQueueEdits } from './normalize-queue-action';
+import { canExecuteEmailAction, canSaveEmailDraft, normalizeEmailQueueAction, normalizeCalendarQueueAction, applyQueueEdits } from './normalize-queue-action';
 import type { QueuedAction } from './queue-types';
 
 const base: QueuedAction = {
@@ -76,8 +76,28 @@ describe('applyQueueEdits', () => {
     expect(edited.payload.to).toBe('a@b.com');
   });
 
-  it('ignores edits for non-email actions', () => {
+  it('ignores edits for non-email actions without calendar fields', () => {
     const kbAction = { ...base, type: 'kb_update' as const };
     expect(applyQueueEdits(kbAction, { body: 'Nope' })).toEqual(kbAction);
+  });
+});
+
+describe('normalizeCalendarQueueAction', () => {
+  const calBase: QueuedAction = {
+    ...base,
+    type: 'calendar_event',
+    summary: 'Calendar: Team sync at 2026-06-01T14:00:00.000Z',
+    tool: 'calendar_create',
+    payload: {
+      title: 'Team sync',
+      start: '2026-06-01T14:00:00.000Z',
+      durationMinutes: 30,
+    },
+  };
+
+  it('preserves calendar payload fields', () => {
+    const norm = normalizeCalendarQueueAction(calBase);
+    expect(norm.payload.title).toBe('Team sync');
+    expect(norm.tool).toBe('calendar_create');
   });
 });

@@ -1,4 +1,5 @@
 import type { QueuedAction, QueueEditOverrides } from './queue-types';
+import { calendarPayloadFromAction } from './calendar-display';
 
 export type { QueueEditOverrides };
 
@@ -49,12 +50,77 @@ export function isEmailQueueAction(action: QueuedAction): boolean {
   return action.type === 'email_reply' || action.type === 'email_send';
 }
 
+export function isCalendarQueueAction(action: QueuedAction): boolean {
+  return action.type === 'calendar_event';
+}
+
+/** Normalize calendar queue actions for execute + Inbox display. */
+export function normalizeCalendarQueueAction(
+  action: Pick<QueuedAction, 'type' | 'summary' | 'detail' | 'tool' | 'payload'>,
+): Pick<QueuedAction, 'tool' | 'payload' | 'detail'> {
+  if (action.type !== 'calendar_event') {
+    return { tool: action.tool, payload: action.payload ?? {}, detail: action.detail };
+  }
+  const cal = calendarPayloadFromAction(action);
+  const payload: Record<string, unknown> = {
+    ...(action.payload ?? {}),
+    title: cal.title,
+    start: cal.start,
+    durationMinutes: cal.durationMinutes,
+  };
+  if (cal.description) payload.description = cal.description;
+  if (cal.attendees?.length) payload.attendees = cal.attendees;
+  const detail = cal.description ?? action.detail ?? describeCalendarDetail(cal);
+  return { tool: action.tool || 'calendar_create', payload, detail };
+}
+
+function describeCalendarDetail(cal: ReturnType<typeof calendarPayloadFromAction>): string {
+  const parts = [cal.title];
+  if (cal.start) parts.push(cal.start);
+  return parts.join(' · ');
+}
+
+export function canExecuteCalendarAction(action: QueuedAction): boolean {
+  if (action.type !== 'calendar_event') return false;
+  const { payload } = normalizeCalendarQueueAction(action);
+  return typeof payload.title === 'string'
+    && payload.title.length > 0
+    && typeof payload.start === 'string'
+    && payload.start.length > 0
+    && typeof payload.durationMinutes === 'number'
+    && payload.durationMinutes > 0;
+}
+
 /** Apply user edits from Inbox preview before approve/save. */
 export function applyQueueEdits(
   action: QueuedAction,
   edits?: QueueEditOverrides,
 ): QueuedAction {
-  if (!edits || !isEmailQueueAction(action)) return action;
+  if (!edits) return action;
+
+  if (isCalendarQueueAction(action)) {
+    const next: QueuedAction = {
+      ...action,
+      payload: { ...(action.payload ?? {}) },
+    };
+    if (typeof edits.title === 'string') next.payload.title = edits.title.trim();
+    if (typeof edits.start === 'string') next.payload.start = edits.start.trim();
+    if (typeof edits.durationMinutes === 'number' && edits.durationMinutes > 0) {
+      next.payload.durationMinutes = edits.durationMinutes;
+    }
+    if (typeof edits.description === 'string') {
+      next.payload.description = edits.description;
+      next.detail = edits.description;
+    }
+    if (typeof edits.attendees === 'string') {
+      const list = edits.attendees.split(',').map(s => s.trim()).filter(Boolean);
+      if (list.length > 0) next.payload.attendees = list;
+      else delete next.payload.attendees;
+    }
+    return next;
+  }
+
+  if (!isEmailQueueAction(action)) return action;
 
   const next: QueuedAction = {
     ...action,

@@ -210,6 +210,10 @@ export function queueActionAutonomyNote(
     if (level === 'supervised') return 'Profile updates require your approval.';
     return 'Profile updates queue here for approval.';
   }
+  if (actionType === 'calendar_event') {
+    if (level === 'supervised') return 'Calendar events require your approval before they are created.';
+    return 'Calendar events queue here — review time and attendees before adding.';
+  }
   if (level === 'autonomous') return 'High-trust mode — review carefully before approving sends.';
   if (level === 'supervised') return 'Supervised mode — nothing sends without you.';
   return null;

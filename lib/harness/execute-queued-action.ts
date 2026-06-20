@@ -1,7 +1,13 @@
 import type { QueuedAction } from './queue-types';
 import { sendGmailMessage, createGmailDraft } from '@/lib/nango/gmail';
 import { createCalendarEvent } from '@/lib/nango/calendar';
-import { canExecuteEmailAction, canSaveEmailDraft, normalizeEmailQueueAction } from './normalize-queue-action';
+import {
+  canExecuteCalendarAction,
+  canExecuteEmailAction,
+  canSaveEmailDraft,
+  normalizeCalendarQueueAction,
+  normalizeEmailQueueAction,
+} from './normalize-queue-action';
 
 export async function executeQueuedAction(action: QueuedAction): Promise<unknown> {
   const normalized = { ...action, ...normalizeEmailQueueAction(action) };
@@ -72,7 +78,16 @@ export async function approveQueuedAction(action: QueuedAction): Promise<QueuedA
     return { ...normalized, status: 'executed' };
   }
 
-  if (action.tool === 'gmail_send' || action.tool === 'calendar_create') {
+  if (action.type === 'calendar_event' || action.tool === 'calendar_create') {
+    const normalized = { ...action, ...normalizeCalendarQueueAction(action) };
+    if (!canExecuteCalendarAction(normalized)) {
+      throw new Error('Calendar event missing title, start, or duration');
+    }
+    await executeQueuedAction(normalized);
+    return { ...normalized, status: 'executed' };
+  }
+
+  if (action.tool === 'gmail_send') {
     await executeQueuedAction(action);
     return { ...action, status: 'executed' };
   }

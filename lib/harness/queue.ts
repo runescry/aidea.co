@@ -5,7 +5,11 @@ import {
   listQueuedActions,
 } from '@/lib/storage';
 import { recordQueueAudit } from './queue-audit';
-import { applyQueueEdits, normalizeEmailQueueAction } from './normalize-queue-action';
+import {
+  applyQueueEdits,
+  normalizeCalendarQueueAction,
+  normalizeEmailQueueAction,
+} from './normalize-queue-action';
 import type {
   ActionStatus,
   ActionType,
@@ -44,9 +48,14 @@ export async function enqueueAction(
   return created;
 }
 
-function applyEmailNormalization(action: QueuedAction): QueuedAction {
-  if (action.type !== 'email_reply' && action.type !== 'email_send') return action;
-  return { ...action, ...normalizeEmailQueueAction(action) };
+function applyQueueNormalization(action: QueuedAction): QueuedAction {
+  if (action.type === 'email_reply' || action.type === 'email_send') {
+    return { ...action, ...normalizeEmailQueueAction(action) };
+  }
+  if (action.type === 'calendar_event') {
+    return { ...action, ...normalizeCalendarQueueAction(action) };
+  }
+  return action;
 }
 
 export async function resolveQueueAction(
@@ -57,7 +66,7 @@ export async function resolveQueueAction(
   const current = await getQueuedAction(id);
   if (!current || current.status !== 'pending') return null;
 
-  let action = applyEmailNormalization(applyQueueEdits(current, edits));
+  let action = applyQueueNormalization(applyQueueEdits(current, edits));
   const resolvedAt = new Date().toISOString();
 
   if (intent === 'reject') {
