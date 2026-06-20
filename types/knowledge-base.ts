@@ -110,6 +110,18 @@ export interface KnowledgeBase {
     reviewFrequency?: number;
     importantDates?: ImportantDate[];
     lastMonitorRun?: string;
+    interactionGraph?: {
+      updatedAt?: string;
+      entries?: Array<{
+        name: string;
+        email?: string;
+        relationship?: string;
+        company?: string;
+        lastTouch?: string;
+        channels?: string[];
+        interactions?: Array<{ at: string; channel: string; summary?: string }>;
+      }>;
+    };
   };
   family?: {
     partner?: PersonContact & { work?: string };

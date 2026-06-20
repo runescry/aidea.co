@@ -1,7 +1,7 @@
 import type { HarnessTool, HarnessAgent, HarnessContext, ToolInput } from './types';
 import { getAgentByRole } from './registry';
 import { setStateKey, getStateKeys } from './state';
-import { readKB, writeKB } from './knowledge-base';
+import { readKB, readAllKB, writeKB } from './knowledge-base';
 import { enqueueAction } from './queue';
 import { runConsensus } from './consensus';
 import { awaitHumanInput, markPendingInput } from './pending-inputs';
@@ -29,6 +29,8 @@ import {
   sanitizeInboxTriage,
   type CachedGmail,
 } from './inbox-sanitize';
+import { buildContactGraph, findContactEntry } from '@/lib/contacts/interaction-graph';
+import type { KnowledgeBase } from '@/types/knowledge-base';
 
 // ── Tool Catalog ──────────────────────────────────────────────────────────────
 
@@ -422,6 +424,21 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
       properties: {
         query: { type: 'string', description: 'Search query to filter contacts (optional)' },
         maxResults: { type: 'number', description: 'Max contacts to return (default: 20)' },
+      },
+      required: [],
+    },
+  },
+
+  contact_graph_read: {
+    key: 'contact_graph_read',
+    name: 'contact_graph_read',
+    description: 'Read the KB contact interaction graph — last touch, channels, and interaction history merged with relationship contacts.',
+    requiresApproval: false,
+    realWorld: false,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Optional name or email to find one contact' },
       },
       required: [],
     },
@@ -936,6 +953,18 @@ export async function executeHarnessTool(
         return { error: err instanceof Error ? err.message : String(err) };
       }
     }
+
+    case 'contact_graph_read': {
+      const { query } = input as { query?: string };
+      const kb = await readAllKB() as KnowledgeBase;
+      const graph = buildContactGraph(kb);
+      if (query?.trim()) {
+        const entry = findContactEntry(graph, query);
+        return entry ? { entry, count: 1 } : { entry: null, count: 0, query };
+      }
+      return { entries: graph, count: graph.length, updatedAt: kb.relationships?.interactionGraph?.updatedAt };
+    }
+
 
     case 'document_parse': {
       const { url, focus } = input as { url: string; focus?: string };
