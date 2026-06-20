@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Nango from '@nangohq/frontend';
 import type { SettingStatus } from '@/lib/settings';
 import { Label, TextField, StatusDot } from './forms';
+import { useSaveFeedback } from '@/hooks/useSaveFeedback';
 
 type SettingKey = 'anthropicApiKey' | 'braveSearchApiKey';
 
@@ -46,8 +47,7 @@ export default function SettingsPanel() {
   const [status, setStatus] = useState<Record<SettingKey, SettingStatus> | null>(null);
   const [readOnly, setReadOnly] = useState(false);
   const [values, setValues] = useState<Partial<Record<SettingKey, string>>>({});
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const { saving, saved, runSave } = useSaveFeedback();
 
   const [nangoConfigured, setNangoConfigured] = useState(false);
   const [connections, setConnections] = useState<NangoConnection[]>([]);
@@ -74,9 +74,7 @@ export default function SettingsPanel() {
   useEffect(() => { load(); }, [load]);
 
   const handleSave = async () => {
-    setSaving(true);
-    setSaved(false);
-    try {
+    await runSave(async () => {
       const payload: Partial<Record<SettingKey, string>> = {};
       for (const [key, value] of Object.entries(values) as Array<[SettingKey, string]>) {
         if (value?.trim()) payload[key] = value.trim();
@@ -87,12 +85,8 @@ export default function SettingsPanel() {
         body: JSON.stringify(payload),
       });
       setValues({});
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
       await load();
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   const handleConnectGoogle = async () => {

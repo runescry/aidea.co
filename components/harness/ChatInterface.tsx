@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { HarnessEvent } from '@/lib/harness/types';
+import { consumeHarnessSSE } from '@/lib/client/sse';
 
 interface Message {
   id: string;
@@ -155,26 +156,9 @@ export default function ChatInterface({ variant = 'default', onMessageComplete }
 
       if (!res.body) throw new Error('No response body');
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() ?? '';
-
-        for (const part of parts) {
-          const line = part.trim();
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const event = JSON.parse(line.slice(6)) as HarnessEvent;
-            handleEvent(event, assistantMsgId);
-          } catch { /* skip */ }
-        }
-      }
+      await consumeHarnessSSE<HarnessEvent>(res, (event) => {
+        handleEvent(event, assistantMsgId);
+      });
 
       setMessages(prev => prev.map(m =>
         m.id === assistantMsgId ? { ...m, status: 'done' } : m

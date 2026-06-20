@@ -1,0 +1,35 @@
+---
+description: Agent library definitions and user overrides
+globs: "{lib/agents/**,app/api/agents/**,types/agent-overrides.ts,components/harness/AgentLibrary.tsx}"
+alwaysApply: false
+---
+
+# Agent library
+
+## Source of truth
+
+- Definitions: `lib/agents/library/**/*.ts` → registered in `lib/agents/library/index.ts`
+- Entity configs: `lib/entities/*.ts` (`rootAgentId`, `agentIds`)
+- UI groups: `app/api/agents/route.ts` `GROUPS` (keep in sync when adding agents)
+
+## Runtime overrides
+
+User edits persist to `profile.agentOverrides`. Always resolve through:
+
+```typescript
+import { loadAgentOverrides, resolveLibraryAgent, mergeOverride, applyAgentOverride } from '@/lib/agents/resolve';
+
+const overrides = await loadAgentOverrides();
+const def = resolveLibraryAgent('dispatcher', overrides);
+```
+
+Effective prompt includes identity line + optional replace/append + tool subset. Do not bypass `applyAgentOverride` when spawning from the library.
+
+## Adding an agent
+
+1. Create `AgentDefinition` in `lib/agents/library/`
+2. Export in `index.ts`
+3. Add to relevant `lib/entities/*.ts` `agentIds`
+4. Add to API `GROUPS` for Agent Library UI
+
+System prompts belong in library files, not duplicated in UI components.

@@ -1,0 +1,35 @@
+---
+description: Harness client UI — SSE consumption, polling, queue, forms
+globs: "{components,hooks}/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Harness client UI
+
+## Streaming from API
+
+```typescript
+import { consumeHarnessSSE } from '@/lib/client/sse';
+
+await consumeHarnessSSE<HarnessEvent>(response, (event) => { /* handle */ });
+```
+
+Used in `ChatInterface.tsx` and `useHarnessSession.ts`. Pass `AbortSignal` on `fetch`; abort is handled inside the helper.
+
+## Work queue UI
+
+- Single feed: `components/harness/home/TaskFeed.tsx`
+- Approve/reject: `patchQueueAction(id, status)`
+- Labels: `ACTION_TYPE_LABELS` from `@/lib/harness/action-labels`
+- Poll tasks: `usePollingFetch(() => fetch('/api/tasks').then(r => r.json()), 8000, deps)`
+
+Do not create parallel queue components or duplicate `TYPE_LABELS` maps.
+
+## Forms & save
+
+- Inputs: `components/harness/forms.tsx` (`Label`, `TextField`, `TextArea`, `Section`)
+- Standard save UX: `useSaveFeedback()` → `runSave(async () => { await fetch(...) })`
+
+## Import boundary
+
+Client components must **not** import `@/lib/harness/queue` or `@/lib/storage` (server/fs). Use `@/lib/harness/action-labels` and `@/lib/client/*` instead.

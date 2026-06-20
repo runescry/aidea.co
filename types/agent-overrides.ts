@@ -1,8 +1,10 @@
 export interface AgentOverride {
   displayName?: string;
-  /** Appended after the base system prompt */
+  /** Full replacement for the built-in system prompt */
+  systemPromptReplace?: string;
+  /** Appended after the resolved system prompt */
   promptAppend?: string;
-  /** Replaces default tool list when set */
+  /** When set (including []), replaces the default tool list */
   tools?: string[];
   updatedAt?: string;
 }

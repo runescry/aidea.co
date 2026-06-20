@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Label, TextField, TextArea } from './forms';
 
+type PromptMode = 'append' | 'replace';
+
 interface AgentSummary {
   id: string;
   displayName: string;
@@ -15,9 +17,11 @@ interface AgentSummary {
   baseTools: string[];
   tools: string[];
   systemPrompt: string;
+  effectiveSystemPrompt: string;
   promptPreview: string;
   override: {
     displayName?: string;
+    systemPromptReplace?: string;
     promptAppend?: string;
     tools?: string[];
   } | null;
@@ -44,9 +48,12 @@ export default function AgentLibrary() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [showPrompt, setShowPrompt] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showEffectivePrompt, setShowEffectivePrompt] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
+  const [promptMode, setPromptMode] = useState<PromptMode>('append');
+  const [systemPromptReplace, setSystemPromptReplace] = useState('');
   const [promptAppend, setPromptAppend] = useState('');
   const [enabledTools, setEnabledTools] = useState<string[]>([]);
 
@@ -68,14 +75,18 @@ export default function AgentLibrary() {
   useEffect(() => {
     if (!selected) return;
     setDisplayName(selected.override?.displayName ?? '');
+    setPromptMode(selected.override?.systemPromptReplace ? 'replace' : 'append');
+    setSystemPromptReplace(selected.override?.systemPromptReplace ?? selected.systemPrompt);
     setPromptAppend(selected.override?.promptAppend ?? '');
     setEnabledTools(selected.tools);
-    setShowPrompt(false);
+    setShowEffectivePrompt(false);
+    setSaveError(null);
   }, [selected]);
 
   const handleSelect = (id: string) => {
     setSelectedId(id);
     setSaved(false);
+    setSaveError(null);
   };
 
   const toggleTool = (tool: string) => {
@@ -88,20 +99,29 @@ export default function AgentLibrary() {
     if (!selected) return;
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
     try {
       const res = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agentId: selected.id,
-          displayName: displayName.trim() || undefined,
-          promptAppend: promptAppend.trim() || undefined,
-          tools: enabledTools.length > 0 ? enabledTools : undefined,
+          displayName: displayName.trim() || '',
+          systemPromptReplace: promptMode === 'replace' ? systemPromptReplace.trim() || '' : '',
+          promptAppend: promptMode === 'append' ? promptAppend.trim() || '' : (promptAppend.trim() || ''),
+          tools: enabledTools,
         }),
       });
-      if (res.ok) await load();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        setSaveError(err.error ?? 'Could not save — try again.');
+        return;
+      }
+      await load();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setSaveError('Could not save — check your connection.');
     } finally {
       setSaving(false);
     }
@@ -110,15 +130,28 @@ export default function AgentLibrary() {
   const handleReset = async () => {
     if (!selected) return;
     setSaving(true);
+    setSaveError(null);
     try {
-      await fetch('/api/agents', {
+      const res = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agentId: selected.id, reset: true }),
       });
+      if (!res.ok) {
+        setSaveError('Could not reset agent.');
+        return;
+      }
       await load();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const switchToReplace = () => {
+    if (!selected) return;
+    setPromptMode('replace');
+    if (!systemPromptReplace || systemPromptReplace === selected.systemPrompt) {
+      setSystemPromptReplace(selected.systemPrompt);
     }
   };
 
@@ -136,7 +169,7 @@ export default function AgentLibrary() {
         <div className="px-4 py-3 border-b border-border">
           <h2 className="text-[13px] font-semibold text-foreground">Agent library</h2>
           <p className="text-[11px] text-foreground-subtle mt-0.5">
-            {groups.reduce((n, g) => n + g.agents.length, 0)} agents in your workforce
+            {groups.reduce((n, g) => n + g.agents.length, 0)} agents · edits apply on next run
           </p>
         </div>
         {groups.map(group => (
@@ -180,15 +213,18 @@ export default function AgentLibrary() {
                 <h1 className="text-lg font-semibold text-foreground">{selected.displayName}</h1>
                 <p className="text-xs text-foreground-muted mt-1 font-mono">{selected.id}</p>
               </div>
-              <div className="flex gap-2 shrink-0">
-                {selected.hasCustomization && (
-                  <button type="button" onClick={handleReset} disabled={saving} className="btn-secondary text-xs py-1.5">
-                    Reset
+              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                <div className="flex gap-2">
+                  {selected.hasCustomization && (
+                    <button type="button" onClick={handleReset} disabled={saving} className="btn-secondary text-xs py-1.5">
+                      Reset all
+                    </button>
+                  )}
+                  <button type="button" onClick={handleSave} disabled={saving} className="btn-primary text-xs py-1.5">
+                    {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save changes'}
                   </button>
-                )}
-                <button type="button" onClick={handleSave} disabled={saving} className="btn-primary text-xs py-1.5">
-                  {saved ? 'Saved' : saving ? 'Saving…' : 'Save'}
-                </button>
+                </div>
+                {saveError && <p className="text-[11px] text-danger">{saveError}</p>}
               </div>
             </div>
 
@@ -211,50 +247,113 @@ export default function AgentLibrary() {
               </div>
             </div>
 
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowPrompt(s => !s)}
-                className="text-[12px] font-medium text-foreground-muted hover:text-foreground"
-              >
-                {showPrompt ? 'Hide' : 'View'} base persona
-              </button>
-              {showPrompt && (
-                <pre className="mt-2 text-xs text-foreground-muted bg-surface-subtle rounded-lg p-4 overflow-auto max-h-64 whitespace-pre-wrap border border-border leading-relaxed">
-                  {selected.systemPrompt}
-                </pre>
-              )}
-              {!showPrompt && (
-                <p className="mt-2 text-xs text-foreground-subtle leading-relaxed">{selected.promptPreview}</p>
-              )}
-            </div>
-
             <div className="space-y-4 border-t border-border pt-6">
-              <h3 className="text-[13px] font-semibold text-foreground">Customize</h3>
+              <h3 className="text-[13px] font-semibold text-foreground">Persona</h3>
+
               <div>
-                <Label>Display name</Label>
+                <Label hint="Used at runtime — injected into every system prompt">Display name</Label>
                 <TextField
                   value={displayName}
                   onChange={setDisplayName}
                   placeholder={selected.baseDisplayName}
                 />
               </div>
+
               <div>
-                <Label hint="Appended to the base persona on every run">Additional instructions</Label>
-                <TextArea
-                  value={promptAppend}
-                  onChange={setPromptAppend}
-                  rows={4}
-                  placeholder="e.g. Always use British English. Be concise. Never suggest meetings before 9am."
-                />
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs font-medium text-foreground-muted">Prompt mode</span>
+                  <div className="flex rounded-lg border border-border overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setPromptMode('append')}
+                      className={`px-3 py-1 text-[11px] font-medium transition-colors ${
+                        promptMode === 'append' ? 'bg-foreground text-surface' : 'text-foreground-muted hover:text-foreground'
+                      }`}
+                    >
+                      Append instructions
+                    </button>
+                    <button
+                      type="button"
+                      onClick={switchToReplace}
+                      className={`px-3 py-1 text-[11px] font-medium transition-colors border-l border-border ${
+                        promptMode === 'replace' ? 'bg-foreground text-surface' : 'text-foreground-muted hover:text-foreground'
+                      }`}
+                    >
+                      Replace persona
+                    </button>
+                  </div>
+                </div>
+
+                {promptMode === 'append' ? (
+                  <div>
+                    <Label hint="Added after the built-in persona on every run">Additional instructions</Label>
+                    <TextArea
+                      value={promptAppend}
+                      onChange={setPromptAppend}
+                      rows={5}
+                      placeholder="e.g. Always use British English. Be concise. Never suggest meetings before 9am."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEffectivePrompt(s => !s)}
+                      className="mt-2 text-[11px] text-foreground-muted hover:text-foreground"
+                    >
+                      {showEffectivePrompt ? 'Hide' : 'Preview'} runtime prompt
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <Label hint="Replaces the built-in system prompt entirely">Custom persona</Label>
+                    <TextArea
+                      value={systemPromptReplace}
+                      onChange={setSystemPromptReplace}
+                      rows={14}
+                      placeholder={selected.systemPrompt}
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-[11px] text-foreground-subtle mt-2">
+                      Built-in persona shown for reference —{' '}
+                      <button
+                        type="button"
+                        className="text-accent hover:underline"
+                        onClick={() => setShowEffectivePrompt(s => !s)}
+                      >
+                        {showEffectivePrompt ? 'hide' : 'view'}
+                      </button>
+                    </p>
+                  </div>
+                )}
+
+                {showEffectivePrompt && (
+                  <pre className="mt-3 text-xs text-foreground-muted bg-surface-subtle rounded-lg p-4 overflow-auto max-h-72 whitespace-pre-wrap border border-border leading-relaxed">
+                    {promptMode === 'replace'
+                      ? selected.systemPrompt
+                      : selected.effectiveSystemPrompt}
+                  </pre>
+                )}
               </div>
+
+              {promptMode === 'replace' && (
+                <div>
+                  <Label hint="Optional — still appended after your custom persona">Additional instructions</Label>
+                  <TextArea
+                    value={promptAppend}
+                    onChange={setPromptAppend}
+                    rows={3}
+                    placeholder="Optional extra rules on top of your custom persona"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 border-t border-border pt-6">
               <h3 className="text-[13px] font-semibold text-foreground">Tools</h3>
               <p className="text-xs text-foreground-muted">
-                Toggle which tools this agent can use. Disabled tools won&apos;t be available at runtime.
+                Toggle which tools this agent can use at runtime. You can disable all tools if needed.
               </p>
+              {enabledTools.length === 0 && (
+                <p className="text-[11px] text-warning">No tools enabled — this agent won&apos;t be able to take actions.</p>
+              )}
               <div className="space-y-1">
                 {selected.baseTools.map(tool => {
                   const info = toolCatalog[tool];

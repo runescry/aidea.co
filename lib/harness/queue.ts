@@ -16,6 +16,8 @@ export type ActionType =
   | 'kb_update'
   | 'generic';
 
+export { ACTION_TYPE_LABELS } from './action-labels';
+
 export type ActionStatus = 'pending' | 'approved' | 'rejected' | 'executed' | 'failed';
 
 export interface QueuedAction {

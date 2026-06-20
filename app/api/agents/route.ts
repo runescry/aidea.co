@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AGENT_LIBRARY } from '@/lib/agents/library';
 import { ARCHETYPES } from '@/lib/agents/library/archetypes';
 import { HARNESS_TOOLS } from '@/lib/harness/tools';
-import { applyAgentOverride, mergeOverride, loadAgentOverrides } from '@/lib/agents/resolve';
-import { readProfile, mergeProfile } from '@/lib/storage';
+import {
+  applyAgentOverride,
+  mergeOverride,
+  loadAgentOverrides,
+  buildEffectiveSystemPrompt,
+  hasActiveCustomization,
+  isOverrideEmpty,
+} from '@/lib/agents/resolve';
+import { mergeProfile } from '@/lib/storage';
 import type { AgentOverridesMap } from '@/types/agent-overrides';
 import type { AgentDefinition } from '@/lib/harness/types';
 
@@ -47,8 +54,17 @@ const GROUPS: Array<{ id: string; label: string; agentIds: string[] }> = [
   },
 ];
 
+function toolsEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((t, i) => t === sb[i]);
+}
+
 function serializeAgent(def: AgentDefinition, override?: AgentOverridesMap[string]) {
   const resolved = applyAgentOverride(def, override);
+  const effectivePrompt = buildEffectiveSystemPrompt(def, override ?? undefined);
+
   return {
     id: def.id,
     displayName: resolved.displayName,
@@ -61,22 +77,15 @@ function serializeAgent(def: AgentDefinition, override?: AgentOverridesMap[strin
     baseTools: def.defaultTools,
     tools: resolved.defaultTools,
     systemPrompt: def.systemPrompt,
-    promptPreview: def.systemPrompt.slice(0, 280) + (def.systemPrompt.length > 280 ? '…' : ''),
+    effectiveSystemPrompt: effectivePrompt,
+    promptPreview: effectivePrompt.slice(0, 320) + (effectivePrompt.length > 320 ? '…' : ''),
     override: override ?? null,
-    hasCustomization: Boolean(
-      override?.promptAppend?.trim()
-      || override?.displayName?.trim()
-      || (override?.tools && override.tools.length > 0),
-    ),
+    hasCustomization: hasActiveCustomization(def, override),
   };
 }
 
-async function loadOverrides(): Promise<AgentOverridesMap> {
-  return loadAgentOverrides();
-}
-
 export async function GET() {
-  const overrides = await loadOverrides();
+  const overrides = await loadAgentOverrides();
 
   const toolCatalog = Object.fromEntries(
     Object.entries(HARNESS_TOOLS).map(([key, tool]) => [
@@ -112,6 +121,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as {
     agentId: string;
     displayName?: string;
+    systemPromptReplace?: string;
     promptAppend?: string;
     tools?: string[];
     reset?: boolean;
@@ -121,30 +131,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unknown agentId' }, { status: 400 });
   }
 
-  const overrides = await loadOverrides();
+  const overrides = await loadAgentOverrides();
+  const base = AGENT_LIBRARY[body.agentId];
 
   if (body.reset) {
     delete overrides[body.agentId];
   } else {
-    const base = AGENT_LIBRARY[body.agentId];
     const validTools = body.tools?.filter(t => base.defaultTools.includes(t));
+
+    let toolsUpdate: string[] | undefined;
+    if (body.tools !== undefined) {
+      if (!validTools || !toolsEqual(validTools, base.defaultTools)) {
+        toolsUpdate = validTools ?? [];
+      }
+    }
+
     overrides[body.agentId] = mergeOverride(overrides[body.agentId], {
       displayName: body.displayName,
+      systemPromptReplace: body.systemPromptReplace,
       promptAppend: body.promptAppend,
-      tools: validTools?.length ? validTools : undefined,
+      tools: toolsUpdate,
     });
 
-    const o = overrides[body.agentId];
-    if (!o.displayName && !o.promptAppend?.trim() && !o.tools?.length) {
+    if (isOverrideEmpty(overrides[body.agentId])) {
       delete overrides[body.agentId];
     }
   }
 
   await mergeProfile({ agentOverrides: overrides });
 
-  const def = AGENT_LIBRARY[body.agentId];
   return NextResponse.json({
     ok: true,
-    agent: serializeAgent(def, overrides[body.agentId]),
+    agent: serializeAgent(base, overrides[body.agentId]),
   });
 }

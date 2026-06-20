@@ -1,4 +1,5 @@
 import type { QueuedAction } from './queue';
+import { ACTION_TYPE_LABELS } from './action-labels';
 
 export type TaskStatus = 'needs_you' | 'running' | 'done' | 'failed';
 
@@ -15,18 +16,6 @@ export interface TaskItem {
   action?: QueuedAction;
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  email_reply: 'Email reply',
-  email_send: 'Email send',
-  calendar_event: 'Calendar',
-  task: 'Task',
-  reminder: 'Reminder',
-  message: 'Message',
-  alert: 'Alert',
-  kb_update: 'Profile update',
-  generic: 'Action',
-};
-
 function queueStatusToTaskStatus(status: QueuedAction['status']): TaskStatus {
   if (status === 'pending') return 'needs_you';
   if (status === 'failed') return 'failed';
@@ -34,7 +23,7 @@ function queueStatusToTaskStatus(status: QueuedAction['status']): TaskStatus {
 }
 
 export function queueActionToTask(action: QueuedAction): TaskItem {
-  const typeLabel = TYPE_LABELS[action.type] ?? action.type;
+  const typeLabel = ACTION_TYPE_LABELS[action.type] ?? action.type;
   return {
     id: `queue-${action.id}`,
     source: 'queue',

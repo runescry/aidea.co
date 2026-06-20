@@ -5,6 +5,7 @@ import { WORKOUT_DAYS, TIMEZONES, PRONOUNS, COMPANY_STAGES } from '@/types/knowl
 import { Label, TextField, TextArea, TextArrayInput, SelectField, Section } from './forms';
 import PersonListEditor from './onboarding/PersonListEditor';
 import ProjectsEditor from './ProjectsEditor';
+import { useSaveFeedback } from '@/hooks/useSaveFeedback';
 
 interface Props {
   onRestartOnboarding?: () => void;
@@ -13,8 +14,7 @@ interface Props {
 
 export default function KnowledgeBaseEditor({ onRestartOnboarding, refreshKey = 0 }: Props) {
   const [data, setData] = useState<KnowledgeBase>({});
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const { saving, saved, runSave } = useSaveFeedback();
 
   const reload = useCallback(() => {
     fetch('/api/kb')
@@ -28,20 +28,14 @@ export default function KnowledgeBaseEditor({ onRestartOnboarding, refreshKey = 
   }, [reload, refreshKey]);
 
   const save = useCallback(async (updates: Record<string, unknown>) => {
-    setSaving(true);
-    setSaved(false);
-    try {
+    await runSave(async () => {
       await fetch('/api/kb', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates }),
       });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } finally {
-      setSaving(false);
-    }
-  }, []);
+    });
+  }, [runSave]);
 
   const handleSaveAll = () => {
     save({

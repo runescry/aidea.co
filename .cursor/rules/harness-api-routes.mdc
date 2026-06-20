@@ -1,0 +1,32 @@
+---
+description: Harness API route patterns — SSE and bootstrap
+globs: app/api/**/*.ts
+alwaysApply: false
+---
+
+# Harness API routes
+
+Streaming harness runs must use the shared SSE factory.
+
+```typescript
+import { harnessSSEResponse } from '@/lib/api/sse';
+import { bootstrapEntity } from '@/lib/harness/bootstrap';
+import { hasApiKey } from '@/lib/ai/provider';
+
+export async function POST(req: NextRequest) {
+  const sessionId = crypto.randomUUID();
+  if (!hasApiKey()) {
+    return new Response(JSON.stringify({ error: '...' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  return harnessSSEResponse(sessionId, async (send) => {
+    await bootstrapEntity(config, input, send, sessionId);
+  });
+}
+```
+
+See `app/api/run/route.ts` and `app/api/message/route.ts` as templates.
+
+Non-streaming routes: use `NextResponse.json`. Queue/tasks/agents routes delegate to `lib/harness/*` and `lib/storage`.
+
+Agent customization API: use `mergeOverride`, `loadAgentOverrides`, `applyAgentOverride` from `@/lib/agents/resolve` — do not fork override logic.

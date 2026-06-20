@@ -1,6 +1,7 @@
 'use client';
 import { useReducer, useRef, useCallback } from 'react';
 import type { HarnessEvent, HarnessEventType, CostSnapshot } from '@/lib/harness/types';
+import { consumeHarnessSSE } from '@/lib/client/sse';
 
 export interface AgentNode {
   id: string;
@@ -311,47 +312,30 @@ export function useHarnessSession() {
 
     dispatch({ type: 'RESET' });
 
-    const response = await fetch('/api/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entityType, input }),
-      signal: abort.signal,
-    });
-
-    if (!response.body) return;
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
     try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() ?? '';
-        for (const part of parts) {
-          const line = part.trim();
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const event = JSON.parse(line.slice(6)) as HarnessEvent;
-            dispatch({ type: 'HARNESS_EVENT', event });
-          } catch { /* skip malformed */ }
-        }
-      }
+      const response = await fetch('/api/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType, input }),
+        signal: abort.signal,
+      });
+
+      if (!response.body) return;
+
+      await consumeHarnessSSE<HarnessEvent>(response, (event) => {
+        dispatch({ type: 'HARNESS_EVENT', event });
+      });
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        dispatch({
-          type: 'HARNESS_EVENT',
-          event: {
-            type: 'error',
-            sessionId: 'unknown',
-            data: { message: String(err) },
-            timestamp: new Date().toISOString(),
-          },
-        });
-      }
+      if ((err as Error).name === 'AbortError') return;
+      dispatch({
+        type: 'HARNESS_EVENT',
+        event: {
+          type: 'error',
+          sessionId: 'unknown',
+          data: { message: String(err) },
+          timestamp: new Date().toISOString(),
+        },
+      });
     }
   }, []);
 

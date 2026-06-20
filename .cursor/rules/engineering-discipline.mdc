@@ -1,0 +1,36 @@
+---
+description: Engineering discipline — minimal code, no premature commits, CI gates before push
+alwaysApply: true
+---
+
+# Do not
+
+## Code & scope
+
+- **Do not write unnecessary code** — smallest diff that solves the task; no speculative features, helpers used once, or "while I'm here" refactors
+- **Do not over-engineer** — no extra abstractions, config layers, or error handling for impossible paths
+- **Do not duplicate** — use shared helpers in `AGENTS.md`; do not restore legacy Dashboard/orchestrator patterns
+- **Do not add noise** — no trivial tests, no comments that restate code, no drive-by formatting outside your edit
+- **Do not expand scope** — one ROADMAP item or one user request per session slice unless explicitly asked
+
+## Git & deploy
+
+- **Do not commit** unless the user explicitly asked in this session
+- **Do not push** until local gates pass **and** (for shared branches) CI is green:
+  1. `npm run typecheck`
+  2. `npm run test` (unit)
+  3. `npm run test:contract`
+  4. `npm run build`
+- **Do not push to `main`** with failing CI or without the user's explicit request
+- **Do not** `--force` push, amend pushed commits, or skip hooks unless the user explicitly requests it
+- Prefer **one logical change per commit**; message should explain why, not only what
+
+## Tests
+
+- **Unit tests** (`lib/**/*.test.ts`) — pure logic, no live API keys or network
+- **Contract tests** (`app/api/**/*.contract.test.ts`) — HTTP handler response shape and status codes; mock storage only when required
+- Do not merge behavior changes without updating or adding tests when the change touches testable logic or API contracts
+
+## When in doubt
+
+Read `AGENTS.md` and `ROADMAP.md`. Ask before large architectural changes.

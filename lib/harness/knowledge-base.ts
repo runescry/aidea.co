@@ -17,12 +17,7 @@ export async function writeKB(key: string, value: unknown): Promise<void> {
 }
 
 export async function writeManyKB(updates: Record<string, unknown>): Promise<void> {
-  const data = await readProfile();
-  for (const [k, v] of Object.entries(updates)) {
-    if (k.includes('.')) setNestedKey(data, k, v);
-    else data[k] = v;
-  }
-  await writeProfile(data);
+  await mergeProfile(updates);
 }
 
 // Re-export for dot-notation merge helper

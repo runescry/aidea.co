@@ -30,16 +30,17 @@ export function TextField({ value, onChange, placeholder, type = 'text', disable
   );
 }
 
-export function TextArea({ value, onChange, placeholder, rows = 3 }: {
+export function TextArea({ value, onChange, placeholder, rows = 3, className }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   rows?: number;
+  className?: string;
 }) {
   return (
     <textarea
       rows={rows}
-      className="input-field resize-none"
+      className={className ? `${className} input-field resize-none` : 'input-field resize-none'}
       placeholder={placeholder}
       value={value}
       onChange={e => onChange(e.target.value)}

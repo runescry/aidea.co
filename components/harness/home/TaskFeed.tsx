@@ -1,23 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import type { ActionStatus } from '@/lib/harness/queue';
+import { ACTION_TYPE_LABELS } from '@/lib/harness/action-labels';
 import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
 import { formatTaskTime, sessionToTask } from '@/lib/harness/tasks';
+import { patchQueueAction } from '@/lib/client/queue';
+import { usePollingFetch } from '@/hooks/usePollingFetch';
 
 type Filter = 'all' | 'needs_you' | 'done';
-
-const TYPE_LABELS: Record<string, string> = {
-  email_reply: 'Email reply',
-  email_send: 'Email send',
-  calendar_event: 'Calendar',
-  task: 'Task',
-  reminder: 'Reminder',
-  message: 'Message',
-  alert: 'Alert',
-  kb_update: 'Profile update',
-  generic: 'Action',
-};
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
   needs_you: 'Needs you',
@@ -143,7 +134,7 @@ function TaskDetail({
 
         {action && !action.detail && action.type !== 'kb_update' && (
           <p className="text-xs text-foreground-subtle">
-            {TYPE_LABELS[action.type] ?? action.type} queued by {action.agentRole}
+            {ACTION_TYPE_LABELS[action.type] ?? action.type} queued by {action.agentRole}
           </p>
         )}
       </div>
@@ -171,30 +162,21 @@ function TaskDetail({
 }
 
 export default function TaskFeed({ session, onOpenStudio, refreshKey = 0 }: Props) {
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [needsYouCount, setNeedsYouCount] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const fetchTasks = useCallback(async () => {
-    try {
+  const { data, loading, refresh } = usePollingFetch(
+    async () => {
       const res = await fetch('/api/tasks');
-      if (res.ok) {
-        const data = await res.json() as { tasks: TaskItem[]; needsYou: number };
-        setTasks(data.tasks);
-        setNeedsYouCount(data.needsYou);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      if (!res.ok) return { tasks: [] as TaskItem[], needsYou: 0 };
+      return res.json() as Promise<{ tasks: TaskItem[]; needsYou: number }>;
+    },
+    8000,
+    [refreshKey],
+  );
 
-  useEffect(() => {
-    fetchTasks();
-    const id = setInterval(fetchTasks, 8000);
-    return () => clearInterval(id);
-  }, [fetchTasks, refreshKey]);
+  const tasks = data?.tasks ?? [];
+  const needsYouCount = data?.needsYou ?? 0;
 
   const sessionTask = useMemo(() => {
     if (!session || session.status === 'idle') return null;
@@ -224,13 +206,9 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0 }: Prop
   const selected = filtered.find(t => t.id === selectedId) ?? allTasks.find(t => t.id === selectedId) ?? null;
 
   const handleStatusChange = async (id: string, status: ActionStatus) => {
-    await fetch('/api/queue', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status }),
-    });
+    await patchQueueAction(id, status);
     setSelectedId(null);
-    fetchTasks();
+    refresh();
   };
 
   const filters: Array<{ id: Filter; label: string; count?: number }> = [

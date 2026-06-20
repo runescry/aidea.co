@@ -1,0 +1,27 @@
+---
+description: Use shared harness helpers — do not duplicate SSE, queue, labels, or save UX
+alwaysApply: true
+---
+
+# Shared helpers
+
+Before adding streaming, polling, queue, or save logic, check `AGENTS.md` and use existing helpers.
+
+## Must use
+
+- **Client SSE:** `consumeHarnessSSE` from `@/lib/client/sse` — never inline `getReader` + `split('\n\n')`
+- **API SSE:** `harnessSSEResponse` from `@/lib/api/sse` — never duplicate ReadableStream boilerplate
+- **Queue PATCH:** `patchQueueAction` from `@/lib/client/queue`
+- **Action labels:** `ACTION_TYPE_LABELS` from `@/lib/harness/action-labels` (not `queue.ts` in client code)
+- **Polling:** `usePollingFetch` from `@/hooks/usePollingFetch`
+- **Save panels:** `useSaveFeedback` from `@/hooks/useSaveFeedback`
+- **KB batch write:** `writeManyKB` / `mergeProfile` — not manual profile merge loops
+- **Agent overrides:** `resolveLibraryAgent` + `loadAgentOverrides` from `@/lib/agents/resolve`
+
+## Do not restore
+
+Legacy Dashboard, `useAgentSession`, `lib/orchestrator`, `lib/prompts/*`, imperative `lib/agents/leads/*`, or `ActionQueue.tsx`.
+
+## Reference
+
+Full examples: `/AGENTS.md`
