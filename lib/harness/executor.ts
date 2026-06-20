@@ -4,7 +4,7 @@ import { setAgentStatus, patchAgent } from './registry';
 import { getStateKeys } from './state';
 import { executeHarnessTool } from './tools';
 import { spawnChildAgent } from './spawn';
-import { getModel } from '@/lib/ai/provider';
+import { getModel, formatLlmError } from '@/lib/ai/provider';
 import { buildAiSdkTools } from '@/lib/ai/tools';
 import { formatConversationHistory } from '@/lib/chat/history';
 import type { ChatHistoryEntry } from '@/types/chat';
@@ -317,7 +317,7 @@ export async function runAgentLoop(
       entityId: ctx.entityId,
       agentId: agent.id,
       agentRole: agent.role,
-      data: { error: String(err) },
+      data: { error: formatLlmError(err) },
       timestamp: new Date().toISOString(),
     });
     throw err;

@@ -8,7 +8,7 @@ import { buildHarnessAgent, spawnChildAgent } from './spawn';
 import { runAgentLoop } from './executor';
 import { loadAgentOverrides, resolveLibraryAgent } from '@/lib/agents/resolve';
 import { hasNangoConnections } from '@/lib/nango/connections';
-import { kickstartDailyOrchestrator } from './daily-kickstart';
+import { kickstartDailyOrchestrator, finalizeDailyBrief } from './daily-kickstart';
 
 export async function bootstrapEntity(
   config: EntityConfig,
@@ -111,40 +111,37 @@ export async function bootstrapEntity(
 
   if (config.rootAgentId === 'daily-orchestrator') {
     await kickstartDailyOrchestrator(rootAgent, ctx, spawnFn);
+    await finalizeDailyBrief(rootAgent, ctx, spawnFn);
+  } else {
+    try {
+      await runAgentLoop(rootAgent, ctx);
+      await waitForAllAgents(registry, ctx);
+    } catch (err) {
+      state.status = 'error';
+      await persistEntityState(state);
+      send({
+        type: 'entity_error',
+        sessionId,
+        entityId,
+        data: { error: String(err), cost: cost.snapshot() },
+        timestamp: new Date().toISOString(),
+      });
+      throw err;
+    }
   }
 
-  try {
-    await runAgentLoop(rootAgent, ctx);
+  state.status = 'complete';
+  await persistEntityState(state);
 
-    await waitForAllAgents(registry, ctx);
+  send({
+    type: 'entity_complete',
+    sessionId,
+    entityId,
+    data: { cost: cost.snapshot() },
+    timestamp: new Date().toISOString(),
+  });
 
-    state.status = 'complete';
-    await persistEntityState(state);
-
-    send({
-      type: 'entity_complete',
-      sessionId,
-      entityId,
-      data: { cost: cost.snapshot() },
-      timestamp: new Date().toISOString(),
-    });
-
-    return state;
-
-  } catch (err) {
-    state.status = 'error';
-    await persistEntityState(state);
-
-    send({
-      type: 'entity_error',
-      sessionId,
-      entityId,
-      data: { error: String(err), cost: cost.snapshot() },
-      timestamp: new Date().toISOString(),
-    });
-
-    throw err;
-  }
+  return state;
 }
 
 async function waitForAllAgents(

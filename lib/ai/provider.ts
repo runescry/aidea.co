@@ -11,70 +11,101 @@ const GATEWAY_MODEL_IDS: Record<string, string> = {
   'claude-haiku-4-5-20251001': 'anthropic/claude-haiku-4.5',
 };
 
+type ProviderMode = 'gateway-key' | 'gateway-oidc' | 'anthropic-direct';
+
 function normalizeBareModelId(modelId: string): string {
   return modelId.replace(/^anthropic\//, '').replace(/-\d{8}$/, '');
 }
-
-let _provider: ReturnType<typeof createAnthropic> | null = null;
 
 function isPlaceholderAnthropicKey(key: string): boolean {
   return key.includes('YOUR_KEY') || key.length < 30;
 }
 
-export function useAiGateway(): boolean {
-  return Boolean(
-    process.env.AI_GATEWAY_API_KEY
-    ?? (process.env.VERCEL === '1' && process.env.VERCEL_OIDC_TOKEN)
+function hasDirectAnthropicKey(): boolean {
+  const anthropic = process.env.ANTHROPIC_API_KEY ?? '';
+  return anthropic.length > 0 && !isPlaceholderAnthropicKey(anthropic);
+}
+
+function hasGatewayKey(): boolean {
+  const gateway = process.env.AI_GATEWAY_API_KEY ?? '';
+  return gateway.length > 10;
+}
+
+function hasOidcGateway(): boolean {
+  const oidc = process.env.VERCEL_OIDC_TOKEN ?? '';
+  return process.env.VERCEL === '1' && oidc.length > 10;
+}
+
+function resolveProviderMode(): ProviderMode {
+  if (hasGatewayKey()) return 'gateway-key';
+  if (hasDirectAnthropicKey()) return 'anthropic-direct';
+  if (hasOidcGateway()) return 'gateway-oidc';
+  throw new Error(
+    'LLM not configured — set AI_GATEWAY_API_KEY or ANTHROPIC_API_KEY in Vercel env (OIDC-only gateway often returns Forbidden without AI Gateway enabled)',
   );
 }
 
-function gatewayApiKey(): string | undefined {
-  return process.env.AI_GATEWAY_API_KEY ?? process.env.VERCEL_OIDC_TOKEN;
-}
+let _provider: ReturnType<typeof createAnthropic> | null = null;
+let _providerMode: ProviderMode | null = null;
 
 function getProvider() {
-  if (!_provider) {
-    if (useAiGateway()) {
-      const apiKey = gatewayApiKey();
-      if (!apiKey) {
-        throw new Error('AI Gateway not configured — set AI_GATEWAY_API_KEY');
-      }
-      _provider = createAnthropic({
-        apiKey,
-        baseURL: process.env.AI_GATEWAY_BASE_URL ?? GATEWAY_BASE_URL,
-      });
-    } else {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey || isPlaceholderAnthropicKey(apiKey)) {
-        throw new Error('Set AI_GATEWAY_API_KEY or a valid ANTHROPIC_API_KEY');
-      }
-      _provider = createAnthropic({ apiKey });
-    }
+  const mode = resolveProviderMode();
+  if (_provider && _providerMode === mode) return _provider;
+
+  _providerMode = mode;
+  if (mode === 'gateway-key') {
+    _provider = createAnthropic({
+      apiKey: process.env.AI_GATEWAY_API_KEY!,
+      baseURL: process.env.AI_GATEWAY_BASE_URL ?? GATEWAY_BASE_URL,
+    });
+  } else if (mode === 'gateway-oidc') {
+    _provider = createAnthropic({
+      apiKey: process.env.VERCEL_OIDC_TOKEN!,
+      baseURL: process.env.AI_GATEWAY_BASE_URL ?? GATEWAY_BASE_URL,
+    });
+  } else {
+    _provider = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
   }
   return _provider;
 }
 
 /** Gateway uses provider/model ids; direct Anthropic uses bare ids. */
-function resolveModelId(modelId: string): string {
+function resolveModelId(modelId: string, mode: ProviderMode): string {
   const bare = normalizeBareModelId(modelId);
-  if (useAiGateway()) {
-    const mapped = GATEWAY_MODEL_IDS[bare] ?? GATEWAY_MODEL_IDS[modelId] ?? bare;
-    if (mapped.includes('/')) return mapped;
-    return `anthropic/${mapped.replace(/-(\d)-(\d)$/, '-$1.$2')}`;
+  if (mode === 'anthropic-direct') {
+    return bare;
   }
-  return bare;
+  const mapped = GATEWAY_MODEL_IDS[bare] ?? GATEWAY_MODEL_IDS[modelId] ?? bare;
+  if (mapped.includes('/')) return mapped;
+  return `anthropic/${mapped.replace(/-(\d)-(\d)$/, '-$1.$2')}`;
+}
+
+export function useAiGateway(): boolean {
+  return resolveProviderMode() !== 'anthropic-direct';
 }
 
 export function getModel(modelId?: string): LanguageModelV1 {
+  const mode = resolveProviderMode();
   const id = modelId ?? 'claude-sonnet-4-6';
-  return getProvider()(resolveModelId(id));
+  return getProvider()(resolveModelId(id, mode));
 }
 
 export function hasApiKey(): boolean {
-  const gateway = process.env.AI_GATEWAY_API_KEY ?? '';
-  if (gateway.length > 10) return true;
-  const oidc = process.env.VERCEL_OIDC_TOKEN ?? '';
-  if (oidc.length > 10) return true;
-  const anthropic = process.env.ANTHROPIC_API_KEY ?? '';
-  return anthropic.length > 0 && !isPlaceholderAnthropicKey(anthropic);
+  try {
+    resolveProviderMode();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function formatLlmError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/forbidden/i.test(message)) {
+    return 'AI API returned Forbidden — add AI_GATEWAY_API_KEY or ANTHROPIC_API_KEY in Vercel → Settings → Environment Variables, then redeploy';
+  }
+  if (/401|unauthorized/i.test(message)) {
+    return 'AI API unauthorized — check your API key in Vercel environment variables';
+  }
+  return message;
 }
