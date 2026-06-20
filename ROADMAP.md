@@ -10,11 +10,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
-**Phase:** P7.2 calendar approval cards shipped — KB cards next  
-**Next up:** P7.2 KB update approval cards  
-**Live:** [aidea-co.vercel.app](https://aidea-co.vercel.app) — local dev at `http://localhost:3000`
-
-**Recent:** P7.2 calendar approval cards — editable Inbox UX for `calendar_event` queue items
+**Phase:** P7.2 health brief in Inbox — relationship cards next  
+**Next up:** P7.2 relationship-monitor → Inbox  
+**Recent:** P7.2 health-briefer → Inbox — `HealthBriefRenderer`, entity `health_brief` row in feed
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
 **Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
@@ -145,3 +143,4 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - 2026-06-21 — P7.1 morning brief on Home — Inbox row + chat card; `latestBriefToTask`, `/api/tasks`
 - 2026-06-21 — P7.2 calendar approval cards — Inbox edit + approve for `calendar_event`; `calendar-display`, queue PATCH contract
 - 2026-06-21 — P7.2 KB update approval cards — structured preview + reason; `buildKbUpdatePreview`
+- 2026-06-21 — P7.2 health-briefer → Inbox — `latestHealthBriefToTask`, `HealthBriefRenderer`

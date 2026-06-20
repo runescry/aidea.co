@@ -9,7 +9,7 @@ export type TaskStatus = 'needs_you' | 'suggestion' | 'running' | 'done' | 'fail
 
 export interface TaskItem {
   id: string;
-  source: 'queue' | 'session' | 'proactive' | 'brief';
+  source: 'queue' | 'session' | 'proactive' | 'brief' | 'health';
   status: TaskStatus;
   title: string;
   subtitle?: string;
@@ -21,6 +21,14 @@ export interface TaskItem {
   entityId?: string;
   preview?: string;
   brief?: Record<string, unknown>;
+  healthBrief?: Record<string, unknown>;
+  relationship?: {
+    name: string;
+    email?: string;
+    type?: string;
+    lastContact?: string;
+    weeksSince?: number;
+  };
 }
 
 const TASK_STATUS_ORDER: Record<TaskStatus, number> = {
@@ -106,6 +114,60 @@ export function insertBriefTask(tasks: TaskItem[], briefTask: TaskItem | null): 
   const sorted = sortTaskItems(withoutBrief);
   const needsYouCount = sorted.filter(t => t.status === 'needs_you').length;
   return [...sorted.slice(0, needsYouCount), briefTask, ...sorted.slice(needsYouCount)];
+}
+
+export function latestHealthBriefToTask(
+  entities: EntityState[],
+  now = new Date(),
+): TaskItem | null {
+  let latest: { data: Record<string, unknown>; updatedAt: string } | null = null;
+
+  for (const entity of entities) {
+    const brief = entity.data.health_brief as Record<string, unknown> | undefined;
+    const workout = brief?.todayWorkout;
+    if (typeof workout !== 'string' || !workout.trim()) continue;
+    if (!latest || entity.updatedAt > latest.updatedAt) {
+      latest = { data: brief!, updatedAt: entity.updatedAt };
+    }
+  }
+
+  if (!latest) return null;
+  const updatedAt = new Date(latest.updatedAt);
+  if (Number.isNaN(updatedAt.getTime()) || !isSameCalendarDay(updatedAt, now)) return null;
+
+  const workout = String(latest.data.todayWorkout);
+  const intensity = typeof latest.data.intensity === 'string' ? latest.data.intensity : undefined;
+
+  return {
+    id: 'health-brief-latest',
+    source: 'health',
+    status: 'done',
+    title: "Today's training",
+    subtitle: intensity && intensity !== 'rest'
+      ? `${workout} · ${intensity}`
+      : workout,
+    preview: Array.isArray(latest.data.mealSuggestions) && latest.data.mealSuggestions[0]
+      ? String(latest.data.mealSuggestions[0])
+      : undefined,
+    createdAt: latest.updatedAt,
+    healthBrief: latest.data,
+  };
+}
+
+/** Pin today's health brief immediately after the morning brief row. */
+export function insertHealthTask(tasks: TaskItem[], healthTask: TaskItem | null): TaskItem[] {
+  if (!healthTask) return tasks.filter(t => t.source !== 'health');
+  const withoutHealth = tasks.filter(t => t.source !== 'health');
+  const briefIdx = withoutHealth.findIndex(t => t.source === 'brief');
+  if (briefIdx === -1) {
+    const needsYouCount = withoutHealth.filter(t => t.status === 'needs_you').length;
+    return [...withoutHealth.slice(0, needsYouCount), healthTask, ...withoutHealth.slice(needsYouCount)];
+  }
+  return [
+    ...withoutHealth.slice(0, briefIdx + 1),
+    healthTask,
+    ...withoutHealth.slice(briefIdx + 1),
+  ];
 }
 
 export function countNeedsYou(tasks: TaskItem[]): number {
@@ -280,9 +342,13 @@ export function buildUnifiedTaskFeed(input: {
   const dedupedProactive = proactiveTasks.filter(t => !existingIds.has(t.id));
 
   const briefTask = latestBriefToTask(input.brief, nowDate);
-  const tasks = insertBriefTask(
-    sortTaskItems([...queueTasks, ...dedupedProactive, ...entityTasks]),
-    briefTask,
+  const healthTask = latestHealthBriefToTask(input.entities, nowDate);
+  const tasks = insertHealthTask(
+    insertBriefTask(
+      sortTaskItems([...queueTasks, ...dedupedProactive, ...entityTasks]),
+      briefTask,
+    ),
+    healthTask,
   );
   return {
     tasks,
@@ -296,6 +362,12 @@ export function taskToChatPrompt(
   task: TaskItem,
   question = 'Why did you draft this?',
 ): string {
+  if (task.source === 'health') {
+    const lines = ['Help me follow today\'s training plan.', '', `Work item: ${task.title}`];
+    if (task.subtitle) lines.push(task.subtitle);
+    if (task.preview) lines.push('', task.preview);
+    return lines.join('\n');
+  }
   const lines = [question, '', `Work item: ${task.title}`];
   if (task.subtitle) lines.push(task.subtitle);
   if (task.action?.detail) {

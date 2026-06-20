@@ -15,6 +15,7 @@ import { patchSuggestion } from '@/lib/client/suggestions';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 import { Label, TextArea, TextField } from '@/components/harness/forms';
 import MorningBriefRenderer from '@/components/harness/MorningBriefRenderer';
+import HealthBriefRenderer from '@/components/harness/HealthBriefRenderer';
 
 type Filter = 'all' | 'approval' | 'suggestions' | 'running' | 'done';
 
@@ -318,7 +319,11 @@ function TaskDetail({
           <MorningBriefRenderer data={task.brief as unknown as Parameters<typeof MorningBriefRenderer>[0]['data']} />
         )}
 
-        {task.source === 'proactive' && (
+        {task.source === 'health' && task.healthBrief && (
+          <HealthBriefRenderer data={task.healthBrief as Parameters<typeof HealthBriefRenderer>[0]['data']} />
+        )}
+
+        {task.source === 'proactive' && !task.relationship && (
           <p className="text-sm text-foreground-muted leading-relaxed">
             A reminder from your profile or relationship monitor — not waiting for approval.
             Use chat to act on it or update your Context.
@@ -528,6 +533,16 @@ function TaskDetail({
           <p className="text-xs text-foreground-subtle">
             {ACTION_TYPE_LABELS[action.type] ?? action.type} queued by {action.agentRole}
           </p>
+        )}
+
+        {onDiscussInChat && task.source === 'health' && (
+          <button
+            type="button"
+            onClick={() => onDiscussInChat(taskToChatPrompt(task))}
+            className="btn-primary text-sm w-full sm:w-auto"
+          >
+            Discuss in chat
+          </button>
         )}
 
         {onDiscussInChat && (task.source === 'proactive' || task.status === 'suggestion') && (

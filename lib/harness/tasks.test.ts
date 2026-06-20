@@ -10,6 +10,8 @@ import {
   latestBriefToTask,
   isTodayBrief,
   insertBriefTask,
+  latestHealthBriefToTask,
+  insertHealthTask,
 } from './tasks';
 import type { QueuedAction } from './queue-types';
 import type { EntityState } from './types';
@@ -200,6 +202,32 @@ describe('buildUnifiedTaskFeed', () => {
     expect(tasks[0].status).toBe('needs_you');
     expect(tasks[1].source).toBe('brief');
   });
+
+  it('includes health brief from entity state in feed', () => {
+    const now = new Date('2026-06-01T12:00:00.000Z').getTime();
+    const { tasks } = buildUnifiedTaskFeed({
+      now,
+      actions: [],
+      entities: [{
+        entityId: 'e1',
+        entityType: 'daily',
+        entityName: 'Daily',
+        status: 'complete',
+        data: {
+          health_brief: {
+            todayWorkout: 'Pull — back, biceps',
+            intensity: 'moderate',
+            mealSuggestions: [],
+            hydrationGoalLitres: 2,
+          },
+        },
+        decisions: [],
+        createdAt: '2026-06-01T06:00:00.000Z',
+        updatedAt: '2026-06-01T06:30:00.000Z',
+      }],
+    });
+    expect(tasks.some(t => t.source === 'health')).toBe(true);
+  });
 });
 
 describe('latestBriefToTask', () => {
@@ -223,6 +251,78 @@ describe('latestBriefToTask', () => {
     );
     expect(task?.subtitle).toBe('2 priorities today');
     expect(isTodayBrief({ generatedAt: '2026-06-01T06:30:00.000Z' }, new Date('2026-06-01T12:00:00.000Z'))).toBe(true);
+  });
+});
+
+describe('latestHealthBriefToTask', () => {
+  it('returns null when no health_brief on entities', () => {
+    expect(latestHealthBriefToTask([], new Date('2026-06-01T12:00:00.000Z'))).toBeNull();
+  });
+
+  it('surfaces today health brief from entity state', () => {
+    const task = latestHealthBriefToTask([{
+      entityId: 'e1',
+      entityType: 'daily',
+      entityName: 'Daily',
+      status: 'complete',
+      data: {
+        health_brief: {
+          todayWorkout: 'Push — chest, shoulders',
+          estimatedDurationMins: 50,
+          intensity: 'moderate',
+          mealSuggestions: ['Breakfast: oats'],
+          hydrationGoalLitres: 2.5,
+        },
+      },
+      decisions: [],
+      createdAt: '2026-06-01T06:00:00.000Z',
+      updatedAt: '2026-06-01T06:30:00.000Z',
+    }], new Date('2026-06-01T12:00:00.000Z'));
+    expect(task?.source).toBe('health');
+    expect(task?.title).toBe("Today's training");
+    expect(task?.subtitle).toContain('Push');
+  });
+
+  it('drops stale health briefs from prior days', () => {
+    const task = latestHealthBriefToTask([{
+      entityId: 'e1',
+      entityType: 'daily',
+      entityName: 'Daily',
+      status: 'complete',
+      data: { health_brief: { todayWorkout: 'Rest day' } },
+      decisions: [],
+      createdAt: '2026-05-30T06:00:00.000Z',
+      updatedAt: '2026-05-30T06:30:00.000Z',
+    }], new Date('2026-06-01T12:00:00.000Z'));
+    expect(task).toBeNull();
+  });
+});
+
+describe('insertHealthTask', () => {
+  it('pins health row after morning brief', () => {
+    const brief = {
+      id: 'brief-latest',
+      source: 'brief' as const,
+      status: 'done' as const,
+      title: 'Morning brief',
+      createdAt: '2026-06-01T06:30:00.000Z',
+    };
+    const health = {
+      id: 'health-brief-latest',
+      source: 'health' as const,
+      status: 'done' as const,
+      title: "Today's training",
+      createdAt: '2026-06-01T06:35:00.000Z',
+    };
+    const other = {
+      id: 'proactive-1',
+      source: 'proactive' as const,
+      status: 'suggestion' as const,
+      title: 'Nudge',
+      createdAt: '2026-06-01T09:00:00.000Z',
+    };
+    const ordered = insertHealthTask([brief, other], health);
+    expect(ordered.map(t => t.id)).toEqual(['brief-latest', 'health-brief-latest', 'proactive-1']);
   });
 });
 
