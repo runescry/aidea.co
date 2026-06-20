@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useHarnessSession } from '@/hooks/useHarnessSession';
+import { ChatProvider } from '@/hooks/useChatConversations';
 import HomeScreen from './home/HomeScreen';
 import RunStudio from './RunStudio';
 import KnowledgeBaseEditor from './KnowledgeBaseEditor';
@@ -48,6 +49,7 @@ export default function HarnessDashboard() {
   }
 
   return (
+    <ChatProvider>
     <div className="h-screen bg-surface-muted text-foreground flex flex-col overflow-hidden">
       <HumanInputOverlay
         pending={state.pendingInput ?? null}
@@ -123,5 +125,6 @@ export default function HarnessDashboard() {
         </div>
       )}
     </div>
+    </ChatProvider>
   );
 }

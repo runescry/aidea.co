@@ -1,19 +1,9 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { HarnessEvent } from '@/lib/harness/types';
-import { consumeHarnessSSE } from '@/lib/client/sse';
+import { useChatConversations } from '@/hooks/useChatConversations';
+import type { ChatMessage } from '@/types/chat';
 import ChatMarkdown from './ChatMarkdown';
 import InboxSummaryCard, { isInboxStructured, type DispatchInboxStructured } from './chat/InboxSummaryCard';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  structured?: unknown;
-  toolCalls?: Array<{ tool: string; summary: string }>;
-  timestamp: string;
-  status?: 'streaming' | 'done' | 'error';
-}
 
 const HOME_SUGGESTIONS = [
   "What's still open from this week?",
@@ -31,7 +21,7 @@ function ToolPill({ tool, summary }: { tool: string; summary: string }) {
   );
 }
 
-function AssistantContent({ msg }: { msg: Message }) {
+function AssistantContent({ msg }: { msg: ChatMessage }) {
   if (msg.status === 'streaming' && !msg.content) {
     return <span className="text-foreground-subtle animate-pulse">Working…</span>;
   }
@@ -61,7 +51,7 @@ function AssistantContent({ msg }: { msg: Message }) {
   return null;
 }
 
-function ChatMessage({ msg, variant }: { msg: Message; variant: 'default' | 'home' }) {
+function ChatMessageRow({ msg, variant }: { msg: ChatMessage; variant: 'default' | 'home' }) {
   if (msg.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -110,127 +100,29 @@ interface Props {
 }
 
 export default function ChatInterface({ variant = 'default', onMessageComplete }: Props) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { activeConversation, streaming, sendMessage } = useChatConversations();
+  const messages = activeConversation.messages;
   const [input, setInput] = useState('');
-  const [streaming, setStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
   const isHome = variant === 'home';
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, activeConversation.id]);
 
   useEffect(() => {
     if (isHome) inputRef.current?.focus();
-  }, [isHome]);
-
-  const handleEvent = (event: HarnessEvent, assistantMsgId: string) => {
-    if (event.type === 'tool_called') {
-      const inputSummary = Object.entries(event.data.input as Record<string, unknown>)
-        .slice(0, 2)
-        .map(([k, v]) => `${k}: ${String(v).slice(0, 30)}`)
-        .join(', ');
-      setMessages(prev => prev.map(m =>
-        m.id === assistantMsgId
-          ? { ...m, toolCalls: [...(m.toolCalls ?? []), { tool: event.data.tool as string, summary: inputSummary }] }
-          : m
-      ));
-    }
-    if (event.type === 'agent_complete') {
-      const summary = event.data.summary as string | undefined;
-      const structured = event.data.structured;
-      setMessages(prev => prev.map(m =>
-        m.id === assistantMsgId
-          ? {
-              ...m,
-              content: summary?.trim() || m.content || 'Done.',
-              ...(structured !== undefined ? { structured } : {}),
-            }
-          : m
-      ));
-    }
-    if (event.type === 'error' || event.type === 'agent_error' || event.type === 'entity_error') {
-      const message =
-        (event.data.message as string | undefined)
-        ?? (event.data.error as string | undefined)
-        ?? 'Something went wrong.';
-      setMessages(prev => prev.map(m =>
-        m.id === assistantMsgId
-          ? { ...m, status: 'error', content: message }
-          : m
-      ));
-    }
-  };
+  }, [isHome, activeConversation.id]);
 
   const send = useCallback(async (text?: string) => {
     const command = (text ?? input).trim();
     if (!command || streaming) return;
-
     setInput('');
     if (inputRef.current) inputRef.current.style.height = 'auto';
-    abortRef.current?.abort();
-    const abort = new AbortController();
-    abortRef.current = abort;
-
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: command,
-      timestamp: new Date().toISOString(),
-    };
-
-    const assistantMsgId = crypto.randomUUID();
-    const assistantMsg: Message = {
-      id: assistantMsgId,
-      role: 'assistant',
-      content: '',
-      toolCalls: [],
-      timestamp: new Date().toISOString(),
-      status: 'streaming',
-    };
-
-    setMessages(prev => [...prev, userMsg, assistantMsg]);
-    setStreaming(true);
-
-    try {
-      const res = await fetch('/api/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command }),
-        signal: abort.signal,
-      });
-
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(errBody.error ?? `Request failed (${res.status})`);
-      }
-
-      if (!res.body) throw new Error('No response body');
-
-      await consumeHarnessSSE<HarnessEvent>(res, (event) => {
-        handleEvent(event, assistantMsgId);
-      });
-
-      setMessages(prev => prev.map(m =>
-        m.id === assistantMsgId ? { ...m, status: 'done' } : m
-      ));
-      onMessageComplete?.();
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        const message = err instanceof Error ? err.message : 'Something went wrong.';
-        setMessages(prev => prev.map(m =>
-          m.id === assistantMsgId
-            ? { ...m, status: 'error', content: m.content || message }
-            : m
-        ));
-      }
-    } finally {
-      setStreaming(false);
-      if (isHome) inputRef.current?.focus();
-    }
-  }, [input, streaming, isHome, onMessageComplete]);
+    await sendMessage(command);
+    onMessageComplete?.();
+  }, [input, streaming, sendMessage, onMessageComplete]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -324,7 +216,7 @@ export default function ChatInterface({ variant = 'default', onMessageComplete }
           </div>
         )}
         {messages.map(msg => (
-          <ChatMessage key={msg.id} msg={msg} variant={variant} />
+          <ChatMessageRow key={msg.id} msg={msg} variant={variant} />
         ))}
         <div ref={bottomRef} />
       </div>

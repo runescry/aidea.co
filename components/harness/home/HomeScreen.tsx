@@ -1,6 +1,7 @@
 'use client';
 
 import ChatInterface from '../ChatInterface';
+import ConversationTabs from '../chat/ConversationTabs';
 import TaskFeed from './TaskFeed';
 
 interface SessionInfo {
@@ -27,7 +28,8 @@ export default function HomeScreen({ session, onOpenStudio, taskRefreshKey, onTa
           </p>
         </div>
 
-        <div className="flex-1 min-h-0 flex flex-col px-6">
+        <div className="flex-1 min-h-0 flex flex-col px-6 pt-3">
+          <ConversationTabs />
           <ChatInterface variant="home" onMessageComplete={onTaskRefresh} />
         </div>
       </section>
