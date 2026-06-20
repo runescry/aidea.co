@@ -164,54 +164,56 @@ export default function AgentLibrary() {
   }
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row min-h-0">
+    <div className="flex-1 flex flex-col md:flex-row min-h-0 min-w-0 overflow-hidden bg-surface">
       <aside
-        className={`${
-          selectedId ? 'hidden md:flex' : 'flex flex-1 md:flex-none min-h-0'
-        } w-full md:w-[280px] lg:w-[300px] shrink-0 border-b md:border-b-0 md:border-r border-border bg-surface overflow-y-auto`}
+        className={`flex flex-col min-h-0 shrink-0 border-border bg-surface overflow-hidden ${
+          selectedId ? 'hidden md:flex' : 'flex flex-1 md:flex-none'
+        } w-full md:w-72 lg:w-80 border-b md:border-b-0 md:border-r`}
       >
-        <div className="px-4 py-3 border-b border-border">
+        <div className="shrink-0 px-4 py-3 border-b border-border">
           <h2 className="text-[13px] font-semibold text-foreground">Agent library</h2>
           <p className="text-[11px] text-foreground-subtle mt-0.5">
             {groups.reduce((n, g) => n + g.agents.length, 0)} agents · edits apply on next run
           </p>
         </div>
-        {groups.map(group => (
-          <div key={group.id}>
-            <div className="px-4 py-2 text-[10px] font-medium uppercase tracking-wider text-foreground-subtle bg-surface-subtle/50">
-              {group.label}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {groups.map(group => (
+            <div key={group.id}>
+              <div className="px-4 py-2 text-[10px] font-medium uppercase tracking-wider text-foreground-subtle bg-surface-subtle/50 sticky top-0 z-10">
+                {group.label}
+              </div>
+              {group.agents.map(agent => (
+                <button
+                  key={agent.id}
+                  type="button"
+                  onClick={() => handleSelect(agent.id)}
+                  className={`w-full text-left px-4 py-2.5 border-b border-border/50 transition-colors ${
+                    selectedId === agent.id ? 'bg-accent/[0.05]' : 'hover:bg-surface-subtle/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[13px] text-foreground truncate">{agent.displayName}</span>
+                    {agent.hasCustomization && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" title="Customized" />
+                    )}
+                  </div>
+                  <div className="text-[11px] text-foreground-subtle mt-0.5 truncate">
+                    {agent.id} · {agent.authority}
+                  </div>
+                </button>
+              ))}
             </div>
-            {group.agents.map(agent => (
-              <button
-                key={agent.id}
-                type="button"
-                onClick={() => handleSelect(agent.id)}
-                className={`w-full text-left px-4 py-2.5 border-b border-border/50 transition-colors ${
-                  selectedId === agent.id ? 'bg-accent/[0.05]' : 'hover:bg-surface-subtle/80'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] text-foreground truncate">{agent.displayName}</span>
-                  {agent.hasCustomization && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" title="Customized" />
-                  )}
-                </div>
-                <div className="text-[11px] text-foreground-subtle mt-0.5 truncate">
-                  {agent.id} · {agent.authority}
-                </div>
-              </button>
-            ))}
-          </div>
-        ))}
+          ))}
+        </div>
       </aside>
 
-      <main className={`${!selectedId ? 'hidden md:block' : 'block'} flex-1 overflow-y-auto min-w-0 min-h-0`}>
+      <main className={`${!selectedId ? 'hidden md:flex' : 'flex'} flex-1 flex-col min-w-0 min-h-0 overflow-y-auto`}>
         {!selected ? (
           <div className="hidden md:flex items-center justify-center h-full text-sm text-foreground-muted">
             Select an agent
           </div>
         ) : (
-          <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-6">
+          <div className="w-full max-w-3xl mx-auto p-4 md:p-6 space-y-6">
             <button
               type="button"
               onClick={() => setSelectedId(null)}
