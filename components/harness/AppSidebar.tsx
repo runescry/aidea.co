@@ -98,7 +98,7 @@ export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStud
               type="button"
               onClick={() => onNavigate(id)}
               title={!expanded ? label : undefined}
-              className={`relative w-full flex items-center gap-3 rounded-lg transition-colors ${
+              className={`relative w-full flex items-center gap-3 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/25 ${
                 expanded ? 'px-2.5 py-2' : 'p-2.5 justify-center'
               } ${
                 active

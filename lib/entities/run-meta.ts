@@ -40,10 +40,25 @@ export const HOME_RUN_ENTITIES: HomeRunnableEntity[] = ['company', 'learning', '
 
 export type StudioEntityType = EntityType;
 
-export const STUDIO_ENTITY_META: Record<StudioEntityType, { label: string; fields: EntityRunField[] }> = {
-  ...ENTITY_RUN_META,
+export const STUDIO_ENTITY_META: Record<StudioEntityType, { label: string; description: string; fields: EntityRunField[] }> = {
+  company: {
+    label: 'Company',
+    description: 'Simulate a startup with CEO, product, marketing, and finance agents. Produces strategy artifacts and a consensus plan.',
+    fields: ENTITY_RUN_META.company.fields,
+  },
+  learning: {
+    label: 'Learning OS',
+    description: 'Build a personalised curriculum, practice schedule, and knowledge capture plan from your learning goals.',
+    fields: ENTITY_RUN_META.learning.fields,
+  },
+  creator: {
+    label: 'Creator Studio',
+    description: 'Plan content strategy, production workflow, and distribution for a creator business.',
+    fields: ENTITY_RUN_META.creator.fields,
+  },
   personal: {
     label: 'Personal OS',
+    description: 'Run life-domain directors (health, finance, relationships, growth) against your priorities and context.',
     fields: [
       { key: 'prompt', label: 'Life context', placeholder: 'I\'m a 32-year-old engineer who wants to transition to founding my own company in 18 months' },
       { key: 'priorities', label: 'Top priorities (comma-separated)', placeholder: 'financial independence, health, meaningful relationships' },
@@ -51,10 +66,12 @@ export const STUDIO_ENTITY_META: Record<StudioEntityType, { label: string; field
   },
   daily: {
     label: 'Daily OS',
+    description: 'Orchestrates inbox triage, calendar, health, news, and work prep using your profile — outputs a morning brief.',
     fields: [],
   },
   custom: {
     label: 'Custom',
+    description: '',
     fields: [],
   },
 };

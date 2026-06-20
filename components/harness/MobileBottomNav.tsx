@@ -42,7 +42,7 @@ export default function MobileBottomNav({ view, onNavigate, agentsRunning, workP
               key={id}
               type="button"
               onClick={() => onNavigate(id)}
-              className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 min-w-0 px-1 transition-colors ${
+              className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 min-w-0 px-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/25 ${
                 active ? 'text-foreground' : 'text-foreground-muted'
               }`}
               aria-current={active ? 'page' : undefined}

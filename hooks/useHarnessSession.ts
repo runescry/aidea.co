@@ -289,6 +289,14 @@ function reducer(state: HarnessState, action: Action): HarnessState {
         eventLog: log,
       };
 
+    case 'error':
+      return {
+        ...state,
+        status: 'error',
+        error: (event.data.message ?? event.data.error) as string,
+        eventLog: log,
+      };
+
     default:
       return { ...state, eventLog: log };
   }
@@ -319,6 +327,20 @@ export function useHarnessSession() {
         body: JSON.stringify({ entityType, input }),
         signal: abort.signal,
       });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({})) as { error?: string };
+        dispatch({
+          type: 'HARNESS_EVENT',
+          event: {
+            type: 'error',
+            sessionId: 'unknown',
+            data: { message: errBody.error ?? `Run failed (${response.status})` },
+            timestamp: new Date().toISOString(),
+          },
+        });
+        return;
+      }
 
       if (!response.body) return;
 
