@@ -48,6 +48,8 @@ interface Props {
   onOpenStudio?: () => void;
   onDiscussInChat?: (prompt: string) => void;
   onTasksChanged?: () => void;
+  initialFilter?: Filter;
+  onClose?: () => void;
 }
 
 function TaskRow({
@@ -221,8 +223,15 @@ function TaskDetail({
   );
 }
 
-export default function TaskFeed({ session, onOpenStudio, onDiscussInChat, onTasksChanged }: Props) {
-  const [filter, setFilter] = useState<Filter>('all');
+export default function TaskFeed({
+  session,
+  onOpenStudio,
+  onDiscussInChat,
+  onTasksChanged,
+  initialFilter = 'all',
+  onClose,
+}: Props) {
+  const [filter, setFilter] = useState<Filter>(initialFilter);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'ok' | 'err'; message: string } | null>(null);
 
@@ -278,9 +287,9 @@ export default function TaskFeed({ session, onOpenStudio, onDiscussInChat, onTas
     }
   };
 
-  const filters: Array<{ id: Filter; label: string; count?: number }> = [
+  const filters: Array<{ id: Filter; label: string; shortLabel?: string; count?: number }> = [
     { id: 'all', label: 'All' },
-    { id: 'approval', label: 'Awaiting approval', count: approvalCount },
+    { id: 'approval', label: 'Awaiting approval', shortLabel: 'Approve', count: approvalCount },
     { id: 'suggestions', label: 'Suggestions', count: suggestionCount },
     { id: 'running', label: 'Running', count: runningCount },
     { id: 'done', label: 'Done' },
@@ -290,8 +299,18 @@ export default function TaskFeed({ session, onOpenStudio, onDiscussInChat, onTas
     <div className="flex flex-col h-full bg-surface">
       <div className="shrink-0 px-4 pt-4 pb-2 border-b border-border">
         <div className="flex items-center justify-between mb-3 gap-2">
-          <h2 className="text-[13px] font-semibold text-foreground tracking-tight">Work</h2>
+          <h2 className="text-[13px] font-semibold text-foreground tracking-tight">Inbox</h2>
           <div className="flex items-center gap-2 shrink-0">
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-2 -mr-1 rounded-lg text-foreground-muted hover:text-foreground hover:bg-surface-subtle"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            )}
             {autonomy && (
               <span
                 className="text-[10px] text-foreground-subtle hidden sm:inline"
@@ -319,7 +338,8 @@ export default function TaskFeed({ session, onOpenStudio, onDiscussInChat, onTas
                   : 'text-foreground-muted hover:text-foreground hover:bg-surface-subtle'
               }`}
             >
-              {f.label}
+              <span className="sm:hidden">{f.shortLabel ?? f.label}</span>
+              <span className="hidden sm:inline">{f.label}</span>
               {f.count != null && f.count > 0 && (
                 <span className="ml-1 opacity-80">{f.count}</span>
               )}

@@ -118,7 +118,7 @@ export default function MorningBriefRenderer({ data }: { data: MorningBriefData 
               )}
               {item.queueActionId && (
                 <div className="text-[11px] text-accent font-medium ml-7">
-                  Reply draft queued — open Home → Work → Awaiting approval
+                  Reply draft queued — open Home → Inbox → Awaiting approval
                 </div>
               )}
             </div>

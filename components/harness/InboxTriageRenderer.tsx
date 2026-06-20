@@ -46,7 +46,7 @@ function EmailCard({ item, showAction }: { item: EmailItem; showAction?: boolean
       )}
       {item.queueActionId && (
         <div className="text-[11px] text-accent font-medium">
-          Draft queued — review on Home → Work → Awaiting approval
+          Draft queued — review on Home → Inbox → Awaiting approval
         </div>
       )}
     </div>

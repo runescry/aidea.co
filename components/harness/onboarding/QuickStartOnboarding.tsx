@@ -125,7 +125,7 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
           {step === 2 && (
             <div className="space-y-4">
               <p className="text-caption text-foreground-muted">
-                Controls what runs automatically vs. what waits for your approval in Work.
+                Controls what runs automatically vs. what waits for your approval in Inbox.
               </p>
               <div>
                 <Label>Default autonomy</Label>
