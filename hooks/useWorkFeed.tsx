@@ -64,7 +64,7 @@ export function WorkFeedProvider({
 }: ProviderProps) {
   const [data, setData] = useState<WorkFeedPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const inFlightRef = useRef<AbortController | null>(null);
+  const fetchGenRef = useRef(0);
   const homeActiveRef = useRef(homeActive);
   const activeRef = useRef(agentsRunning || chatStreaming);
 
@@ -72,20 +72,20 @@ export function WorkFeedProvider({
   activeRef.current = agentsRunning || chatStreaming;
 
   const fetchFeed = useCallback(async (full: boolean) => {
-    inFlightRef.current?.abort();
-    const abort = new AbortController();
-    inFlightRef.current = abort;
-
+    const gen = ++fetchGenRef.current;
     const url = full ? '/api/tasks' : '/api/tasks?summary=1';
+
     try {
-      const res = await fetch(url, { signal: abort.signal });
+      const res = await fetch(url);
+      if (gen !== fetchGenRef.current) return;
+
       if (!res.ok) {
         if (!full) return;
         setData({ tasks: [], needsYou: 0, suggestions: 0, autonomy: null });
         return;
       }
       const body = await res.json() as Partial<WorkFeedPayload> & { needsYou?: number; suggestions?: number };
-      if (abort.signal.aborted) return;
+      if (gen !== fetchGenRef.current) return;
 
       if (full) {
         setData({
@@ -102,10 +102,10 @@ export function WorkFeedProvider({
           autonomy: prev?.autonomy ?? null,
         }));
       }
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return;
+    } catch {
+      // ignore transient network errors; next poll will retry
     } finally {
-      if (!abort.signal.aborted) setLoading(false);
+      if (gen === fetchGenRef.current) setLoading(false);
     }
   }, []);
 
@@ -122,12 +122,8 @@ export function WorkFeedProvider({
   }, [refreshKey, refresh]);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      await fetchFeed(false);
-      if (!cancelled && homeActive) await fetchFeed(true);
-    })();
-    return () => { cancelled = true; };
+    setLoading(true);
+    void fetchFeed(homeActive);
   }, [homeActive, fetchFeed]);
 
   useEffect(() => {

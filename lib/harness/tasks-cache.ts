@@ -1,5 +1,5 @@
 const DEV = process.env.NODE_ENV === 'development';
-const TASKS_CACHE_MS = DEV ? 8_000 : 0;
+const TASKS_CACHE_MS = DEV ? 15_000 : 0;
 
 let fullTasksCache: { at: number; body: unknown } | null = null;
 

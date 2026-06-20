@@ -2,7 +2,7 @@
 
 One item per agent loop iteration unless the loop prompt says to continue through all unchecked items. Mark `[x]` only when `npm run typecheck`, `npm test`, `npm run test:contract`, and `npm run build` all pass (or note if blocked on external deps).
 
-**Guides:** [AGENTS.md](./AGENTS.md) · `.cursor/rules/`
+**Guides:** [AGENTS.md](./AGENTS.md) · [docs/VISION.md](./docs/VISION.md) · [docs/PLAN.md](./docs/PLAN.md) · [Interactive docs](/docs/vision) · [/docs/plan](/docs/plan) · `.cursor/rules/`
 
 ---
 
@@ -10,9 +10,14 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-20  
-**Phase:** P6 — Performance (complete)  
-**Next up:** Optional — Daily lite brief, auth/multi-user  
-**Session:** Performance batch pushed (`4348afb`) — Work feed, fast chat, CEO tiering.
+**Phase:** P6 complete; post-P6 polish in working tree (not yet pushed)  
+**Next up:** P7.0 ship post-P6 to prod — see [docs/PLAN.md](./docs/PLAN.md); then P7.1 daily lite brief + morning ritual  
+**Live:** [aidea-co.vercel.app](https://aidea-co.vercel.app) — local dev at `http://localhost:3000`
+
+**Recent (local, uncommitted):** Inbox panel (approvals vs suggestions), live email edit (To/Cc/subject/body), Gmail drafts via Nango, chat persistence + hard delete, activity reset (`POST /api/reset` + Settings button), mobile Inbox overlay, streaming chat, queue-types client boundary fix.
+
+**Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
+**Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
 
 ---
 
@@ -83,6 +88,36 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 ---
 
+## Post-P6 polish (working tree — verify before marking done)
+
+- [x] **Inbox UX** — Panel renamed; tabs: All / Awaiting approval / Suggestions / Running / Done; badge = approvals only
+- [x] **Live email edit** — Edit To, Cc, subject, body on approval cards before Approve & send or Save to drafts
+- [x] **Gmail drafts** — Nango OAuth; queue `intent: save` creates Gmail draft; job-ad vs application classification in dispatcher
+- [x] **Chat persistence** — Server-side conversations (`/api/chat`); hard delete; conversation history in dispatcher
+- [x] **Streaming chat** — `agent_text_delta` SSE; markdown + inbox summary cards on Home
+- [x] **Mobile Home** — Bottom nav; full-height chat; Inbox full-screen overlay (not split viewport)
+- [x] **Activity reset** — `POST /api/reset`, `npm run reset:activity`, Settings → Danger zone button
+- [x] **Client import boundary** — `lib/harness/queue-types.ts`; no `@/lib/harness/queue` or `@/lib/storage` in `'use client'` files
+
+---
+
+## P7 — Gap closure (see [docs/PLAN.md](./docs/PLAN.md))
+
+Build / test / deploy: [PLAN.md § Build workflow](./docs/PLAN.md#build-workflow) · [Test strategy](./docs/PLAN.md#test-strategy) · [Deployment workflow](./docs/PLAN.md#deployment-workflow)
+
+Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [docs/PLAN.md](./docs/PLAN.md). Summary checkboxes:
+
+- [ ] **P7.0 Ship post-P6** — Commit & deploy polish to production
+- [ ] **Daily lite brief on Home** — Single-agent morning mode ([P6 backlog](#p6-backlog-not-started))
+- [ ] **Morning brief surfacing** — Brief → Inbox row or chat card, not Studio-only
+- [ ] **Suggestion dismiss / snooze** — Hygiene for proactive Inbox items
+- [ ] **Audit trail viewer** — Browse queue approve/reject/save history in UI
+- [ ] **Non-email Inbox cards** — Calendar and KB queue items with polished approval UX
+- [ ] **Cron outcomes → Inbox** — Health-briefer and relationship-monitor surface like inbox-triage
+- [ ] **request_human_input on Home** — Human-in-the-loop outside Studio
+
+---
+
 ## Done
 
 - [x] Home: chat left + Work feed right
@@ -104,3 +139,4 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 - 2026-06-20 — P4 batch (proactive Work, autonomy UI, running filter) — `lib/harness/proactive-tasks.ts`, `TaskFeed.tsx`, `/api/tasks`
 - 2026-06-20 — P5 batch (visual system, quick onboarding, audit trail, deploy docs) — `EntityTypeIcon`, `QuickStartOnboarding`, `queue-audit`, `docs/DEPLOYMENT.md`
 - 2026-06-20 — P6 performance (Work feed, fast chat, caches, CEO tier) — `useWorkFeed`, `fast-chat`, `4348afb`
+- 2026-06-20 — Post-P6 polish (Inbox, email edit, Nango drafts, chat persist, reset, mobile, queue-types) — local working tree

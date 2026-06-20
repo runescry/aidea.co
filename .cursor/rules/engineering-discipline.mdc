@@ -15,13 +15,15 @@ alwaysApply: true
 
 ## Git & deploy
 
+- **Default: local dev** — validate with `npm run dev`; do not push or deploy unless the user explicitly asks
 - **Do not commit** unless the user explicitly asked in this session
-- **Do not push** until local gates pass **and** (for shared branches) CI is green:
+- **Always run local gates** before reporting work complete (commit or not):
   1. `npm run typecheck`
   2. `npm run test` (unit)
   3. `npm run test:contract`
   4. `npm run build`
-- **Do not push to `main`** with failing CI or without the user's explicit request
+- **Do not push to `main` or deploy to Vercel** without the user's **explicit** request in that session
+- **Do not push** with failing local gates or failing CI on the branch
 - **Do not** `--force` push, amend pushed commits, or skip hooks unless the user explicitly requests it
 - Prefer **one logical change per commit**; message should explain why, not only what
 
@@ -33,4 +35,4 @@ alwaysApply: true
 
 ## When in doubt
 
-Read `AGENTS.md` and `ROADMAP.md`. Ask before large architectural changes.
+Read `AGENTS.md`, `ROADMAP.md`, and `docs/PLAN.md` (P7+). Skim `docs/VISION.md` for domain scope. Ask before large architectural changes.

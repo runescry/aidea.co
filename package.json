@@ -10,6 +10,10 @@
     "test": "vitest run lib",
     "test:contract": "vitest run app/api",
     "test:integration": "RUN_INTEGRATION=1 INTEGRATION_CHAT=1 vitest run --config vitest.integration.config.ts",
+    "test:inbox-triage": "RUN_INTEGRATION=1 vitest run --config vitest.integration.config.ts tests/integration/inbox-triage.test.ts",
+    "test:inbox-triage:live": "RUN_INTEGRATION=1 INTEGRATION_GMAIL=1 vitest run --config vitest.integration.config.ts tests/integration/inbox-triage.test.ts",
+    "test:inbox-triage:run": "npx tsx scripts/test-inbox-triage.mts",
+    "reset:activity": "npx tsx scripts/reset-activity.mts",
     "test:all": "vitest run",
     "test:watch": "vitest"
   },
@@ -20,6 +24,7 @@
     "@nangohq/node": "^0.70.8",
     "@vercel/kv": "^3.0.0",
     "ai": "^4.3.16",
+    "mermaid": "^11.15.0",
     "next": "^15.0.0",
     "postgres": "^3.4.7",
     "react": "^19.0.0",

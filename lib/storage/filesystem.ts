@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { EntityState } from '@/lib/harness/types';
-import type { QueuedAction } from '@/lib/harness/queue';
+import type { QueuedAction } from '@/lib/harness/queue-types';
 import type { AppSettings } from '@/lib/settings';
 import type { ChatConversation, ChatStore } from '@/types/chat';
 import { emptyChatStore, normalizeChatStore } from '@/lib/chat/store-utils';
@@ -42,6 +42,10 @@ export function readProfile(): Record<string, unknown> {
 
 export function writeProfile(data: Record<string, unknown>): void {
   writeJson('knowledge-base.json', data);
+}
+
+export function getQueueAction(id: string): QueuedAction | null {
+  return listQueue().find(action => action.id === id) ?? null;
 }
 
 export function listQueue(): QueuedAction[] {
@@ -220,4 +224,13 @@ export function deleteChatConversation(id: string): ChatStore {
   store = ensureActiveId(store);
   writeChatMeta(store.activeId);
   return store;
+}
+
+export function clearActivityHistory(): void {
+  replaceQueue([]);
+  writeJson('action-audit.json', []);
+  writeJson('harness-state.json', { version: '1.0', entities: [] });
+  const briefPath = path.join(DATA_DIR, 'latest-brief.json');
+  if (fs.existsSync(briefPath)) fs.unlinkSync(briefPath);
+  writeChatStore(emptyChatStore());
 }

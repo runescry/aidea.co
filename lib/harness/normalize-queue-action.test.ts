@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { canExecuteEmailAction, canSaveEmailDraft, normalizeEmailQueueAction } from './normalize-queue-action';
-import type { QueuedAction } from './queue';
+import { canExecuteEmailAction, canSaveEmailDraft, normalizeEmailQueueAction, applyQueueEdits } from './normalize-queue-action';
+import type { QueuedAction } from './queue-types';
 
 const base: QueuedAction = {
   id: '1',
@@ -33,5 +33,51 @@ describe('normalizeEmailQueueAction', () => {
   it('detects when save is possible with body only', () => {
     expect(canSaveEmailDraft(base)).toBe(true);
     expect(canSaveEmailDraft({ ...base, detail: '', payload: {} })).toBe(false);
+  });
+});
+
+describe('applyQueueEdits', () => {
+  it('updates body and detail for email drafts', () => {
+    const edited = applyQueueEdits(base, { body: 'Updated draft text.' });
+    expect(edited.detail).toBe('Updated draft text.');
+    expect(edited.payload.body).toBe('Updated draft text.');
+  });
+
+  it('updates subject without changing body when only subject is edited', () => {
+    const withSubject = {
+      ...base,
+      payload: { ...base.payload, subject: 'Re: Acknowledge Ivy report' },
+    };
+    const edited = applyQueueEdits(withSubject, { subject: 'Re: Updated subject' });
+    expect(edited.payload.subject).toBe('Re: Updated subject');
+    expect(edited.detail).toBe(base.detail);
+  });
+
+  it('updates to and cc recipients', () => {
+    const withRecipients = {
+      ...base,
+      payload: { ...base.payload, to: 'old@example.com', cc: 'cc@example.com' },
+    };
+    const edited = applyQueueEdits(withRecipients, {
+      to: 'new@example.com',
+      cc: 'other@example.com, third@example.com',
+    });
+    expect(edited.payload.to).toBe('new@example.com');
+    expect(edited.payload.cc).toBe('other@example.com, third@example.com');
+  });
+
+  it('clears cc when edit is empty', () => {
+    const withCc = {
+      ...base,
+      payload: { ...base.payload, to: 'a@b.com', cc: 'cc@example.com' },
+    };
+    const edited = applyQueueEdits(withCc, { cc: '' });
+    expect(edited.payload.cc).toBeUndefined();
+    expect(edited.payload.to).toBe('a@b.com');
+  });
+
+  it('ignores edits for non-email actions', () => {
+    const kbAction = { ...base, type: 'kb_update' as const };
+    expect(applyQueueEdits(kbAction, { body: 'Nope' })).toEqual(kbAction);
   });
 });

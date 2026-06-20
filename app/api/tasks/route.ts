@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listActions } from '@/lib/harness/queue';
+import { listActionsForFeed, scrubQueuePayloadBloat } from '@/lib/harness/queue-feed';
 import { buildUnifiedTaskFeed, isStaleRunningEntity } from '@/lib/harness/tasks';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB } from '@/lib/harness/knowledge-base';
 import { countPendingQueuedActions, loadEntityStates, saveEntityState } from '@/lib/storage';
 import { autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
-import { getDevTasksCache, setDevTasksCache } from '@/lib/harness/tasks-cache';
+import { getDevTasksCache, invalidateDevTasksCache, setDevTasksCache } from '@/lib/harness/tasks-cache';
 
 export const runtime = 'nodejs';
+
+let queueScrubPromise: Promise<void> | null = null;
+
+async function ensureQueueScrubbed(): Promise<void> {
+  if (process.env.NODE_ENV !== 'development') return;
+  if (!queueScrubPromise) {
+    queueScrubPromise = scrubQueuePayloadBloat()
+      .then(n => { if (n > 0) invalidateDevTasksCache(); })
+      .catch(() => { /* best-effort */ });
+  }
+  await queueScrubPromise;
+}
 
 export async function GET(req: NextRequest) {
   const summary = new URL(req.url).searchParams.get('summary') === '1';
@@ -17,13 +29,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ needsYou, suggestions: 0 });
   }
 
+  await ensureQueueScrubbed();
+
   const cached = getDevTasksCache();
   if (cached) {
     return NextResponse.json(cached);
   }
 
   const [actions, rawEntities, kb] = await Promise.all([
-    listActions(),
+    listActionsForFeed(),
     loadEntityStates(),
     readAllKB(),
   ]);

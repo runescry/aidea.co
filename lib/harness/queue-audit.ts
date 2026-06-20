@@ -1,4 +1,4 @@
-import type { ActionStatus, ActionType } from './queue';
+import type { ActionStatus, ActionType } from './queue-types';
 import { appendQueueAuditEntry, listQueueAuditEntries } from '@/lib/storage';
 
 export interface QueueAuditEntry {

@@ -1,5 +1,5 @@
 import type { EntityState } from '@/lib/harness/types';
-import type { QueuedAction, ActionStatus, ActionType } from '@/lib/harness/queue';
+import type { QueuedAction, ActionStatus, ActionType } from '@/lib/harness/queue-types';
 import type { AppSettings } from '@/lib/settings';
 import type { ChatStore } from '@/types/chat';
 import { ensureMigrated } from '@/lib/db/migrate';
@@ -43,6 +43,12 @@ export async function mergeProfile(updates: Record<string, unknown>): Promise<vo
     }
   }
   await writeProfile(current);
+}
+
+export async function getQueuedAction(id: string): Promise<QueuedAction | null> {
+  await ready();
+  const userId = getUserId();
+  return usePostgres() ? pg.getQueueAction(userId, id) : fs.getQueueAction(id);
 }
 
 export async function listQueuedActions(filter?: {
@@ -169,4 +175,12 @@ export async function appendQueueAuditEntry(
   const userId = getUserId();
   if (usePostgres()) await pg.appendQueueAudit(userId, entry);
   else fs.appendQueueAudit(entry);
+}
+
+/** Clear queue, audit, harness runs, chat, and brief — preserves profile/KB, settings, integrations. */
+export async function clearActivityHistory(): Promise<void> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) await pg.clearActivityHistory(userId);
+  else fs.clearActivityHistory();
 }

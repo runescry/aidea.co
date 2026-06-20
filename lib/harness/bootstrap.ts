@@ -10,11 +10,17 @@ import { loadAgentOverrides, resolveLibraryAgent } from '@/lib/agents/resolve';
 import { hasNangoConnections } from '@/lib/nango/connections';
 import { kickstartDailyOrchestrator, finalizeDailyBrief } from './daily-kickstart';
 
+export interface BootstrapOptions {
+  /** When set, use this mode and skip auto-upgrade to auto when Nango is connected. */
+  realWorldMode?: import('./types').CostConfig['realWorldToolMode'];
+}
+
 export async function bootstrapEntity(
   config: EntityConfig,
   input: EntityInput,
   send: SenderFn,
-  sessionId: string
+  sessionId: string,
+  options?: BootstrapOptions,
 ): Promise<EntityState> {
   const entityId = crypto.randomUUID();
   const initialData = config.buildInitialContext(input);
@@ -47,8 +53,10 @@ export async function bootstrapEntity(
   }
 
   let realWorldMode =
-    config.costConfig?.realWorldToolMode ?? DEFAULT_COST_CONFIG.realWorldToolMode;
-  if (realWorldMode === 'dry-run' && nangoConnected) {
+    options?.realWorldMode
+    ?? config.costConfig?.realWorldToolMode
+    ?? DEFAULT_COST_CONFIG.realWorldToolMode;
+  if (!options?.realWorldMode && realWorldMode === 'dry-run' && nangoConnected) {
     realWorldMode = 'auto';
   }
 

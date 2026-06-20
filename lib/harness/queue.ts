@@ -1,54 +1,33 @@
 import {
-  listQueuedActions,
+  getQueuedAction,
+  saveQueuedAction,
   replaceQueue,
+  listQueuedActions,
 } from '@/lib/storage';
 import { recordQueueAudit } from './queue-audit';
-import { normalizeEmailQueueAction } from './normalize-queue-action';
+import { applyQueueEdits, normalizeEmailQueueAction } from './normalize-queue-action';
+import type {
+  ActionStatus,
+  ActionType,
+  QueuedAction,
+  QueueEditOverrides,
+  QueueIntent,
+} from './queue-types';
+
+export type { ActionStatus, ActionType, QueuedAction, QueueEditOverrides, QueueIntent };
+export { ACTION_TYPE_LABELS } from './action-labels';
 import {
   approveQueuedAction,
   saveQueuedEmailDraft,
 } from './execute-queued-action';
 import { invalidateDevTasksCache } from './tasks-cache';
 
-export type ActionType =
-  | 'email_reply'
-  | 'email_send'
-  | 'calendar_event'
-  | 'task'
-  | 'reminder'
-  | 'message'
-  | 'alert'
-  | 'kb_update'
-  | 'generic';
-
-export { ACTION_TYPE_LABELS } from './action-labels';
-
-export type ActionStatus = 'pending' | 'approved' | 'rejected' | 'executed' | 'failed' | 'saved';
-
-/** User intent from Inbox: send, save to Gmail drafts, or dismiss. */
-export type QueueIntent = 'approve' | 'save' | 'reject';
-
-export interface QueuedAction {
-  id: string;
-  type: ActionType;
-  summary: string;
-  detail?: string;
-  agentRole: string;
-  entityId?: string;
-  tool: string;
-  payload: Record<string, unknown>;
-  status: ActionStatus;
-  priority: 'high' | 'normal' | 'low';
-  createdAt: string;
-  resolvedAt?: string;
-}
-
 export async function listActions(filter?: { status?: ActionStatus; type?: ActionType }): Promise<QueuedAction[]> {
   return listQueuedActions(filter);
 }
 
-async function persistQueue(all: QueuedAction[]): Promise<void> {
-  await replaceQueue(all);
+async function commitQueueAction(action: QueuedAction): Promise<void> {
+  await saveQueuedAction(action);
   invalidateDevTasksCache();
 }
 
@@ -61,9 +40,7 @@ export async function enqueueAction(
     status: 'pending',
     createdAt: new Date().toISOString(),
   };
-  const all = await listQueuedActions();
-  all.push(created);
-  await persistQueue(all);
+  await commitQueueAction(created);
   return created;
 }
 
@@ -75,19 +52,19 @@ function applyEmailNormalization(action: QueuedAction): QueuedAction {
 export async function resolveQueueAction(
   id: string,
   intent: QueueIntent,
+  edits?: QueueEditOverrides,
 ): Promise<QueuedAction | null> {
-  const all = await listQueuedActions();
-  const idx = all.findIndex(a => a.id === id);
-  if (idx === -1) return null;
+  const current = await getQueuedAction(id);
+  if (!current || current.status !== 'pending') return null;
 
-  let action = applyEmailNormalization(all[idx]);
+  let action = applyEmailNormalization(applyQueueEdits(current, edits));
   const resolvedAt = new Date().toISOString();
 
   if (intent === 'reject') {
-    all[idx] = { ...action, status: 'rejected', resolvedAt };
-    await persistQueue(all);
-    await recordQueueAudit(all[idx]);
-    return all[idx];
+    const updated = { ...action, status: 'rejected' as const, resolvedAt };
+    await commitQueueAction(updated);
+    await recordQueueAudit(updated);
+    return updated;
   }
 
   if (intent === 'save') {
@@ -98,9 +75,9 @@ export async function resolveQueueAction(
       const draft = await saveQueuedEmailDraft(action) as {
         draftId: string; messageId: string; subject: string; connectionId: string;
       };
-      all[idx] = {
+      const updated = {
         ...action,
-        status: 'saved',
+        status: 'saved' as const,
         resolvedAt,
         payload: {
           ...action.payload,
@@ -109,50 +86,50 @@ export async function resolveQueueAction(
           connectionId: draft.connectionId,
         },
       };
-      await persistQueue(all);
-      await recordQueueAudit(all[idx]);
-      return all[idx];
+      await commitQueueAction(updated);
+      await recordQueueAudit(updated);
+      return updated;
     } catch (err) {
-      all[idx] = {
+      const updated = {
         ...action,
-        status: 'failed',
+        status: 'failed' as const,
         resolvedAt,
         payload: {
           ...action.payload,
           executionError: err instanceof Error ? err.message : String(err),
         },
       };
-      await persistQueue(all);
-      await recordQueueAudit(all[idx]);
-      return all[idx];
+      await commitQueueAction(updated);
+      await recordQueueAudit(updated);
+      return updated;
     }
   }
 
   // approve — send or apply
   try {
     const result = await approveQueuedAction(action);
-    all[idx] = {
+    const updated = {
       ...action,
       ...result,
       resolvedAt: new Date().toISOString(),
       payload: result.payload ?? action.payload,
     };
-    await persistQueue(all);
-    await recordQueueAudit(all[idx]);
-    return all[idx];
+    await commitQueueAction(updated);
+    await recordQueueAudit(updated);
+    return updated;
   } catch (err) {
-    all[idx] = {
+    const updated = {
       ...action,
-      status: 'failed',
+      status: 'failed' as const,
       resolvedAt,
       payload: {
         ...action.payload,
         executionError: err instanceof Error ? err.message : String(err),
       },
     };
-    await persistQueue(all);
-    await recordQueueAudit(all[idx]);
-    return all[idx];
+    await commitQueueAction(updated);
+    await recordQueueAudit(updated);
+    return updated;
   }
 }
 
@@ -165,12 +142,13 @@ export interface QueueBulkResult {
 export async function resolveQueueActions(
   ids: string[],
   intent: QueueIntent,
+  editsById?: Record<string, QueueEditOverrides>,
 ): Promise<QueueBulkResult[]> {
   const uniqueIds = [...new Set(ids.filter(Boolean))];
   const results: QueueBulkResult[] = [];
 
   for (const id of uniqueIds) {
-    const action = await resolveQueueAction(id, intent);
+    const action = await resolveQueueAction(id, intent, editsById?.[id]);
     results.push({
       id,
       action,
@@ -195,6 +173,7 @@ export async function clearResolved(): Promise<number> {
   const all = await listQueuedActions();
   const remaining = all.filter(a => a.status === 'pending');
   const count = all.length - remaining.length;
-  await persistQueue(remaining);
+  await replaceQueue(remaining);
+  invalidateDevTasksCache();
   return count;
 }

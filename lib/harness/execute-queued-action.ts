@@ -1,4 +1,4 @@
-import type { QueuedAction } from './queue';
+import type { QueuedAction } from './queue-types';
 import { sendGmailMessage, createGmailDraft } from '@/lib/nango/gmail';
 import { createCalendarEvent } from '@/lib/nango/calendar';
 import { canExecuteEmailAction, canSaveEmailDraft, normalizeEmailQueueAction } from './normalize-queue-action';
@@ -9,11 +9,11 @@ export async function executeQueuedAction(action: QueuedAction): Promise<unknown
 
   switch (normalized.tool) {
     case 'gmail_send': {
-      const { to, subject, body, connectionId } = payload as {
-        to: string; subject: string; body: string; connectionId?: string;
+      const { to, cc, subject, body, connectionId } = payload as {
+        to: string; cc?: string; subject: string; body: string; connectionId?: string;
       };
       if (!to || !subject || !body) throw new Error('Email action missing to, subject, or body');
-      return sendGmailMessage({ to, subject, body, connectionId });
+      return sendGmailMessage({ to, cc, subject, body, connectionId });
     }
     case 'calendar_create': {
       const { title, start, durationMinutes, description, attendees, connectionId } = payload as {
@@ -36,8 +36,9 @@ export async function saveQueuedEmailDraft(action: QueuedAction): Promise<unknow
     throw new Error('Draft missing body text');
   }
   const payload = normalized.payload ?? {};
-  const { to, subject, body, connectionId } = payload as {
+  const { to, cc, subject, body, connectionId } = payload as {
     to?: string;
+    cc?: string;
     subject?: string;
     body: string;
     replyToMessageId?: string;
@@ -47,7 +48,7 @@ export async function saveQueuedEmailDraft(action: QueuedAction): Promise<unknow
   const replyToMessageId = String(
     payload.replyToMessageId ?? payload.messageId ?? '',
   ) || undefined;
-  return createGmailDraft({ to, subject, body, replyToMessageId, connectionId });
+  return createGmailDraft({ to, cc, subject, body, replyToMessageId, connectionId });
 }
 
 export async function approveQueuedAction(action: QueuedAction): Promise<QueuedAction> {

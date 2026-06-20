@@ -23,18 +23,22 @@ Use a **short interval as a safety net**, not as the pace between items. In each
 ```
 /loop 5m Proceed with all build tasks — continue ALL unchecked ROADMAP items (P0 first) until done or blocked; do NOT stop after one item per wake.
 
-1. Read ROADMAP.md — pick the highest-priority unchecked item (P0 before P1, etc.).
-2. Read AGENTS.md and .cursor/rules/ — use shared helpers; do not duplicate SSE, queue, labels, or save UX.
-3. Implement every unchecked item in priority order until done or blocked — not just one checkbox per wake unless using the one-shot prompt below.
-4. Run: npm run typecheck && npm test && npm run test:contract && npm run build
-5. If all pass: mark [x] in ROADMAP.md, update ## Current status, append ## Loop log, **then message the user** before starting the next item.
-6. If blocked: leave unchecked; add "BLOCKED: reason" under Loop log; **message the user** with the blocker; do not expand scope.
+1. Read ROADMAP.md — pick the highest-priority unchecked item (P6 backlog / P7 / post-P6 polish).
+2. Read docs/PLAN.md when working P7+ or choosing between layer slices.
+3. Read AGENTS.md and .cursor/rules/ — use shared helpers; do not duplicate SSE, queue, labels, or save UX.
+4. Skim docs/VISION.md if the item touches domain scope or connectors.
+5. Implement every unchecked item in priority order until done or blocked — not just one checkbox per wake unless using the one-shot prompt below.
+6. Run: npm run typecheck && npm test && npm run test:contract && npm run build
+7. If all pass: mark [x] in ROADMAP.md (and docs/PLAN.md for P7 items), update ## Current status, append ## Loop log, **then message the user** before starting the next item.
+8. If blocked: leave unchecked; add "BLOCKED: reason" under Loop log; **message the user** with the blocker; do not expand scope.
 
 Constraints:
 - Minimal diff; match existing patterns — no unnecessary code or refactors
+- Default workflow: local dev (`npm run dev`); do NOT push or deploy to Vercel unless the user explicitly asks
+- Always run typecheck + test + test:contract + build before reporting an item done (even without commit)
 - Do NOT commit or push unless the user explicitly asked in this session
 - If user asked to commit: only after all four commands above pass locally
-- If user asked to push: only after CI is green on the branch (same gates as AGENTS.md)
+- If user asked to push/deploy: only after explicit request **and** local gates pass (CI green if applicable)
 - Do not restore legacy Dashboard/orchestrator/ActionQueue patterns
 
 Stop when all targeted items are done or blocked. Report: progress | blocked | next section.
@@ -47,5 +51,5 @@ Same steps as above. After finishing a batch, arm a **5m** heartbeat (not 45m) s
 ## One-shot (no loop)
 
 ```
-Read ROADMAP.md and AGENTS.md. Implement exactly the next unchecked P0 item. npm run typecheck && npm test && npm run test:contract && npm run build. Update ROADMAP.md. Do not commit unless asked. Summarize in 3 bullets.
+Read ROADMAP.md, docs/PLAN.md (if P7+), and AGENTS.md. Implement exactly the next unchecked item. npm run typecheck && npm test && npm run test:contract && npm run build. Update ROADMAP.md and docs/PLAN.md when applicable. Do not commit unless asked. Summarize in 3 bullets.
 ```

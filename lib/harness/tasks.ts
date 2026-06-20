@@ -1,4 +1,4 @@
-import type { QueuedAction } from './queue';
+import type { QueuedAction } from './queue-types';
 import type { EntityState } from './types';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { ACTION_TYPE_LABELS } from './action-labels';

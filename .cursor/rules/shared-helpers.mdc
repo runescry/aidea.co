@@ -11,9 +11,10 @@ Before adding streaming, polling, queue, or save logic, check `AGENTS.md` and us
 
 - **Client SSE:** `consumeHarnessSSE` from `@/lib/client/sse` — never inline `getReader` + `split('\n\n')`
 - **API SSE:** `harnessSSEResponse` from `@/lib/api/sse` — never duplicate ReadableStream boilerplate
-- **Queue PATCH:** `patchQueueAction` from `@/lib/client/queue`
+- **Queue PATCH:** `patchQueueAction` from `@/lib/client/queue` (optional `QueueEditOverrides` from `@/lib/harness/queue-types`)
+- **Queue types (client):** `@/lib/harness/queue-types` — never `@/lib/harness/queue` or `@/lib/storage` in `'use client'` files
 - **Action labels:** `ACTION_TYPE_LABELS` from `@/lib/harness/action-labels` (not `queue.ts` in client code)
-- **Work feed:** `useWorkFeed` + `WorkFeedProvider` from `@/hooks/useWorkFeed` (not ad-hoc `/api/tasks` polling)
+- **Inbox feed:** `useWorkFeed` + `WorkFeedProvider` from `@/hooks/useWorkFeed` (not ad-hoc `/api/tasks` polling)
 - **Generic polling:** `usePollingFetch` from `@/hooks/usePollingFetch` — only when Work feed is not the consumer
 - **Save panels:** `useSaveFeedback` from `@/hooks/useSaveFeedback`
 - **KB batch write:** `writeManyKB` / `mergeProfile` — not manual profile merge loops
@@ -25,4 +26,5 @@ Legacy Dashboard, `useAgentSession`, `lib/orchestrator`, `lib/prompts/*`, impera
 
 ## Reference
 
-Full examples: `/AGENTS.md`
+Full examples: `/AGENTS.md`  
+Product layers & P7 slices: `docs/PLAN.md` · Domain scores: `docs/VISION.md`

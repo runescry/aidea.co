@@ -8,7 +8,7 @@ import {
   taskToChatPrompt,
   formatTaskTime,
 } from './tasks';
-import type { QueuedAction } from './queue';
+import type { QueuedAction } from './queue-types';
 import type { EntityState } from './types';
 
 function makeAction(overrides: Partial<QueuedAction> = {}): QueuedAction {

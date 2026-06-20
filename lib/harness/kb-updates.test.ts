@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   describeKbUpdate,
+  kbPatchInputFromPayload,
   normalizeKbPatchInput,
   sanitizeQueueSummary,
   formatKbPatchSummary,
@@ -29,6 +30,16 @@ describe('sanitizeQueueSummary', () => {
 
   it('strips trailing JSON from plain summaries', () => {
     expect(sanitizeQueueSummary('Update role", { "company": "Acme" }')).toBe('Acme');
+  });
+});
+
+describe('kbPatchInputFromPayload', () => {
+  it('prefers structured input over legacy full-profile patch blobs', () => {
+    const input = kbPatchInputFromPayload({
+      input: { jobApplication: { company: 'Vercel', status: 'Interviewing' } },
+      patch: { work: { role: 'Founder', currentProjects: { jobApplications: [] } } },
+    });
+    expect(input?.jobApplication?.company).toBe('Vercel');
   });
 });
 

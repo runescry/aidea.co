@@ -1,6 +1,6 @@
 import { getSql, toJson } from '@/lib/db/client';
 import type { EntityState } from '@/lib/harness/types';
-import type { QueuedAction } from '@/lib/harness/queue';
+import type { QueuedAction } from '@/lib/harness/queue-types';
 import type { AppSettings } from '@/lib/settings';
 import type { ChatConversation, ChatStore } from '@/types/chat';
 import { emptyChatStore, normalizeChatStore } from '@/lib/chat/store-utils';
@@ -26,6 +26,15 @@ export async function writeProfile(userId: string, data: Record<string, unknown>
     VALUES (${userId}, ${sql.json(toJson(data))}, NOW())
     ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
   `;
+}
+
+export async function getQueueAction(userId: string, id: string): Promise<QueuedAction | null> {
+  const sql = getSql();
+  const rows = await sql<{ payload: QueuedAction }[]>`
+    SELECT payload FROM action_queue WHERE user_id = ${userId} AND id = ${id}
+  `;
+  if (rows.length === 0) return null;
+  return rows[0].payload;
 }
 
 export async function listQueue(userId: string): Promise<QueuedAction[]> {
@@ -262,4 +271,16 @@ export async function appendQueueAudit(
     )
     ON CONFLICT (id, user_id) DO NOTHING
   `;
+}
+
+export async function clearActivityHistory(userId: string): Promise<void> {
+  const sql = getSql();
+  await sql`DELETE FROM action_queue WHERE user_id = ${userId}`;
+  await sql`DELETE FROM action_audit WHERE user_id = ${userId}`;
+  await sql`DELETE FROM harness_entities WHERE user_id = ${userId}`;
+  await sql`DELETE FROM chat_conversations WHERE user_id = ${userId}`;
+  await sql`DELETE FROM chat_meta WHERE user_id = ${userId}`;
+  await sql`DELETE FROM chat_store WHERE user_id = ${userId}`;
+  await sql`DELETE FROM latest_briefs WHERE user_id = ${userId}`;
+  await writeChatStore(userId, emptyChatStore());
 }

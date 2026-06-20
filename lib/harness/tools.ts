@@ -460,7 +460,20 @@ export async function executeHarnessTool(
 
   // Gate real-world tools in dry-run mode — return plausible mock data so agents can still reason
   if (tool.realWorld && ctx.config.costConfig?.realWorldToolMode === 'dry-run') {
-    return getDryRunResponse(toolName, input);
+    const mock = getDryRunResponse(toolName, input);
+    if (toolName === 'gmail_read' && mock && typeof mock === 'object' && 'emails' in mock) {
+      const emails = (mock as { emails: CachedGmail[] }).emails.map(e => ({
+        id: e.id,
+        from: e.from,
+        subject: e.subject,
+        snippet: e.snippet.slice(0, 220),
+        connectionId: e.connectionId,
+        account: e.account,
+      }));
+      cacheGmailRead(ctx.state.data, emails);
+      return { ...(mock as object), emails };
+    }
+    return mock;
   }
 
   switch (toolName) {
@@ -629,7 +642,6 @@ export async function executeHarnessTool(
         detail: patchInput.reason,
         tool: 'update_kb',
         payload: {
-          patch,
           input: {
             jobApplication: normalized.jobApplication,
             updates: normalized.updates,
@@ -975,10 +987,36 @@ function getDryRunResponse(toolName: string, input: ToolInput): unknown {
     case 'gmail_read':
       return {
         emails: [
-          { id: 'mock1', from: 'Sarah Johnson <sarah@company.com>', subject: '[DRY RUN] Budget review needed', date: new Date().toISOString(), snippet: 'Hi, can we sync on the Q3 budget before Friday?', isUnread: true },
-          { id: 'mock2', from: 'Team Newsletter <newsletter@co.com>', subject: '[DRY RUN] Weekly digest', date: new Date().toISOString(), snippet: 'Here is your weekly update...', isUnread: true },
+          {
+            id: 'mock-vercel-1',
+            from: 'Camden at Vercel <camden@vercel.com>',
+            subject: '[DRY RUN] Interview availability — Solutions Architect',
+            date: new Date().toISOString(),
+            snippet: 'Please share your availability for the next interview round this week.',
+            isUnread: true,
+            connectionId: 'dry-run-gmail',
+          },
+          {
+            id: 'mock-genazzano-1',
+            from: 'Genazzano FCJ College <office@genazzano.vic.edu.au>',
+            subject: '[DRY RUN] Ivy first semester report',
+            date: new Date().toISOString(),
+            snippet: 'Ivy will receive a partial first semester report next week.',
+            isUnread: true,
+            connectionId: 'dry-run-gmail',
+          },
+          {
+            id: 'mock-newsletter-1',
+            from: 'Team Newsletter <newsletter@co.com>',
+            subject: '[DRY RUN] Weekly digest',
+            date: new Date().toISOString(),
+            snippet: 'Here is your weekly update from automated senders.',
+            isUnread: true,
+            connectionId: 'dry-run-gmail',
+          },
         ],
         query: (input as { query?: string }).query ?? 'is:unread',
+        connections: ['dry-run-gmail'],
       };
     case 'gmail_draft':
     case 'gmail_send':

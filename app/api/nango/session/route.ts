@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEndUserId, getNango, gmailIntegrationId, calendarIntegrationId, nangoConfigured } from '@/lib/nango/client';
+import {
+  getEndUserId,
+  getNango,
+  gmailIntegrationId,
+  calendarIntegrationId,
+  nangoConfigured,
+  nangoMisconfigMessage,
+} from '@/lib/nango/client';
 
 export const runtime = 'nodejs';
 
@@ -17,7 +24,7 @@ function nangoErrorMessage(err: unknown): string {
 
 export async function POST(req: NextRequest) {
   if (!nangoConfigured()) {
-    return NextResponse.json({ error: 'NANGO_SECRET_KEY is not configured' }, { status: 503 });
+    return NextResponse.json({ error: nangoMisconfigMessage() }, { status: 503 });
   }
 
   try {

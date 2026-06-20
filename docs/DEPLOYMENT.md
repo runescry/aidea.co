@@ -2,7 +2,26 @@
 
 aidea runs locally with JSON files under `data/`. For production (especially multi-user), point storage at Postgres via `DATABASE_URL`.
 
-## Quick checklist
+## Local development (default)
+
+Day-to-day work happens on **localhost** — not production. Per-slice build, test gates, and deploy cadence: [PLAN.md § Build workflow](./PLAN.md#build-workflow) · [Test strategy](./PLAN.md#test-strategy) · [Deployment workflow](./PLAN.md#deployment-workflow).
+
+```bash
+npm run dev          # http://localhost:3000
+npm run typecheck && npm test && npm run test:contract && npm run build   # before calling work "done"
+```
+
+| Practice | Detail |
+|----------|--------|
+| **Storage** | Leave `DATABASE_URL` unset in `.env.local` for fast filesystem storage under `data/`. Set it only when you need to test against remote Postgres. |
+| **Deploy** | Agents and contributors must **not** push to `main` or trigger Vercel deploys unless the user explicitly asks in that session. |
+| **Testing** | All four local gates above still run before handoff — deploy is opt-in, verification is not. |
+
+See [AGENTS.md](../AGENTS.md) for agent git/deploy rules.
+
+**Interactive docs:** Markdown files with Mermaid diagrams are best read in the app at [/docs/vision](/docs/vision), [/docs/plan](/docs/plan), and [/docs/roadmap](/docs/roadmap) (light reading mode, rendered diagrams, table of contents).
+
+## Quick checklist (production deploy — explicit request only)
 
 1. Deploy the Next.js app to [Vercel](https://vercel.com).
 2. Create a Postgres database (Neon, Supabase, Vercel Postgres, or RDS).
@@ -22,11 +41,10 @@ aidea runs locally with JSON files under `data/`. For production (especially mul
 | Variable | Purpose |
 |----------|---------|
 | `ANTHROPIC_API_KEY` | Direct Anthropic (local dev fallback when gateway key is unset) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Gmail & Calendar |
 | `BRAVE_SEARCH_API_KEY` | Web search tool |
-| `NANGO_SECRET_KEY` | OAuth connection management |
+| `NANGO_SECRET_KEY` | Gmail & Calendar OAuth via [Nango](https://app.nango.dev) — copy from **Environment Settings → Secret key** |
 
-Copy from [`.env.local.example`](../.env.local.example) for local development.
+Copy from [`.env.local.example`](../.env.local.example) for local development. For Gmail/Calendar in Settings, set `NANGO_SECRET_KEY` in `.env.local` (dev) or Vercel env vars (production), then restart the dev server.
 
 ## aidea-co production (`aidea-co.vercel.app`)
 
@@ -60,11 +78,74 @@ Local dev: copy the same key into `.env.local` as `AI_GATEWAY_API_KEY=` (never c
 - **No `DATABASE_URL`:** reads/writes `data/*.json` on the local filesystem.
 - **With `DATABASE_URL`:** uses Postgres tables defined in [`lib/db/schema.sql`](../lib/db/schema.sql). Schema is applied automatically via [`lib/db/migrate.ts`](../lib/db/migrate.ts) on first DB access.
 
-Tables include: `profiles`, `action_queue`, `action_audit`, `harness_entities`, `chat_conversations`, `app_settings`, and others.
+Tables include: `profiles`, `action_queue`, `action_audit`, `harness_entities`, `chat_conversations`, `chat_meta`, `chat_store` (legacy), `latest_briefs`, `app_settings`.
 
-## Vercel-specific notes
+### Filesystem layout (`data/`)
 
-- **Settings panel writes are disabled on Vercel** (`isProductionDeploy()`). API keys must be set as Vercel environment variables, not via the in-app Settings form.
+When `DATABASE_URL` is unset:
+
+| File / dir | Contents |
+|------------|----------|
+| `knowledge-base.json` | Profile / KB |
+| `settings.json` | API keys (local Settings writes) |
+| `action-queue.json` | Pending + resolved queue items |
+| `action-audit.json` | Approve/reject/save audit trail |
+| `harness-state.json` | Harness entity runs |
+| `latest-brief.json` | Most recent daily brief |
+| `chat/conversations/*.json` + `chat/meta.json` | Chat history |
+
+---
+
+## Activity reset
+
+Clears queue, audit, harness runs, chat, and latest brief. **Does not** wipe profile/KB, settings, or Nango connections.
+
+| Method | Command |
+|--------|---------|
+| **Settings UI** | Settings → Danger zone → Reset activity history |
+| **API** | `POST /api/reset` → `{ ok: true }` |
+| **CLI** | `npm run reset:activity` |
+
+After reset, clear browser `localStorage` key `aidea-chat-v1` if chat UI still shows old threads (Settings button does this automatically).
+
+**Production SQL** (if API not deployed yet):
+
+```sql
+DELETE FROM action_queue WHERE user_id = 'default';
+DELETE FROM action_audit WHERE user_id = 'default';
+DELETE FROM harness_entities WHERE user_id = 'default';
+DELETE FROM chat_conversations WHERE user_id = 'default';
+DELETE FROM chat_meta WHERE user_id = 'default';
+DELETE FROM chat_store WHERE user_id = 'default';
+DELETE FROM latest_briefs WHERE user_id = 'default';
+```
+
+Replace `'default'` with your `DEFAULT_USER_ID` if different.
+
+---
+
+## Dev server troubleshooting
+
+Symptoms: **Internal Server Error** on Home or API routes; Turbopack `Can't resolve 'fs'`; ENOENT on `.next/.../_buildManifest.js`.
+
+**Causes:** (1) corrupted `.next` cache from multiple `next dev` processes or hot reload; (2) client component importing `@/lib/harness/queue` or `@/lib/storage`.
+
+**Fix:**
+
+```bash
+lsof -ti:3000 | xargs kill -9 2>/dev/null
+pkill -f "next dev" 2>/dev/null
+rm -rf .next
+npm run dev
+```
+
+Keep a single dev server running. Client code must import queue types from `lib/harness/queue-types.ts`, not `lib/harness/queue.ts`.
+
+**Nango local setup:** Copy `NANGO_SECRET_KEY` from [app.nango.dev](https://app.nango.dev) → Environment Settings into `.env.local`. Restart dev server. `vercel env pull` may return empty strings for encrypted vars — paste the key manually if needed.
+
+---
+
+- **Settings panel writes are disabled on Vercel** (`isProductionDeploy()`). API keys must be set as Vercel environment variables, not via the in-app Settings form. **Activity reset** (`POST /api/reset`) works on production once deployed.
 - **Serverless:** the Postgres client uses `max: 1` connection per instance — suitable for Neon/serverless Postgres.
 - **Build:** run locally before shipping:
 

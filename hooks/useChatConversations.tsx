@@ -13,7 +13,7 @@ import {
 import type { HarnessEvent } from '@/lib/harness/types';
 import { consumeHarnessSSE } from '@/lib/client/sse';
 import { buildHistoryFromMessages } from '@/lib/chat/history';
-import { mergeChatStores, normalizeChatStore } from '@/lib/chat/store-utils';
+import { emptyChatStore, mergeChatStores, normalizeChatStore } from '@/lib/chat/store-utils';
 import type { ChatConversation, ChatMessage, ChatStore } from '@/types/chat';
 
 const CHAT_AGENT_ROLES = new Set(['dispatcher']);
@@ -118,6 +118,7 @@ interface ChatContextValue {
   /** @deprecated use deleteConversation */
   closeConversation: (id: string) => void;
   sendMessage: (text: string) => Promise<void>;
+  resetLocalChatStore: () => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -191,6 +192,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       conversations: [next, ...prev.conversations],
       activeId: next.id,
     }));
+  }, []);
+
+  const resetLocalChatStore = useCallback(() => {
+    const empty = emptyChatStore();
+    setStore(empty);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY);
+    }
   }, []);
 
   const deleteConversation = useCallback((id: string) => {
@@ -403,6 +412,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     deleteConversation,
     closeConversation,
     sendMessage,
+    resetLocalChatStore,
   }), [
     store.conversations,
     store.activeId,
@@ -414,6 +424,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     deleteConversation,
     closeConversation,
     sendMessage,
+    resetLocalChatStore,
   ]);
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

@@ -97,11 +97,19 @@ export function kbPatchInputFromPayload(payload: Record<string, unknown>): KbPat
   if (raw && (raw.jobApplication?.company || raw.updates || raw.key !== undefined)) {
     return normalizeKbPatchInput(raw);
   }
-  const patch = payload.patch as Record<string, unknown> | undefined;
-  if (patch && Object.keys(patch).length > 0) return patch as KbPatchInput;
+
   if (typeof payload.summary === 'string') {
-    return normalizeKbPatchInput({ summary: payload.summary });
+    const fromSummary = normalizeKbPatchInput({ summary: payload.summary });
+    if (fromSummary.jobApplication?.company || fromSummary.updates || fromSummary.key !== undefined) {
+      return fromSummary;
+    }
   }
+
+  const patch = payload.patch as Record<string, unknown> | undefined;
+  if (patch && typeof patch._dotKey === 'string') {
+    return { key: patch._dotKey, value: patch._dotValue };
+  }
+
   return null;
 }
 

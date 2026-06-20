@@ -1,4 +1,6 @@
-import type { QueuedAction } from './queue';
+import type { QueuedAction, QueueEditOverrides } from './queue-types';
+
+export type { QueueEditOverrides };
 
 /** Normalize agent-queued email actions so approve can execute or save cleanly. */
 export function normalizeEmailQueueAction(
@@ -45,4 +47,35 @@ export function canSaveEmailDraft(action: QueuedAction): boolean {
 
 export function isEmailQueueAction(action: QueuedAction): boolean {
   return action.type === 'email_reply' || action.type === 'email_send';
+}
+
+/** Apply user edits from Inbox preview before approve/save. */
+export function applyQueueEdits(
+  action: QueuedAction,
+  edits?: QueueEditOverrides,
+): QueuedAction {
+  if (!edits || !isEmailQueueAction(action)) return action;
+
+  const next: QueuedAction = {
+    ...action,
+    payload: { ...(action.payload ?? {}) },
+  };
+
+  if (typeof edits.body === 'string') {
+    next.payload.body = edits.body;
+    next.detail = edits.body;
+  }
+  if (typeof edits.subject === 'string') {
+    next.payload.subject = edits.subject;
+  }
+  if (typeof edits.to === 'string') {
+    next.payload.to = edits.to.trim();
+  }
+  if (typeof edits.cc === 'string') {
+    const cc = edits.cc.trim();
+    if (cc) next.payload.cc = cc;
+    else delete next.payload.cc;
+  }
+
+  return next;
 }

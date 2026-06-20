@@ -1,4 +1,6 @@
-import type { QueuedAction, QueueIntent } from '@/lib/harness/queue';
+import type { QueuedAction, QueueEditOverrides, QueueIntent } from '@/lib/harness/queue-types';
+
+export type { QueueEditOverrides, QueueIntent, QueuedAction };
 
 export interface QueuePatchResult {
   id: string;
@@ -28,6 +30,7 @@ async function parsePatchResponse(
 ): Promise<{ results: QueuePatchResult[]; summary: QueuePatchSummary } | { error: string }> {
   const body = await res.json().catch(() => ({})) as {
     error?: string;
+    action?: QueuedAction;
     results?: Array<{ id: string; action?: QueuedAction | null; error?: string }>;
   };
 
@@ -35,28 +38,37 @@ async function parsePatchResponse(
     return { error: body.error ?? `Update failed (${res.status})` };
   }
 
-  if (!Array.isArray(body.results)) {
-    return { error: 'No results returned from server' };
+  if (Array.isArray(body.results)) {
+    const results: QueuePatchResult[] = body.results.map(item => ({
+      id: item.id,
+      ok: Boolean(item.action),
+      action: item.action ?? undefined,
+      error: item.error ?? (item.action ? undefined : 'Action not found'),
+    }));
+    return { results, summary: summarizeResults(results) };
   }
 
-  const results: QueuePatchResult[] = body.results.map(item => ({
-    id: item.id,
-    ok: Boolean(item.action),
-    action: item.action ?? undefined,
-    error: item.error ?? (item.action ? undefined : 'Action not found'),
-  }));
+  if (body.action) {
+    const results: QueuePatchResult[] = [{
+      id: body.action.id,
+      ok: true,
+      action: body.action,
+    }];
+    return { results, summary: summarizeResults(results) };
+  }
 
-  return { results, summary: summarizeResults(results) };
+  return { error: 'No results returned from server' };
 }
 
 export async function patchQueueAction(
   id: string,
   intent: QueueIntent,
+  edits?: QueueEditOverrides,
 ): Promise<{ ok: true; action: QueuedAction } | { ok: false; error: string }> {
   const parsed = await parsePatchResponse(await fetch('/api/queue', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, intent }),
+    body: JSON.stringify({ id, intent, ...(edits ? { edits } : {}) }),
   }));
 
   if ('error' in parsed) return { ok: false, error: parsed.error };
@@ -68,6 +80,7 @@ export async function patchQueueAction(
 export async function patchQueueActions(
   ids: string[],
   intent: QueueIntent,
+  editsById?: Record<string, QueueEditOverrides>,
 ): Promise<
   | { ok: true; results: QueuePatchResult[]; summary: QueuePatchSummary }
   | { ok: false; error: string }
@@ -79,7 +92,11 @@ export async function patchQueueActions(
   const parsed = await parsePatchResponse(await fetch('/api/queue', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids, intent }),
+    body: JSON.stringify({
+      ids,
+      intent,
+      ...(editsById && Object.keys(editsById).length > 0 ? { editsById } : {}),
+    }),
   }));
 
   if ('error' in parsed) return { ok: false, error: parsed.error };

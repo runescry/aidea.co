@@ -106,6 +106,22 @@ function encodeRawEmail(raw: string): string {
     .replace(/=+$/, '');
 }
 
+function buildEmailHeaderLines(input: {
+  to?: string;
+  cc?: string;
+  subject: string;
+  inReplyTo?: string;
+}): string[] {
+  return [
+    ...(input.to ? [`To: ${input.to}`] : []),
+    ...(input.cc ? [`Cc: ${input.cc}`] : []),
+    `Subject: ${input.subject}`,
+    ...(input.inReplyTo ? [`In-Reply-To: ${input.inReplyTo}`, `References: ${input.inReplyTo}`] : []),
+    'Content-Type: text/plain; charset=utf-8',
+    '',
+  ];
+}
+
 function parseEmailAddress(header: string): string {
   const match = header.match(/<([^>]+)>/);
   return (match ? match[1] : header).trim();
@@ -180,6 +196,7 @@ async function resolveConnectionForReply(
 
 export async function createGmailDraft(input: {
   to?: string;
+  cc?: string;
   subject?: string;
   body: string;
   replyToMessageId?: string;
@@ -211,15 +228,13 @@ export async function createGmailDraft(input: {
   if (!subject) throw new Error('Draft missing subject');
   if (!input.body?.trim()) throw new Error('Draft missing body');
 
-  const headerLines = [
-    ...(to ? [`To: ${to}`] : []),
-    `Subject: ${subject}`,
-    ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`] : []),
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    input.body,
-  ];
-  const raw = encodeRawEmail(headerLines.join('\r\n'));
+  const headerLines = buildEmailHeaderLines({
+    to: to || undefined,
+    cc: input.cc?.trim() || undefined,
+    subject,
+    inReplyTo,
+  });
+  const raw = encodeRawEmail([...headerLines, input.body].join('\r\n'));
 
   try {
     const res = await nango.post<{ id: string; message: { id: string; threadId?: string } }>({
@@ -242,15 +257,19 @@ export async function createGmailDraft(input: {
 
 export async function sendGmailMessage(input: {
   to: string;
+  cc?: string;
   subject: string;
   body: string;
   connectionId?: string;
 }): Promise<{ messageId: string; to: string; subject: string; connectionId: string }> {
   const [conn] = await resolveGmailConnections(input.connectionId);
   const nango = getNango();
-  const raw = encodeRawEmail(
-    `To: ${input.to}\r\nSubject: ${input.subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${input.body}`,
-  );
+  const headerLines = buildEmailHeaderLines({
+    to: input.to,
+    cc: input.cc?.trim() || undefined,
+    subject: input.subject,
+  });
+  const raw = encodeRawEmail([...headerLines, input.body].join('\r\n'));
 
   const res = await nango.post<{ id: string }>({
     providerConfigKey: gmailIntegrationId(),

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import type { QueueIntent } from '@/lib/harness/queue';
+import { useState, useMemo, useEffect } from 'react';
+import type { QueueEditOverrides, QueueIntent } from '@/lib/harness/queue-types';
 import { ACTION_TYPE_LABELS } from '@/lib/harness/action-labels';
-import { isEmailQueueAction } from '@/lib/harness/normalize-queue-action';
+import { isEmailQueueAction, normalizeEmailQueueAction } from '@/lib/harness/normalize-queue-action';
 import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
 import { formatTaskTime, sessionToTask, sortTaskItems, taskToChatPrompt } from '@/lib/harness/tasks';
 import { queueActionAutonomyNote } from '@/lib/harness/proactive-tasks';
@@ -11,6 +11,7 @@ import { describeKbUpdate } from '@/lib/harness/kb-update-display';
 import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
 import { patchQueueAction, patchQueueActions } from '@/lib/client/queue';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
+import { Label, TextArea, TextField } from '@/components/harness/forms';
 
 type Filter = 'all' | 'approval' | 'suggestions' | 'running' | 'done';
 
@@ -58,6 +59,12 @@ function isBulkEligible(task: TaskItem): boolean {
   return task.status === 'needs_you' && task.action != null;
 }
 
+function queueExecutionError(action?: { payload?: Record<string, unknown> }): string | null {
+  return typeof action?.payload?.executionError === 'string'
+    ? action.payload.executionError
+    : null;
+}
+
 function bulkResultMessage(intent: QueueIntent, results: Array<{ action?: { status: string; payload?: Record<string, unknown> } }>): { type: 'ok' | 'err'; message: string } {
   const succeeded = results.filter(r => {
     if (!r.action) return false;
@@ -66,15 +73,24 @@ function bulkResultMessage(intent: QueueIntent, results: Array<{ action?: { stat
     return r.action.status === 'executed' || r.action.status === 'approved';
   }).length;
   const failed = results.filter(r => r.action?.status === 'failed').length;
+  const firstError = results.map(r => queueExecutionError(r.action)).find(Boolean) ?? null;
 
   if (intent === 'reject') {
     return { type: 'ok', message: succeeded === 1 ? 'Rejected 1 item' : `Rejected ${succeeded} items` };
   }
   if (intent === 'save') {
     if (failed > 0 && succeeded > 0) {
-      return { type: 'err', message: `Saved ${succeeded}, ${failed} failed` };
+      return {
+        type: 'err',
+        message: firstError
+          ? `Saved ${succeeded}, ${failed} failed — ${firstError}`
+          : `Saved ${succeeded}, ${failed} failed`,
+      };
     }
     if (failed > 0) {
+      if (failed === 1 && firstError) {
+        return { type: 'err', message: firstError };
+      }
       return { type: 'err', message: failed === 1 ? 'Could not save draft' : `Could not save ${failed} drafts` };
     }
     return { type: 'ok', message: succeeded === 1 ? 'Saved to Gmail drafts' : `Saved ${succeeded} drafts` };
@@ -153,6 +169,28 @@ function TaskRow({
   );
 }
 
+function payloadString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function buildEmailEdits(
+  draftBody: string,
+  initialBody: string,
+  draftSubject: string,
+  initialSubject: string,
+  draftTo: string,
+  initialTo: string,
+  draftCc: string,
+  initialCc: string,
+): QueueEditOverrides | undefined {
+  const edits: QueueEditOverrides = {};
+  if (draftBody !== initialBody) edits.body = draftBody;
+  if (initialSubject && draftSubject !== initialSubject) edits.subject = draftSubject;
+  if (draftTo !== initialTo) edits.to = draftTo;
+  if (draftCc !== initialCc) edits.cc = draftCc;
+  return Object.keys(edits).length > 0 ? edits : undefined;
+}
+
 function TaskDetail({
   task,
   onIntent,
@@ -162,7 +200,7 @@ function TaskDetail({
   actionPending,
 }: {
   task: TaskItem;
-  onIntent: (id: string, intent: QueueIntent) => void;
+  onIntent: (id: string, intent: QueueIntent, edits?: QueueEditOverrides) => void;
   onOpenStudio?: () => void;
   onDiscussInChat?: (prompt: string) => void;
   autonomyLevel?: UserAutonomyPreference;
@@ -172,6 +210,32 @@ function TaskDetail({
   const showSave = action != null && isEmailQueueAction(action);
   const isKbUpdate = action?.type === 'kb_update';
   const approveLabel = isKbUpdate ? 'Apply update' : 'Approve & send';
+  const isEmailDraft = action != null && showSave && task.status === 'needs_you';
+  const normalized = useMemo(
+    () => (action ? normalizeEmailQueueAction(action) : null),
+    [action],
+  );
+  const initialBody = normalized?.detail ?? '';
+  const initialSubject = typeof normalized?.payload.subject === 'string'
+    ? normalized.payload.subject
+    : '';
+  const initialTo = payloadString(normalized?.payload.to);
+  const initialCc = payloadString(normalized?.payload.cc);
+  const [draftBody, setDraftBody] = useState(initialBody);
+  const [draftSubject, setDraftSubject] = useState(initialSubject);
+  const [draftTo, setDraftTo] = useState(initialTo);
+  const [draftCc, setDraftCc] = useState(initialCc);
+
+  useEffect(() => {
+    setDraftBody(initialBody);
+    setDraftSubject(initialSubject);
+    setDraftTo(initialTo);
+    setDraftCc(initialCc);
+  }, [action?.id, initialBody, initialSubject, initialTo, initialCc]);
+
+  const emailEdits = isEmailDraft
+    ? buildEmailEdits(draftBody, initialBody, draftSubject, initialSubject, draftTo, initialTo, draftCc, initialCc)
+    : undefined;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -206,11 +270,52 @@ function TaskDetail({
           </div>
         )}
 
-        {action?.detail && (
+        {isEmailDraft ? (
+          <div className="space-y-3">
+            <div>
+              <Label>To</Label>
+              <TextField
+                value={draftTo}
+                onChange={setDraftTo}
+                disabled={actionPending}
+                placeholder="recipient@example.com"
+              />
+            </div>
+            <div>
+              <Label>Cc</Label>
+              <TextField
+                value={draftCc}
+                onChange={setDraftCc}
+                disabled={actionPending}
+                placeholder="Optional — comma-separated"
+              />
+            </div>
+            {initialSubject && (
+              <div>
+                <Label>Subject</Label>
+                <TextField
+                  value={draftSubject}
+                  onChange={setDraftSubject}
+                  disabled={actionPending}
+                />
+              </div>
+            )}
+            <div>
+              <Label>Message</Label>
+              <TextArea
+                value={draftBody}
+                onChange={setDraftBody}
+                rows={10}
+                disabled={actionPending}
+                className="rounded-lg bg-surface-subtle/80 text-sm text-foreground leading-relaxed border border-border/50 min-h-[160px]"
+              />
+            </div>
+          </div>
+        ) : action?.detail ? (
           <div className="rounded-lg bg-surface-subtle/80 p-3 text-sm text-foreground-muted leading-relaxed whitespace-pre-wrap border border-border/50">
             {action.detail}
           </div>
-        )}
+        ) : null}
 
         {task.source === 'session' && task.preview && task.status === 'done' && (
           <div className="rounded-lg bg-surface-subtle/80 p-3 text-sm text-foreground leading-relaxed whitespace-pre-wrap border border-border/50">
@@ -272,7 +377,7 @@ function TaskDetail({
           <button
             type="button"
             disabled={actionPending}
-            onClick={() => onIntent(action.id, 'approve')}
+            onClick={() => onIntent(action.id, 'approve', emailEdits)}
             className="w-full py-3 text-sm font-semibold bg-foreground text-surface rounded-lg hover:bg-foreground/90 transition-colors disabled:opacity-50"
           >
             {actionPending ? 'Working…' : approveLabel}
@@ -281,7 +386,7 @@ function TaskDetail({
             <button
               type="button"
               disabled={actionPending}
-              onClick={() => onIntent(action.id, 'save')}
+              onClick={() => onIntent(action.id, 'save', emailEdits)}
               className="flex-1 py-3 text-sm font-semibold text-foreground rounded-lg border border-accent/40 bg-accent/5 hover:bg-accent/10 transition-colors disabled:opacity-50"
             >
               Save to drafts
@@ -397,35 +502,26 @@ export default function TaskFeed({
 
   const selected = filtered.find(t => t.id === selectedId) ?? allTasks.find(t => t.id === selectedId) ?? null;
 
-  const handleIntent = async (id: string, intent: QueueIntent) => {
+  const handleIntent = async (id: string, intent: QueueIntent, edits?: QueueEditOverrides) => {
     setActionPending(true);
-    const result = await patchQueueAction(id, intent);
+    const result = await patchQueueAction(id, intent, edits);
     setActionPending(false);
     if (result.ok) {
       const action = result.action;
+      const executionError = queueExecutionError(action);
       let message = 'Done';
       let type: 'ok' | 'err' = 'ok';
 
-      if (intent === 'reject') {
+      if (action.status === 'failed') {
+        type = 'err';
+        message = executionError ?? 'Update failed';
+      } else if (intent === 'reject') {
         message = 'Rejected';
       } else if (intent === 'save') {
-        if (action.status === 'saved') message = 'Saved to Gmail drafts';
-        else if (action.status === 'failed') {
-          type = 'err';
-          message = typeof action.payload?.executionError === 'string'
-            ? `Could not save draft: ${action.payload.executionError}`
-            : 'Could not save draft';
-        }
+        message = action.status === 'saved' ? 'Saved to Gmail drafts' : 'Done';
       } else if (intent === 'approve') {
         if (action.status === 'executed') {
           message = action.type === 'kb_update' ? 'Profile updated' : 'Sent';
-        } else if (action.status === 'failed') {
-          type = 'err';
-          message = typeof action.payload?.executionError === 'string'
-            ? action.payload.executionError
-            : action.type === 'kb_update'
-              ? 'Could not apply profile update'
-              : 'Send failed — try Save to drafts instead';
         } else {
           message = action.type === 'kb_update' ? 'Update approved' : 'Approved';
         }

@@ -16,20 +16,27 @@ await consumeHarnessSSE<HarnessEvent>(response, (event) => { /* handle */ });
 
 Used in `ChatInterface.tsx` and `useHarnessSession.ts`. Pass `AbortSignal` on `fetch`; abort is handled inside the helper.
 
-## Work queue UI
+## Work queue / Inbox UI
 
-- Single feed: `components/harness/home/TaskFeed.tsx`
+- Single feed: `components/harness/home/TaskFeed.tsx` (panel title **Inbox**)
 - Data: `useWorkFeed()` from `@/hooks/useWorkFeed` inside `WorkFeedProvider` (mounted in `HarnessDashboard`)
-- Approve/reject: `patchQueueAction(id, status)`
+- Approve / save to drafts / reject: `patchQueueAction(id, intent, edits?)` — intents: `approve`, `save`, `reject`
+- Live email edit: `QueueEditOverrides` (`body`, `subject`, `to`, `cc`) from `@/lib/harness/queue-types`
 - Labels: `ACTION_TYPE_LABELS` from `@/lib/harness/action-labels`
 
 Do **not** poll `/api/tasks` separately for badge + feed. Do not create parallel queue components or duplicate `TYPE_LABELS` maps.
+
+## Activity reset
+
+- Settings → Danger zone → `POST /api/reset`; then `resetLocalChatStore()` from `useChatConversations`
+- CLI: `npm run reset:activity`
 
 ## Forms & save
 
 - Inputs: `components/harness/forms.tsx` (`Label`, `TextField`, `TextArea`, `Section`)
 - Standard save UX: `useSaveFeedback()` → `runSave(async () => { await fetch(...) })`
+- On handled errors (e.g. reset failure), catch the promise — do not re-throw after setting inline error state
 
 ## Import boundary
 
-Client components must **not** import `@/lib/harness/queue` or `@/lib/storage` (server/fs). Use `@/lib/harness/action-labels` and `@/lib/client/*` instead.
+Client components must **not** import `@/lib/harness/queue` or `@/lib/storage` (server/fs). Use `@/lib/harness/queue-types`, `@/lib/harness/action-labels`, and `@/lib/client/*` instead.

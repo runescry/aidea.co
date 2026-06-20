@@ -5,6 +5,8 @@ import Nango from '@nangohq/frontend';
 import type { SettingStatus } from '@/lib/settings';
 import { Label, TextField, StatusDot } from './forms';
 import { useSaveFeedback } from '@/hooks/useSaveFeedback';
+import { useWorkFeed } from '@/hooks/useWorkFeed';
+import { useChatConversations } from '@/hooks/useChatConversations';
 
 type SettingKey = 'anthropicApiKey' | 'braveSearchApiKey';
 
@@ -66,8 +68,12 @@ export default function SettingsPanel() {
   const [readOnly, setReadOnly] = useState(false);
   const [values, setValues] = useState<Partial<Record<SettingKey, string>>>({});
   const { saving, saved, runSave } = useSaveFeedback();
+  const { saving: resetting, saved: resetDone, runSave: runReset } = useSaveFeedback();
+  const { refresh: refreshWorkFeed } = useWorkFeed();
+  const { resetLocalChatStore } = useChatConversations();
 
   const [nangoConfigured, setNangoConfigured] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const [connections, setConnections] = useState<NangoConnection[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -145,6 +151,27 @@ export default function SettingsPanel() {
       { method: 'DELETE' },
     );
     await loadConnections();
+  };
+
+  const handleResetActivity = async () => {
+    const confirmed = confirm(
+      'Reset all activity history?\n\n'
+      + 'Clears: action queue and approvals, audit trail, harness runs, chat history, and latest brief.\n\n'
+      + 'Keeps: profile and knowledge base, API keys, and Google connections.',
+    );
+    if (!confirmed) return;
+
+    setResetError(null);
+    await runReset(async () => {
+      const res = await fetch('/api/reset', { method: 'POST' });
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok) {
+        setResetError(body.error ?? `Reset failed (${res.status})`);
+        throw new Error('reset failed');
+      }
+      resetLocalChatStore();
+      await refreshWorkFeed();
+    }).catch(() => undefined);
   };
 
   const configuredCount = status
@@ -236,7 +263,8 @@ export default function SettingsPanel() {
 
         {!nangoConfigured && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            NANGO_SECRET_KEY is not set — add it in Vercel env vars (or .env.local for dev).
+            NANGO_SECRET_KEY is missing or empty — copy the secret from Nango → Environment Settings,
+            add it to .env.local (dev) or Vercel env vars (production), then restart the dev server.
           </p>
         )}
 
@@ -274,6 +302,32 @@ export default function SettingsPanel() {
         ) : nangoConfigured ? (
           <p className="text-xs text-foreground-muted">No Google accounts connected yet.</p>
         ) : null}
+      </div>
+
+      <div className="card border-danger/30 p-4 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Danger zone</h3>
+            <p className="text-xs text-foreground-muted mt-1">
+              Reset activity history clears the action queue and pending approvals, audit trail,
+              harness runs, chat history, and latest brief. Your profile, knowledge base, API keys,
+              and Google connections are preserved.
+            </p>
+          </div>
+          <button
+            onClick={handleResetActivity}
+            disabled={resetting}
+            className="btn-secondary text-xs py-1.5 shrink-0 text-danger hover:text-danger border-danger/30"
+          >
+            {resetDone ? 'Reset ✓' : resetting ? 'Resetting…' : 'Reset activity history'}
+          </button>
+        </div>
+
+        {resetError && (
+          <p className="text-xs text-red-600 dark:text-red-400 whitespace-pre-wrap">
+            {resetError}
+          </p>
+        )}
       </div>
     </div>
   );

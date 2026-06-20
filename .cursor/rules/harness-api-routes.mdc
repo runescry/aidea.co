@@ -29,4 +29,6 @@ See `app/api/run/route.ts` and `app/api/message/route.ts` as templates.
 
 Non-streaming routes: use `NextResponse.json`. Queue/tasks/agents routes delegate to `lib/harness/*` and `lib/storage`.
 
+**Activity reset:** `POST /api/reset` → `clearActivityHistory()` + `invalidateDevTasksCache()`. Preserves profile/KB and integrations.
+
 Agent customization API: use `mergeOverride`, `loadAgentOverrides`, `applyAgentOverride` from `@/lib/agents/resolve` — do not fork override logic.
