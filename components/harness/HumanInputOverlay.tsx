@@ -4,6 +4,7 @@ import { useState } from 'react';
 export interface PendingInput {
   requestId: string;
   question: string;
+  context?: string;
   agentRole: string;
 }
 
@@ -42,6 +43,11 @@ export default function HumanInputOverlay({ pending, onSubmit }: Props) {
           <span className="text-xs text-foreground-muted font-mono">{pending.agentRole} is waiting</span>
         </div>
         <p className="text-foreground text-sm leading-relaxed mb-5">{pending.question}</p>
+        {pending.context && (
+          <p className="text-xs text-foreground-muted leading-relaxed mb-4 border-l-2 border-border pl-3">
+            {pending.context}
+          </p>
+        )}
         <textarea
           autoFocus
           rows={3}

@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { HarnessEvent } from '@/lib/harness/types';
+import { pendingInputFromEvent, type PendingHumanInput } from '@/lib/client/human-input';
 import { consumeHarnessSSE } from '@/lib/client/sse';
 import { buildHistoryFromMessages } from '@/lib/chat/history';
 import { emptyChatStore, mergeChatStores, normalizeChatStore } from '@/lib/chat/store-utils';
@@ -119,6 +120,8 @@ interface ChatContextValue {
   closeConversation: (id: string) => void;
   sendMessage: (text: string) => Promise<void>;
   resetLocalChatStore: () => void;
+  pendingInput: PendingHumanInput | null;
+  clearPendingInput: () => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -130,6 +133,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     activeId: conv.id,
   });
   const [streaming, setStreaming] = useState(false);
+  const [pendingInput, setPendingInput] = useState<PendingHumanInput | null>(null);
   const [syncReady, setSyncReady] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const storeRef = useRef(store);
@@ -197,9 +201,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const resetLocalChatStore = useCallback(() => {
     const empty = emptyChatStore();
     setStore(empty);
+    setPendingInput(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_KEY);
     }
+  }, []);
+
+  const clearPendingInput = useCallback(() => {
+    setPendingInput(null);
   }, []);
 
   const deleteConversation = useCallback((id: string) => {
@@ -343,6 +352,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           }),
         }));
       }
+      if (event.type === 'human_input_requested') {
+        setPendingInput(pendingInputFromEvent(event.data as Record<string, unknown>, event.agentRole));
+      }
       if (event.type === 'agent_text_delta' && isChatAgentEvent(event)) {
         const delta = event.data.delta as string;
         if (delta) queueDelta(delta);
@@ -413,18 +425,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     closeConversation,
     sendMessage,
     resetLocalChatStore,
+    pendingInput,
+    clearPendingInput,
   }), [
     store.conversations,
     store.activeId,
     activeConversation,
     streaming,
     syncReady,
+    pendingInput,
     switchConversation,
     createConversation,
     deleteConversation,
     closeConversation,
     sendMessage,
     resetLocalChatStore,
+    clearPendingInput,
   ]);
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

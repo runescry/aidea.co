@@ -330,7 +330,7 @@ Mark `[x]` only when `npm run typecheck`, `npm test`, `npm run test:contract`, a
 - [x] **Relationship-monitor → Inbox** — Cooling contacts as queue or structured suggestion cards (not only KB nudge)
 - [x] **Calendar approval cards** — Polished Inbox UX for `calendar_event` queue items (`TaskFeed`, `execute-queued-action.ts`)
 - [x] **KB update approval cards** — Polished Inbox UX for `kb_update` queue items
-- [ ] **request_human_input on Home** — Surface harness human-input prompts in Inbox or chat modal (not Studio-only)
+- [x] **request_human_input on Home** — Surface harness human-input prompts in Inbox or chat modal (not Studio-only)
 
 ### P7.3 — Richer context (pick one per slice)
 

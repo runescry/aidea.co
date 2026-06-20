@@ -80,7 +80,11 @@ function DashboardBody({
   setOnboardingMode: (m: 'quick' | 'full') => void;
 }) {
   const { state, startSession, reset, clearPendingInput } = useHarnessSession();
-  const { streaming: chatStreaming } = useChatConversations();
+  const {
+    streaming: chatStreaming,
+    pendingInput: chatPendingInput,
+    clearPendingInput: clearChatPendingInput,
+  } = useChatConversations();
   const [view, setView] = useState<MainView>('home');
   const [taskRefreshKey, setTaskRefreshKey] = useState(0);
 
@@ -102,6 +106,8 @@ function DashboardBody({
         startSession={startSession}
         reset={reset}
         clearPendingInput={clearPendingInput}
+        chatPendingInput={chatPendingInput}
+        clearChatPendingInput={clearChatPendingInput}
         setShowOnboarding={setShowOnboarding}
         setOnboardingMode={setOnboardingMode}
       />
@@ -118,6 +124,8 @@ function DashboardChrome({
   startSession,
   reset,
   clearPendingInput,
+  chatPendingInput,
+  clearChatPendingInput,
   setShowOnboarding,
   setOnboardingMode,
 }: {
@@ -129,6 +137,8 @@ function DashboardChrome({
   startSession: ReturnType<typeof useHarnessSession>['startSession'];
   reset: ReturnType<typeof useHarnessSession>['reset'];
   clearPendingInput: ReturnType<typeof useHarnessSession>['clearPendingInput'];
+  chatPendingInput: ReturnType<typeof useChatConversations>['pendingInput'];
+  clearChatPendingInput: ReturnType<typeof useChatConversations>['clearPendingInput'];
   setShowOnboarding: (v: boolean) => void;
   setOnboardingMode: (m: 'quick' | 'full') => void;
 }) {
@@ -137,6 +147,7 @@ function DashboardChrome({
 
   const activeAgents = Object.values(state.agents).filter(a => a.status === 'running').length;
   const agentsRunning = state.status === 'running' || state.status === 'starting';
+  const humanInputPending = chatPendingInput ?? state.pendingInput;
 
   const bumpWorkFeed = useCallback(() => {
     setTaskRefreshKey(k => k + 1);
@@ -152,9 +163,10 @@ function DashboardChrome({
   return (
     <div className="h-[100dvh] bg-surface-muted text-foreground flex overflow-hidden">
       <HumanInputOverlay
-        pending={state.pendingInput ?? null}
+        pending={humanInputPending}
         onSubmit={() => {
           clearPendingInput();
+          clearChatPendingInput();
           bumpWorkFeed();
         }}
       />

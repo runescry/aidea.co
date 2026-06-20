@@ -10,9 +10,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
-**Phase:** P7.2 health brief in Inbox — relationship cards next  
-**Next up:** P7.2 relationship-monitor → Inbox  
-**Recent:** P7.2 health-briefer → Inbox — `HealthBriefRenderer`, entity `health_brief` row in feed
+**Phase:** P7.2 complete — all five workforce→Inbox slices shipped  
+**Next up:** P7.3 richer context (pick one connector spike)  
+**Recent:** P7.2 request_human_input on Home — chat + Studio share HumanInputOverlay
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
 **Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
@@ -112,7 +112,7 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - [x] **Audit trail viewer** — Browse queue approve/reject/save history in UI
 - [x] **Non-email Inbox cards** — Calendar and KB queue items with polished approval UX
 - [x] **Cron outcomes → Inbox** — Health-briefer and relationship-monitor surface like inbox-triage
-- [ ] **request_human_input on Home** — Human-in-the-loop outside Studio
+- [x] **request_human_input on Home** — Human-in-the-loop outside Studio
 
 ---
 
@@ -144,3 +144,5 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - 2026-06-21 — P7.2 calendar approval cards — Inbox edit + approve for `calendar_event`; `calendar-display`, queue PATCH contract
 - 2026-06-21 — P7.2 KB update approval cards — structured preview + reason; `buildKbUpdatePreview`
 - 2026-06-21 — P7.2 health-briefer → Inbox — `latestHealthBriefToTask`, `HealthBriefRenderer`
+- 2026-06-21 — P7.2 relationship-monitor cards — structured cooling-contact suggestions in TaskFeed
+- 2026-06-21 — P7.2 request_human_input on Home — `lib/client/human-input`, chat SSE overlay wiring

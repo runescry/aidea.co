@@ -2,6 +2,10 @@
 import { useReducer, useRef, useCallback, useEffect } from 'react';
 import type { HarnessEvent, HarnessEventType, CostSnapshot, EntityType, EntityState } from '@/lib/harness/types';
 import { consumeHarnessSSE } from '@/lib/client/sse';
+import type { PendingHumanInput } from '@/lib/client/human-input';
+import { pendingInputFromEvent } from '@/lib/client/human-input';
+
+export type { PendingHumanInput };
 
 export interface AgentNode {
   id: string;
@@ -33,12 +37,6 @@ export interface ConsensusRecord {
   decidedBy?: 'consensus' | 'parent';
   status: 'in-progress' | 'resolved';
   openedAt: string;
-}
-
-export interface PendingHumanInput {
-  requestId: string;
-  question: string;
-  agentRole: string;
 }
 
 export interface HarnessState {
@@ -309,11 +307,7 @@ function reducer(state: HarnessState, action: Action): HarnessState {
     case 'human_input_requested': {
       return {
         ...state,
-        pendingInput: {
-          requestId: event.data.requestId as string,
-          question: event.data.question as string,
-          agentRole: event.agentRole ?? 'agent',
-        },
+        pendingInput: pendingInputFromEvent(event.data as Record<string, unknown>, event.agentRole),
         eventLog: log,
       };
     }
