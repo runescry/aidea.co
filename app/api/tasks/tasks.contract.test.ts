@@ -18,11 +18,17 @@ describe('GET /api/tasks', () => {
     for (const task of body.tasks) {
       expect(task).toMatchObject({
         id: expect.any(String),
-        source: expect.stringMatching(/^(queue|session)$/),
+        source: expect.stringMatching(/^(queue|session|proactive)$/),
         status: expect.any(String),
         title: expect.any(String),
         createdAt: expect.any(String),
       });
     }
+  });
+
+  it('returns autonomy metadata when profile has preference', async () => {
+    const res = await GET();
+    const body = await res.json() as { autonomy: { label: string; hint: string } | null };
+    expect(body.autonomy === null || typeof body.autonomy.label === 'string').toBe(true);
   });
 });

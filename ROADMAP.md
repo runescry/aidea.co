@@ -10,9 +10,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-20  
-**Phase:** P4 — Workforce depth  
-**Next up:** Proactive Work items  
-**Session:** P3 complete (3/3). P0–P2 committed (`2ff945a`). P3 local, uncommitted.
+**Phase:** P5 — Brand & scale  
+**Next up:** Visual system pass  
+**Session:** P4 complete (3/3). P0–P3 on main. P4 ready to commit.
 
 ---
 
@@ -53,9 +53,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 ## P4 — Workforce depth
 
-- [ ] **Proactive Work items** — Agent-initiated nudges (relationships, stale projects) appear in Work feed
-- [ ] **Autonomy reflected in UI** — supervised / semi-autonomous / autonomous affects what auto-runs vs queues
-- [ ] **Work filter: Running** — Dedicated filter/tab for in-flight agent sessions
+- [x] **Proactive Work items** — Agent-initiated nudges (relationships, stale projects) appear in Work feed
+- [x] **Autonomy reflected in UI** — supervised / semi-autonomous / autonomous affects what auto-runs vs queues
+- [x] **Work filter: Running** — Dedicated filter/tab for in-flight agent sessions
 
 ---
 
@@ -85,3 +85,4 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 - 2026-06-20 — P1 batch (integration bar, chat restore UX, Work previews, approve feedback) — `lib/integrations.ts`, `IntegrationStatusBar`, `TaskFeed`, `ChatInterface`
 - 2026-06-20 — P2 batch (ProfileSections, artifact labels, agent groups) — `profile/ProfileSections.tsx`, `lib/agents/artifact-labels.ts`, `lib/agents/groups.ts`
 - 2026-06-20 — P3 batch (learning/creator agents, Home run launcher) — `lib/agents/library/learning`, `lib/agents/library/creator`, `EntityRunLauncher.tsx`
+- 2026-06-20 — P4 batch (proactive Work, autonomy UI, running filter) — `lib/harness/proactive-tasks.ts`, `TaskFeed.tsx`, `/api/tasks`

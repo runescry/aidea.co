@@ -5,10 +5,12 @@ import type { ActionStatus } from '@/lib/harness/queue';
 import { ACTION_TYPE_LABELS } from '@/lib/harness/action-labels';
 import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
 import { formatTaskTime, sessionToTask, sortTaskItems, taskToChatPrompt } from '@/lib/harness/tasks';
+import { queueActionAutonomyNote } from '@/lib/harness/proactive-tasks';
+import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
 import { patchQueueAction } from '@/lib/client/queue';
 import { usePollingFetch } from '@/hooks/usePollingFetch';
 
-type Filter = 'all' | 'needs_you' | 'done';
+type Filter = 'all' | 'needs_you' | 'running' | 'done';
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
   needs_you: 'Needs you',
@@ -91,11 +93,13 @@ function TaskDetail({
   onStatusChange,
   onOpenStudio,
   onDiscussInChat,
+  autonomyLevel,
 }: {
   task: TaskItem;
   onStatusChange: (id: string, status: ActionStatus) => void;
   onOpenStudio?: () => void;
   onDiscussInChat?: (prompt: string) => void;
+  autonomyLevel?: UserAutonomyPreference;
 }) {
   const action = task.action;
 
@@ -111,6 +115,12 @@ function TaskDetail({
             <p className="text-xs text-foreground-muted mt-1">{task.subtitle}</p>
           )}
         </div>
+
+        {task.source === 'proactive' && (
+          <p className="text-sm text-foreground-muted leading-relaxed">
+            Your workforce flagged this — stale project or a relationship that may need attention.
+          </p>
+        )}
 
         {task.source === 'session' && (
           <div className="space-y-3">
@@ -143,7 +153,13 @@ function TaskDetail({
           </pre>
         )}
 
-        {action && !action.detail && action.type !== 'kb_update' && (
+        {action && task.status === 'needs_you' && (
+          <p className="text-xs text-foreground-subtle">
+            {queueActionAutonomyNote(autonomyLevel, action.type) ?? `${ACTION_TYPE_LABELS[action.type] ?? action.type} queued by ${action.agentRole}`}
+          </p>
+        )}
+
+        {action && !action.detail && action.type !== 'kb_update' && task.status !== 'needs_you' && (
           <p className="text-xs text-foreground-subtle">
             {ACTION_TYPE_LABELS[action.type] ?? action.type} queued by {action.agentRole}
           </p>
@@ -190,8 +206,14 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0, onDisc
   const { data, loading, refresh } = usePollingFetch(
     async () => {
       const res = await fetch('/api/tasks');
-      if (!res.ok) return { tasks: [] as TaskItem[], needsYou: 0 };
-      return res.json() as Promise<{ tasks: TaskItem[]; needsYou: number }>;
+      if (!res.ok) {
+        return { tasks: [] as TaskItem[], needsYou: 0, autonomy: null };
+      }
+      return res.json() as Promise<{
+        tasks: TaskItem[];
+        needsYou: number;
+        autonomy: { level: UserAutonomyPreference; label: string; hint: string } | null;
+      }>;
     },
     8000,
     [refreshKey],
@@ -203,6 +225,7 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0, onDisc
 
   const tasks = data?.tasks ?? [];
   const needsYouCount = data?.needsYou ?? 0;
+  const autonomy = data?.autonomy ?? null;
 
   const allTasks = useMemo(() => {
     if (!session || session.status === 'idle') return tasks;
@@ -223,8 +246,14 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0, onDisc
     return sortTaskItems([live, ...tasks]);
   }, [tasks, session]);
 
+  const runningCount = useMemo(
+    () => allTasks.filter(t => t.status === 'running').length,
+    [allTasks],
+  );
+
   const filtered = useMemo(() => {
     if (filter === 'needs_you') return allTasks.filter(t => t.status === 'needs_you');
+    if (filter === 'running') return allTasks.filter(t => t.status === 'running');
     if (filter === 'done') return allTasks.filter(t => t.status === 'done' || t.status === 'failed');
     return allTasks;
   }, [allTasks, filter]);
@@ -250,21 +279,32 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0, onDisc
   const filters: Array<{ id: Filter; label: string; count?: number }> = [
     { id: 'all', label: 'All' },
     { id: 'needs_you', label: 'Needs you', count: needsYouCount },
+    { id: 'running', label: 'Running', count: runningCount },
     { id: 'done', label: 'Done' },
   ];
 
   return (
     <div className="flex flex-col h-full bg-surface">
       <div className="shrink-0 px-4 pt-4 pb-2 border-b border-border">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2">
           <h2 className="text-[13px] font-semibold text-foreground tracking-tight">Work</h2>
-          {needsYouCount > 0 && (
-            <span className="text-[11px] font-medium text-accent tabular-nums">
-              {needsYouCount} waiting
-            </span>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {autonomy && (
+              <span
+                className="text-[10px] text-foreground-subtle hidden sm:inline"
+                title={autonomy.hint}
+              >
+                {autonomy.label}
+              </span>
+            )}
+            {needsYouCount > 0 && (
+              <span className="text-[11px] font-medium text-accent tabular-nums">
+                {needsYouCount} waiting
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap">
           {filters.map(f => (
             <button
               key={f.id}
@@ -277,8 +317,8 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0, onDisc
               }`}
             >
               {f.label}
-              {f.id === 'needs_you' && needsYouCount > 0 && (
-                <span className="ml-1 opacity-80">{needsYouCount}</span>
+              {f.count != null && f.count > 0 && (
+                <span className="ml-1 opacity-80">{f.count}</span>
               )}
             </button>
           ))}
@@ -315,6 +355,7 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0, onDisc
               onStatusChange={handleStatusChange}
               onOpenStudio={onOpenStudio}
               onDiscussInChat={onDiscussInChat}
+              autonomyLevel={autonomy?.level}
             />
           </>
         ) : filtered.length === 0 ? (

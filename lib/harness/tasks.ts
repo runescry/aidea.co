@@ -1,12 +1,14 @@
 import type { QueuedAction } from './queue';
 import type { EntityState } from './types';
+import type { KnowledgeBase } from '@/types/knowledge-base';
 import { ACTION_TYPE_LABELS } from './action-labels';
+import { buildProactiveTasks, type UserAutonomyPreference } from './proactive-tasks';
 
 export type TaskStatus = 'needs_you' | 'running' | 'done' | 'failed';
 
 export interface TaskItem {
   id: string;
-  source: 'queue' | 'session';
+  source: 'queue' | 'session' | 'proactive';
   status: TaskStatus;
   title: string;
   subtitle?: string;
@@ -143,8 +145,9 @@ const RECENT_ENTITY_MS = 7 * 24 * 60 * 60 * 1000;
 export function buildUnifiedTaskFeed(input: {
   actions: QueuedAction[];
   entities: EntityState[];
+  kb?: KnowledgeBase;
   now?: number;
-}): { tasks: TaskItem[]; needsYou: number } {
+}): { tasks: TaskItem[]; needsYou: number; autonomy?: UserAutonomyPreference } {
   const now = input.now ?? Date.now();
   const queueTasks = input.actions.map(queueActionToTask);
 
@@ -155,8 +158,16 @@ export function buildUnifiedTaskFeed(input: {
     })
     .map(entityStateToTask);
 
-  const tasks = sortTaskItems([...queueTasks, ...entityTasks]);
-  return { tasks, needsYou: countNeedsYou(tasks) };
+  const proactiveTasks = input.kb ? buildProactiveTasks({ kb: input.kb, entities: input.entities }) : [];
+  const existingIds = new Set([...queueTasks, ...entityTasks].map(t => t.id));
+  const dedupedProactive = proactiveTasks.filter(t => !existingIds.has(t.id));
+
+  const tasks = sortTaskItems([...queueTasks, ...dedupedProactive, ...entityTasks]);
+  return {
+    tasks,
+    needsYou: countNeedsYou(tasks),
+    autonomy: input.kb?.preferences?.defaultAutonomyLevel,
+  };
 }
 
 export function taskToChatPrompt(
