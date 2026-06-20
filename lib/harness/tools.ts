@@ -21,6 +21,12 @@ import {
 } from './kb-updates';
 import { emitChatAgentResponse } from './chat-events';
 import { addCalendarDays } from '@/lib/calendar/dates';
+import {
+  cacheGmailRead,
+  getGmailCache,
+  sanitizeInboxTriage,
+  type CachedGmail,
+} from './inbox-sanitize';
 
 // ── Tool Catalog ──────────────────────────────────────────────────────────────
 
@@ -511,17 +517,21 @@ export async function executeHarnessTool(
 
     case 'write_state': {
       const { key, value } = input as { key: string; value: unknown };
-      await setStateKey(ctx.state, key, value, {
+      let valueToWrite = value;
+      if (key === 'inbox_triage' && value && typeof value === 'object') {
+        valueToWrite = sanitizeInboxTriage(value, getGmailCache(ctx.state.data));
+      }
+      await setStateKey(ctx.state, key, valueToWrite, {
         persist: !ctx.config.deferStatePersist,
       });
-      emitChatAgentResponse(ctx, callerAgent, key, value);
+      emitChatAgentResponse(ctx, callerAgent, key, valueToWrite);
       ctx.send({
         type: 'state_updated',
         sessionId: ctx.sessionId,
         entityId: ctx.entityId,
         agentId: callerAgent.id,
         agentRole: callerAgent.role,
-        data: { key, value, valueType: typeof value },
+        data: { key, value: valueToWrite, valueType: typeof valueToWrite },
         timestamp: new Date().toISOString(),
       });
       return { ok: true, key };
@@ -748,18 +758,17 @@ export async function executeHarnessTool(
       };
       try {
         const result = await readGmailMessages({ query, maxResults, connectionId });
-        return {
-          ...result,
-          emails: result.emails.map(e => ({
-            id: e.id,
-            from: e.from,
-            subject: e.subject,
-            date: e.date,
-            snippet: e.snippet.slice(0, 180),
-            isUnread: e.isUnread,
-            account: e.account,
-          })),
-        };
+        const emails = result.emails.map(e => ({
+          id: e.id,
+          from: e.from,
+          subject: e.subject,
+          date: e.date,
+          snippet: e.snippet.slice(0, 220),
+          isUnread: e.isUnread,
+          account: e.account,
+        }));
+        cacheGmailRead(ctx.state.data, emails as CachedGmail[]);
+        return { ...result, emails };
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) };
       }

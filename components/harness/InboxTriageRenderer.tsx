@@ -3,11 +3,13 @@
 interface EmailItem {
   from?: string;
   subject?: string;
+  snippet?: string;
   urgency?: string;
   reason?: string;
   action?: string;
   messageId?: string;
   queueActionId?: string;
+  attributionWarning?: string;
 }
 
 interface InboxTriageData {
@@ -38,7 +40,15 @@ function EmailCard({ item, showAction }: { item: EmailItem; showAction?: boolean
           {urgency}
         </span>
       </div>
-      {item.reason && <p className="text-xs text-foreground-muted">{item.reason}</p>}
+      {item.snippet && (
+        <p className="text-xs text-foreground-muted border-l-2 border-border pl-2">{item.snippet}</p>
+      )}
+      {item.reason && item.reason !== item.snippet && (
+        <p className="text-xs text-foreground-muted">{item.reason}</p>
+      )}
+      {item.attributionWarning && (
+        <p className="text-[11px] text-warning">{item.attributionWarning}</p>
+      )}
       {showAction && item.action && (
         <div className="text-xs text-foreground border-l-2 border-accent pl-2">
           {item.action}

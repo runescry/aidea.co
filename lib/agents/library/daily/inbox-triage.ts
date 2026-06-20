@@ -25,8 +25,15 @@ Call kb_read with keys: ["work.keyContacts", "work.urgentFrom", "work.skipFrom",
 STEP 2: Fetch unread email (once only — do not call gmail_read again later in the run).
 Call gmail_read with { query: "is:unread", maxResults: 20 }
 
-STEP 3: Score each email for urgency.
-Apply these rules in order (first match wins):
+STEP 3: Score each email individually — one output row per gmail_read email.
+CRITICAL ATTRIBUTION RULES:
+- reason and action must come ONLY from that email's subject and snippet — never from KB or other emails
+- Each row must include the exact messageId from gmail_read
+- Genazzano / MLC emails → Ivy only. Xavier College emails → Sebastian only
+- Do not mention Sebastian on Genazzano emails (or Ivy on Xavier emails) unless that name appears in the email text
+- If unsure, set reason to the email snippet verbatim
+
+Apply these urgency rules in order (first match wins):
   HIGH urgency:
     - Sender is in keyContacts or urgentFrom
     - Subject contains: "urgent", "action required", "deadline", "asap", "by today", "by [today's date]"
@@ -69,6 +76,7 @@ STEP 6: Write triage output to write_state key "inbox_triage":
       "from": "Sender Name",
       "subject": "...",
       "messageId": "gmail-message-id",
+      "snippet": "verbatim from gmail_read",
       "urgency": "HIGH",
       "reason": "one sentence why",
       "action": "what to do next",

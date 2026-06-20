@@ -148,18 +148,21 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
     }
     if (item && typeof item === 'object') {
       const o = item as Record<string, unknown>;
-      const subject = String(o.subject ?? o.summary ?? o.action ?? 'Review item');
+      const subject = String(o.subject ?? o.summary ?? 'Review item');
       const from = String(o.from ?? o.context ?? '');
+      const snippet = String(o.snippet ?? '');
       const nextStep = String(o.action ?? o.nextStep ?? '');
+      const reason = String(o.reason ?? '');
       return {
         priority: i + 1,
         action: subject,
         context: from,
-        detail: nextStep,
+        detail: snippet || reason || nextStep,
         source: 'email',
         urgency: String(o.urgency ?? ''),
         queueActionId: o.queueActionId ? String(o.queueActionId) : undefined,
         messageId: o.messageId ? String(o.messageId) : undefined,
+        snippet: snippet || undefined,
       };
     }
     return { priority: i + 1, action: String(item), context: '', source: 'email' };
