@@ -22,7 +22,7 @@ Call kb_read with keys: ["work.keyContacts", "work.urgentFrom", "work.skipFrom",
 - skipFrom: newsletters, automated tools, promotional — always low priority
 - currentProjects: job applications and personal builds — match hiring/property/school emails to these
 
-STEP 2: Fetch unread email.
+STEP 2: Fetch unread email (once only — do not call gmail_read again later in the run).
 Call gmail_read with { query: "is:unread", maxResults: 20 }
 
 STEP 3: Score each email for urgency.

@@ -224,7 +224,7 @@ Client bundles must not import server-only modules (`lib/storage`, `lib/harness/
 | **Daily OS** | Six agents (orchestrator + 5 specialists) — slow by design; lite mode is backlog (ROADMAP P6) |
 | **Studio CEOs** | Sonnet (Company/Learning/Creator) |
 | **Local dev** | `npm run build && npm start` is faster than `npm run dev` for UI testing |
-| **Production** | Co-locate Vercel region with Postgres; prefer `AI_GATEWAY_API_KEY` on Vercel |
+| **Production** | Co-locate Vercel region with Postgres; set `AI_GATEWAY_API_KEY` on **aidea-co** (team key `aidea-co-prod` — see [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md#aidea-co-production-aidea-covercelapp)) |
 
 ---
 

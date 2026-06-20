@@ -14,19 +14,46 @@ aidea runs locally with JSON files under `data/`. For production (especially mul
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | Postgres connection string. Also accepts `POSTGRES_URL` or `POSTGRES_PRISMA_URL`. |
-| `ANTHROPIC_API_KEY` | Claude models for agents |
+| `AI_GATEWAY_API_KEY` | **Production LLM auth** — Vercel AI Gateway (required on Vercel; OIDC-only often returns `Forbidden`) |
 | `DEFAULT_USER_ID` | Tenant id for single-user deploys (default: `default`). Set per user when you add auth. |
 
 ## Optional integrations
 
 | Variable | Purpose |
 |----------|---------|
+| `ANTHROPIC_API_KEY` | Direct Anthropic (local dev fallback when gateway key is unset) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Gmail & Calendar |
 | `BRAVE_SEARCH_API_KEY` | Web search tool |
 | `NANGO_SECRET_KEY` | OAuth connection management |
-| `AI_GATEWAY_API_KEY` | Vercel AI Gateway (alternative to direct Anthropic) |
 
 Copy from [`.env.local.example`](../.env.local.example) for local development.
+
+## aidea-co production (`aidea-co.vercel.app`)
+
+Vercel project: **marcus-bowles-projects / aidea-co**
+
+### AI Gateway key (`AI_GATEWAY_API_KEY`)
+
+Production LLM calls (chat, Daily OS sub-agents, Studio CEOs) go through [Vercel AI Gateway](https://vercel.com/docs/ai-gateway). The team key is named **`aidea-co-prod`** (partial key ends in `…0Mnslc`).
+
+1. Open [Vercel → AI Gateway → API Keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) for team **marcus-bowles-projects**.
+2. Find the key **`aidea-co-prod`** (or create one with a monthly budget if rotating).
+3. Copy the full secret (shown once at creation) into **Vercel → aidea-co → Settings → Environment Variables**:
+   - Name: `AI_GATEWAY_API_KEY`
+   - Environment: **Production** (and Preview if you test there)
+4. **Redeploy** — env changes do not apply to running deployments until redeployed.
+
+Verify the variable is non-empty:
+
+```bash
+npx vercel env pull /tmp/aidea-prod.env --environment=production --yes
+# AI_GATEWAY_API_KEY should have length > 10 (do not commit this file)
+rm /tmp/aidea-prod.env
+```
+
+**Why this matters:** If `AI_GATEWAY_API_KEY` is missing or empty, the app falls back to OIDC on Vercel. That path often returns **`403 Forbidden`** for multi-agent Studio runs. [`lib/ai/provider.ts`](../lib/ai/provider.ts) prefers `AI_GATEWAY_API_KEY` → `ANTHROPIC_API_KEY` → OIDC.
+
+Local dev: copy the same key into `.env.local` as `AI_GATEWAY_API_KEY=` (never commit).
 
 ## How storage switches
 

@@ -53,8 +53,25 @@ function buildAgentSummary(
 
 interface ToolCallRecord { name: string; inputHash: string }
 
+/** Reads that are safe to repeat — return cached result instead of failing the loop. */
+const IDEMPOTENT_READ_TOOLS = new Set([
+  'read_state',
+  'kb_read',
+  'gmail_read',
+  'calendar_read',
+  'contacts_read',
+  'web_search',
+  'web_fetch',
+  'news_search',
+  'document_parse',
+]);
+
 function hashInput(input: ToolInput): string {
   return JSON.stringify(input ?? {});
+}
+
+function toolCacheKey(toolName: string, inputHash: string): string {
+  return `${toolName}:${inputHash}`;
 }
 
 function completeAgent(
@@ -134,6 +151,7 @@ export async function runAgentLoop(
 
   const messages: CoreMessage[] = [{ role: 'user', content: userPrompt }];
   const recentToolCalls: ToolCallRecord[] = [];
+  const toolResultCache = new Map<string, unknown>();
   let iterations = 0;
   const MAX_ITERATIONS = 20;
 
@@ -212,15 +230,19 @@ export async function runAgentLoop(
 
       if (toolCalls.length > 0) {
         for (const tc of toolCalls) {
-          const call: ToolCallRecord = { name: tc.toolName, inputHash: hashInput(tc.args as ToolInput) };
+          const inputHash = hashInput(tc.args as ToolInput);
+          const call: ToolCallRecord = { name: tc.toolName, inputHash };
+          const isIdempotentRead = IDEMPOTENT_READ_TOOLS.has(tc.toolName);
           const duplicate = recentToolCalls.some(
             c => c.name === call.name && c.inputHash === call.inputHash
           );
-          if (duplicate) {
+          if (duplicate && !isIdempotentRead) {
             throw new Error(`Loop detected: agent called ${tc.toolName} with same args twice`);
           }
-          recentToolCalls.push(call);
-          if (recentToolCalls.length > 10) recentToolCalls.shift();
+          if (!duplicate) {
+            recentToolCalls.push(call);
+            if (recentToolCalls.length > 10) recentToolCalls.shift();
+          }
         }
 
         messages.push({
@@ -241,6 +263,10 @@ export async function runAgentLoop(
         }> = [];
 
         for (const tc of toolCalls) {
+          const inputHash = hashInput(tc.args as ToolInput);
+          const cacheKey = toolCacheKey(tc.toolName, inputHash);
+          const isIdempotentRead = IDEMPOTENT_READ_TOOLS.has(tc.toolName);
+
           ctx.send({
             type: 'tool_called',
             sessionId: ctx.sessionId,
@@ -252,16 +278,23 @@ export async function runAgentLoop(
           });
 
           let toolResult: unknown;
-          try {
-            toolResult = await executeHarnessTool(
-              tc.toolName,
-              tc.args as ToolInput,
-              agent,
-              ctx,
-              spawnFn
-            );
-          } catch (err) {
-            toolResult = { error: String(err) };
+          if (isIdempotentRead && toolResultCache.has(cacheKey)) {
+            toolResult = toolResultCache.get(cacheKey);
+          } else {
+            try {
+              toolResult = await executeHarnessTool(
+                tc.toolName,
+                tc.args as ToolInput,
+                agent,
+                ctx,
+                spawnFn
+              );
+            } catch (err) {
+              toolResult = { error: String(err) };
+            }
+            if (isIdempotentRead && !('error' in (toolResult as object))) {
+              toolResultCache.set(cacheKey, toolResult);
+            }
           }
 
           ctx.send({
