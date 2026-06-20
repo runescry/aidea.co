@@ -112,7 +112,7 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - [x] **Morning brief surfacing** — Brief → Inbox row or chat card, not Studio-only
 - [x] **Suggestion dismiss / snooze** — Hygiene for proactive Inbox items
 - [x] **Audit trail viewer** — Browse queue approve/reject/save history in UI
-- [ ] **Non-email Inbox cards** — Calendar and KB queue items with polished approval UX
+- [x] **Non-email Inbox cards** — Calendar and KB queue items with polished approval UX
 - [ ] **Cron outcomes → Inbox** — Health-briefer and relationship-monitor surface like inbox-triage
 - [ ] **request_human_input on Home** — Human-in-the-loop outside Studio
 
@@ -144,3 +144,4 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - 2026-06-21 — P7.1 suggestion dismiss/snooze — profile persistence; TaskFeed buttons; `/api/tasks/suggestions`
 - 2026-06-21 — P7.1 morning brief on Home — Inbox row + chat card; `latestBriefToTask`, `/api/tasks`
 - 2026-06-21 — P7.2 calendar approval cards — Inbox edit + approve for `calendar_event`; `calendar-display`, queue PATCH contract
+- 2026-06-21 — P7.2 KB update approval cards — structured preview + reason; `buildKbUpdatePreview`

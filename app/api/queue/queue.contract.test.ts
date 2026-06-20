@@ -56,4 +56,28 @@ describe('PATCH /api/queue', () => {
       durationMinutes: 45,
     });
   });
+
+  it('approves kb_update queue item', async () => {
+    const action: QueuedAction = {
+      id: 'kb-1',
+      type: 'kb_update',
+      summary: 'Acme → Interviewing',
+      agentRole: 'dispatcher',
+      tool: 'update_kb',
+      payload: { input: { jobApplication: { company: 'Acme', status: 'Interviewing' } } },
+      status: 'executed',
+      priority: 'normal',
+      createdAt: '2026-06-01T10:00:00.000Z',
+    };
+    mockResolve.mockResolvedValue(action);
+
+    const req = new Request('http://localhost/api/queue', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: 'kb-1', intent: 'approve' }),
+    });
+    const res = await PATCH(req as import('next/server').NextRequest);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.action.type).toBe('kb_update');
+  });
 });

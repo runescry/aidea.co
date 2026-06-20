@@ -59,7 +59,7 @@ describe('describeKbUpdate', () => {
       },
     });
 
-    expect(text).toContain('Update tracked application: Vercel');
+    expect(text).toContain('Company: Vercel');
     expect(text).toContain('Confirm availability with Cassidy and Camden');
     expect(text).not.toContain('<parameter');
   });

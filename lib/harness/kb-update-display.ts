@@ -118,20 +118,69 @@ export function describeKbUpdate(action: {
   detail?: string;
   payload?: Record<string, unknown>;
 }): string {
+  return buildKbUpdatePreview(action).fields.map(f => `${f.label}: ${f.value}`).join('\n')
+    || sanitizeQueueSummary(action.summary);
+}
+
+export interface KbUpdatePreview {
+  headline: string;
+  reason?: string;
+  fields: Array<{ label: string; value: string }>;
+}
+
+export function buildKbUpdatePreview(action: {
+  summary: string;
+  detail?: string;
+  payload?: Record<string, unknown>;
+}): KbUpdatePreview {
+  const reason = typeof action.payload?.reason === 'string' ? action.payload.reason : action.detail;
   const input = action.payload ? kbPatchInputFromPayload(action.payload) : null;
+  const fields: Array<{ label: string; value: string }> = [];
+
   if (input?.jobApplication) {
     const j = input.jobApplication;
-    const lines = [`Update tracked application: ${j.company}`];
-    if (j.role) lines.push(`Role: ${j.role}`);
-    if (j.status) lines.push(`Status: ${j.status}`);
-    if (j.nextAction) lines.push(`Next action: ${j.nextAction}`);
-    return lines.join('\n');
+    fields.push({ label: 'Company', value: j.company });
+    if (j.role) fields.push({ label: 'Role', value: j.role });
+    if (j.status) fields.push({ label: 'Status', value: j.status });
+    if (j.nextAction) fields.push({ label: 'Next action', value: j.nextAction });
+    return {
+      headline: formatKbPatchSummary(input),
+      reason,
+      fields,
+    };
+  }
+
+  if (input?.key) {
+    fields.push({ label: 'Field', value: input.key });
+    if (input.value !== undefined) {
+      fields.push({ label: 'Value', value: String(input.value) });
+    }
+    return {
+      headline: formatKbPatchSummary(input),
+      reason,
+      fields,
+    };
+  }
+
+  if (input?.updates) {
+    for (const key of Object.keys(input.updates)) {
+      fields.push({ label: key, value: 'Update pending' });
+    }
+    return {
+      headline: formatKbPatchSummary(input),
+      reason,
+      fields,
+    };
   }
 
   const patch = action.payload?.patch as Record<string, unknown> | undefined;
-  if (patch?.work) return 'Update work profile from inbox triage';
-  if (patch?.family) return 'Update family notes from inbox triage';
-  if (patch?.goals) return 'Update goals from inbox triage';
+  if (patch?.work) fields.push({ label: 'Section', value: 'Work profile' });
+  if (patch?.family) fields.push({ label: 'Section', value: 'Family notes' });
+  if (patch?.goals) fields.push({ label: 'Section', value: 'Goals' });
 
-  return sanitizeQueueSummary(action.summary);
+  return {
+    headline: sanitizeQueueSummary(action.summary),
+    reason,
+    fields,
+  };
 }

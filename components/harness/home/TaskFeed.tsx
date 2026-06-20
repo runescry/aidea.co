@@ -8,7 +8,7 @@ import { calendarPayloadFromAction, formatCalendarDuration, formatCalendarStart 
 import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
 import { formatTaskTime, sessionToTask, sortTaskItems, taskToChatPrompt } from '@/lib/harness/tasks';
 import { queueActionAutonomyNote } from '@/lib/harness/proactive-tasks';
-import { describeKbUpdate } from '@/lib/harness/kb-update-display';
+import { describeKbUpdate, buildKbUpdatePreview } from '@/lib/harness/kb-update-display';
 import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
 import { patchQueueAction, patchQueueActions } from '@/lib/client/queue';
 import { patchSuggestion } from '@/lib/client/suggestions';
@@ -296,6 +296,10 @@ function TaskDetail({
     )
     : undefined;
   const queueEdits = emailEdits ?? calendarEdits;
+  const kbPreview = useMemo(
+    () => (action && isKbUpdate ? buildKbUpdatePreview(action) : null),
+    [action, isKbUpdate],
+  );
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -480,9 +484,37 @@ function TaskDetail({
           </div>
         )}
 
-        {isKbUpdate && action && (
-          <div className="rounded-lg bg-surface-subtle/80 p-3 text-sm text-foreground-muted leading-relaxed whitespace-pre-wrap border border-border/50">
-            {describeKbUpdate(action)}
+        {isKbUpdate && action && kbPreview && (
+          <div className="rounded-lg bg-surface-subtle/80 p-4 text-sm border border-border/50 space-y-3">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-subtle mb-1">
+                Profile update
+              </p>
+              <p className="text-foreground font-medium">{kbPreview.headline}</p>
+            </div>
+            {kbPreview.reason && (
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-subtle mb-1">
+                  Why
+                </p>
+                <p className="text-foreground-muted leading-relaxed whitespace-pre-wrap">{kbPreview.reason}</p>
+              </div>
+            )}
+            {kbPreview.fields.length > 0 && (
+              <dl className="space-y-2">
+                {kbPreview.fields.map(field => (
+                  <div key={field.label} className="grid grid-cols-[minmax(0,7rem)_1fr] gap-2">
+                    <dt className="text-[11px] font-medium text-foreground-subtle">{field.label}</dt>
+                    <dd className="text-foreground-muted">{field.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {kbPreview.fields.length === 0 && (
+              <p className="text-foreground-muted leading-relaxed whitespace-pre-wrap">
+                {describeKbUpdate(action)}
+              </p>
+            )}
           </div>
         )}
 
