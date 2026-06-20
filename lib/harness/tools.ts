@@ -30,6 +30,7 @@ import {
   type CachedGmail,
 } from './inbox-sanitize';
 import { buildContactGraph, findContactEntry } from '@/lib/contacts/interaction-graph';
+import { readHealthSyncSnapshot, weekTrainingSummary } from '@/lib/health/sync';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
 // ── Tool Catalog ──────────────────────────────────────────────────────────────
@@ -440,6 +441,19 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
       properties: {
         query: { type: 'string', description: 'Optional name or email to find one contact' },
       },
+      required: [],
+    },
+  },
+
+  health_sync_read: {
+    key: 'health_sync_read',
+    name: 'health_sync_read',
+    description: "Read health sync snapshot and this week's training summary from the KB (wearable/manual sync data).",
+    requiresApproval: false,
+    realWorld: false,
+    inputSchema: {
+      type: 'object',
+      properties: {},
       required: [],
     },
   },
@@ -965,6 +979,13 @@ export async function executeHarnessTool(
       return { entries: graph, count: graph.length, updatedAt: kb.relationships?.interactionGraph?.updatedAt };
     }
 
+    case 'health_sync_read': {
+      const kb = await readAllKB() as KnowledgeBase;
+      return {
+        snapshot: readHealthSyncSnapshot(kb),
+        week: weekTrainingSummary(kb),
+      };
+    }
 
     case 'document_parse': {
       const { url, focus } = input as { url: string; focus?: string };

@@ -143,7 +143,12 @@ export interface KnowledgeBase {
     medications?: string[];
     medicalNotes?: string;
     mentalHealthNotes?: string;
-  };
+    sync?: {
+      provider?: 'strava' | 'apple_health' | 'whoop' | 'manual';
+      lastSyncedAt?: string;
+      recentActivities?: Array<{ type: string; at: string; durationMins?: number; notes?: string }>;
+    };
+    
   routines?: {
     morningRoutine?: string;
     eveningRoutine?: string;
@@ -168,6 +173,7 @@ export interface KnowledgeBase {
     briefingTime?: string;
     focusHours?: string;
     defaultAutonomyLevel?: 'supervised' | 'semi-autonomous' | 'autonomous';
+    domainAutonomy?: Partial<Record<'email' | 'calendar' | 'kb' | 'finance' | 'health', 'supervised' | 'semi-autonomous' | 'autonomous'>>;
     writingTone?: string;
     decisionSpeed?: string;
     notificationPreferences?: string;
