@@ -36,6 +36,16 @@ export async function listQueue(userId: string): Promise<QueuedAction[]> {
   return rows.map(r => r.payload);
 }
 
+export async function countPendingQueue(userId: string): Promise<number> {
+  const sql = getSql();
+  const rows = await sql<{ count: number }[]>`
+    SELECT COUNT(*)::int AS count
+    FROM action_queue
+    WHERE user_id = ${userId} AND status = 'pending'
+  `;
+  return rows[0]?.count ?? 0;
+}
+
 export async function saveQueueAction(userId: string, action: QueuedAction): Promise<void> {
   const sql = getSql();
   await sql`

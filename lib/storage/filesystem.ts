@@ -48,6 +48,10 @@ export function listQueue(): QueuedAction[] {
   return readJson('action-queue.json', []);
 }
 
+export function countPendingQueue(): number {
+  return listQueue().filter(action => action.status === 'pending').length;
+}
+
 export function saveQueueAction(action: QueuedAction): void {
   const all = listQueue();
   const idx = all.findIndex(a => a.id === action.id);

@@ -136,32 +136,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const local = loadLocalStore();
+    setStore(local);
+
     (async () => {
-      const local = loadLocalStore();
-      let merged = local;
       try {
         const remote = await fetchRemoteStore();
-        if (remote) merged = mergeChatStores(local, remote);
-      } catch {
-        // offline — local only
-      }
-      if (!cancelled) {
+        if (cancelled) return;
+        const merged = remote ? mergeChatStores(local, remote) : local;
         setStore(merged);
         saveLocalStore(merged);
-        setSyncReady(true);
+      } catch {
+        // offline — local only
+      } finally {
+        if (!cancelled) setSyncReady(true);
       }
     })();
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
-    if (!syncReady) return;
+    if (!syncReady || streaming) return;
     saveLocalStore(store);
     const timer = setTimeout(() => {
       pushStoreToServer(store).catch(() => {});
     }, SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [store, syncReady]);
+  }, [store, syncReady, streaming]);
 
   const activeConversation = useMemo(
     () => store.conversations.find(c => c.id === store.activeId) ?? store.conversations[0],
@@ -279,6 +280,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     setStreaming(true);
 
+    const pendingDeltaRef = { current: '' };
+    let deltaFrame: number | null = null;
+
     const patchAssistant = (
       patch: Partial<ChatMessage> | ((msg: ChatMessage) => Partial<ChatMessage>),
     ) => {
@@ -291,6 +295,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }),
         updatedAt: new Date().toISOString(),
       }));
+    };
+
+    const flushDelta = () => {
+      deltaFrame = null;
+      const delta = pendingDeltaRef.current;
+      if (!delta) return;
+      pendingDeltaRef.current = '';
+      patchAssistant(m => ({
+        content: stripToolStatus(m.content) + delta,
+      }));
+    };
+
+    const queueDelta = (delta: string) => {
+      pendingDeltaRef.current += delta;
+      if (deltaFrame == null) {
+        deltaFrame = requestAnimationFrame(flushDelta);
+      }
     };
 
     const handleEvent = (event: HarnessEvent) => {
@@ -315,11 +336,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
       if (event.type === 'agent_text_delta' && isChatAgentEvent(event)) {
         const delta = event.data.delta as string;
-        if (delta) {
-          patchAssistant(m => ({
-            content: stripToolStatus(m.content) + delta,
-          }));
-        }
+        if (delta) queueDelta(delta);
       }
       if (event.type === 'agent_response' && isChatAgentEvent(event)) {
         const summary = event.data.summary as string | undefined;
@@ -362,6 +379,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (!res.body) throw new Error('No response body');
 
       await consumeHarnessSSE<HarnessEvent>(res, handleEvent);
+      if (deltaFrame != null) cancelAnimationFrame(deltaFrame);
+      if (pendingDeltaRef.current) flushDelta();
       patchAssistant({ status: 'done' });
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {

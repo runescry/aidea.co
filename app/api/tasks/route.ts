@@ -3,13 +3,24 @@ import { listActions } from '@/lib/harness/queue';
 import { buildUnifiedTaskFeed, isStaleRunningEntity } from '@/lib/harness/tasks';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB } from '@/lib/harness/knowledge-base';
-import { loadEntityStates, saveEntityState } from '@/lib/storage';
+import { countPendingQueuedActions, loadEntityStates, saveEntityState } from '@/lib/storage';
 import { autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
+import { getDevTasksCache, setDevTasksCache } from '@/lib/harness/tasks-cache';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
   const summary = new URL(req.url).searchParams.get('summary') === '1';
+
+  if (summary) {
+    const needsYou = await countPendingQueuedActions();
+    return NextResponse.json({ needsYou, suggestions: 0 });
+  }
+
+  const cached = getDevTasksCache();
+  if (cached) {
+    return NextResponse.json(cached);
+  }
 
   const [actions, rawEntities, kb] = await Promise.all([
     listActions(),
@@ -19,8 +30,10 @@ export async function GET(req: NextRequest) {
 
   const stale = rawEntities.filter(isStaleRunningEntity);
   if (stale.length > 0) {
-    await Promise.all(
-      stale.map(entity => saveEntityState({ ...entity, status: 'error', updatedAt: new Date().toISOString() })),
+    void Promise.all(
+      stale.map(entity =>
+        saveEntityState({ ...entity, status: 'error', updatedAt: new Date().toISOString() }),
+      ),
     );
   }
   const entities = rawEntities.map(entity =>
@@ -34,16 +47,15 @@ export async function GET(req: NextRequest) {
     kb: kb as KnowledgeBase,
   });
 
-  if (summary) {
-    return NextResponse.json({ needsYou, suggestions });
-  }
-
-  return NextResponse.json({
+  const payload = {
     tasks,
     needsYou,
     suggestions,
     autonomy: autonomy
       ? { level: autonomy, label: autonomyLabel(autonomy), hint: autonomyHint(autonomy) }
       : null,
-  });
+  };
+
+  setDevTasksCache(payload);
+  return NextResponse.json(payload);
 }

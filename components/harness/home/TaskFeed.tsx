@@ -8,7 +8,7 @@ import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
 import { formatTaskTime, sessionToTask, sortTaskItems, taskToChatPrompt } from '@/lib/harness/tasks';
 import { queueActionAutonomyNote } from '@/lib/harness/proactive-tasks';
 import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
-import { patchQueueAction } from '@/lib/client/queue';
+import { patchQueueAction, patchQueueActions } from '@/lib/client/queue';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 
 type Filter = 'all' | 'approval' | 'suggestions' | 'running' | 'done';
@@ -53,23 +53,81 @@ interface Props {
   onClose?: () => void;
 }
 
+function isBulkEligible(task: TaskItem): boolean {
+  return task.status === 'needs_you' && task.action != null;
+}
+
+function bulkResultMessage(intent: QueueIntent, results: Array<{ action?: { status: string; payload?: Record<string, unknown> } }>): { type: 'ok' | 'err'; message: string } {
+  const succeeded = results.filter(r => {
+    if (!r.action) return false;
+    if (intent === 'reject') return r.action.status === 'rejected';
+    if (intent === 'save') return r.action.status === 'saved';
+    return r.action.status === 'executed' || r.action.status === 'approved';
+  }).length;
+  const failed = results.filter(r => r.action?.status === 'failed').length;
+
+  if (intent === 'reject') {
+    return { type: 'ok', message: succeeded === 1 ? 'Rejected 1 item' : `Rejected ${succeeded} items` };
+  }
+  if (intent === 'save') {
+    if (failed > 0 && succeeded > 0) {
+      return { type: 'err', message: `Saved ${succeeded}, ${failed} failed` };
+    }
+    if (failed > 0) {
+      return { type: 'err', message: failed === 1 ? 'Could not save draft' : `Could not save ${failed} drafts` };
+    }
+    return { type: 'ok', message: succeeded === 1 ? 'Saved to Gmail drafts' : `Saved ${succeeded} drafts` };
+  }
+
+  if (failed > 0 && succeeded > 0) {
+    return { type: 'err', message: `Sent ${succeeded}, ${failed} failed` };
+  }
+  if (failed > 0) {
+    return { type: 'err', message: failed === 1 ? 'Send failed — try Save to drafts' : `${failed} sends failed` };
+  }
+  if (succeeded === 0) {
+    return { type: 'err', message: 'No items updated' };
+  }
+  return { type: 'ok', message: succeeded === 1 ? 'Sent' : `Sent ${succeeded} items` };
+}
+
 function TaskRow({
   task,
   selected,
   onSelect,
+  bulkMode,
+  checked,
+  onToggleCheck,
 }: {
   task: TaskItem;
   selected: boolean;
   onSelect: () => void;
+  bulkMode?: boolean;
+  checked?: boolean;
+  onToggleCheck?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`w-full text-left px-4 py-3 flex items-start gap-3 border-b border-border/60 transition-colors ${
+    <div
+      className={`w-full flex items-start gap-2 border-b border-border/60 transition-colors ${
         selected ? 'bg-accent/[0.04]' : 'hover:bg-surface-subtle/80'
       }`}
     >
+      {bulkMode && (
+        <label className="shrink-0 pl-3 pt-3.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={onToggleCheck}
+            className="w-4 h-4 rounded border-border accent-accent"
+            aria-label={`Select ${task.title}`}
+          />
+        </label>
+      )}
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex-1 min-w-0 text-left px-4 py-3 flex items-start gap-3"
+      >
       <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${DOT_STYLE[task.status]}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between gap-2">
@@ -89,7 +147,8 @@ function TaskRow({
           </span>
         </div>
       </div>
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -259,6 +318,7 @@ export default function TaskFeed({
 }: Props) {
   const [filter, setFilter] = useState<Filter>(initialFilter);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [actionFeedback, setActionFeedback] = useState<{ type: 'ok' | 'err'; message: string } | null>(null);
   const [actionPending, setActionPending] = useState(false);
 
@@ -296,6 +356,42 @@ export default function TaskFeed({
     return allTasks;
   }, [allTasks, filter]);
 
+  const bulkEligible = useMemo(
+    () => filtered.filter(isBulkEligible),
+    [filtered],
+  );
+
+  const selectedBulkTasks = useMemo(
+    () => bulkEligible.filter(task => selectedIds.has(task.id)),
+    [bulkEligible, selectedIds],
+  );
+
+  const selectedEmailCount = useMemo(
+    () => selectedBulkTasks.filter(task => task.action && isEmailQueueAction(task.action)).length,
+    [selectedBulkTasks],
+  );
+
+  const allBulkSelected = bulkEligible.length > 0 && bulkEligible.every(task => selectedIds.has(task.id));
+
+  const toggleSelected = (taskId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allBulkSelected) {
+      setSelectedIds(new Set());
+      return;
+    }
+    setSelectedIds(new Set(bulkEligible.map(task => task.id)));
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
   const selected = filtered.find(t => t.id === selectedId) ?? allTasks.find(t => t.id === selectedId) ?? null;
 
   const handleIntent = async (id: string, intent: QueueIntent) => {
@@ -331,12 +427,47 @@ export default function TaskFeed({
 
       setActionFeedback({ type, message });
       setSelectedId(null);
+      clearSelection();
       refresh();
       onTasksChanged?.();
       setTimeout(() => setActionFeedback(null), 3500);
     } else {
       setActionFeedback({ type: 'err', message: result.error });
     }
+  };
+
+  const handleBulkIntent = async (intent: QueueIntent) => {
+    const tasks = intent === 'save'
+      ? selectedBulkTasks.filter(task => task.action && isEmailQueueAction(task.action))
+      : selectedBulkTasks;
+
+    const ids = tasks
+      .map(task => task.action?.id)
+      .filter((id): id is string => Boolean(id));
+
+    if (ids.length === 0) {
+      setActionFeedback({
+        type: 'err',
+        message: intent === 'save' ? 'No email drafts selected' : 'No items selected',
+      });
+      return;
+    }
+
+    setActionPending(true);
+    const result = await patchQueueActions(ids, intent);
+    setActionPending(false);
+
+    if (!result.ok) {
+      setActionFeedback({ type: 'err', message: result.error });
+      return;
+    }
+
+    const feedback = bulkResultMessage(intent, result.results);
+    setActionFeedback(feedback);
+    clearSelection();
+    refresh();
+    onTasksChanged?.();
+    setTimeout(() => setActionFeedback(null), 4000);
   };
 
   const filters: Array<{ id: Filter; label: string; shortLabel?: string; count?: number }> = [
@@ -383,7 +514,11 @@ export default function TaskFeed({
             <button
               key={f.id}
               type="button"
-              onClick={() => { setFilter(f.id); setSelectedId(null); }}
+              onClick={() => {
+                setFilter(f.id);
+                setSelectedId(null);
+                clearSelection();
+              }}
               className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                 filter === f.id
                   ? 'bg-foreground text-surface'
@@ -448,15 +583,78 @@ export default function TaskFeed({
             </p>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto">
-            {filtered.map(task => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                selected={selectedId === task.id}
-                onSelect={() => setSelectedId(task.id)}
-              />
-            ))}
+          <div className="flex-1 flex flex-col min-h-0">
+            {bulkEligible.length > 0 && (
+              <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-border bg-surface-subtle/40">
+                <label className="flex items-center gap-2 text-[11px] text-foreground-muted cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allBulkSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-border accent-accent"
+                  />
+                  Select all
+                  <span className="text-foreground-subtle">({bulkEligible.length})</span>
+                </label>
+                {selectedIds.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="text-[11px] font-medium text-foreground-muted hover:text-foreground"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto">
+              {filtered.map(task => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  selected={selectedId === task.id}
+                  onSelect={() => setSelectedId(task.id)}
+                  bulkMode={isBulkEligible(task)}
+                  checked={selectedIds.has(task.id)}
+                  onToggleCheck={() => toggleSelected(task.id)}
+                />
+              ))}
+            </div>
+            {selectedIds.size > 0 && (
+              <div className="shrink-0 border-t border-border bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-2 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
+                <p className="text-[11px] font-medium text-foreground-muted">
+                  {selectedIds.size} selected
+                </p>
+                <button
+                  type="button"
+                  disabled={actionPending}
+                  onClick={() => handleBulkIntent('approve')}
+                  className="w-full py-2.5 text-sm font-semibold bg-foreground text-surface rounded-lg hover:bg-foreground/90 transition-colors disabled:opacity-50"
+                >
+                  {actionPending ? 'Working…' : `Approve & send (${selectedIds.size})`}
+                </button>
+                <div className="flex gap-2">
+                  {selectedEmailCount > 0 && (
+                    <button
+                      type="button"
+                      disabled={actionPending}
+                      onClick={() => handleBulkIntent('save')}
+                      className="flex-1 py-2.5 text-sm font-semibold text-foreground rounded-lg border border-accent/40 bg-accent/5 hover:bg-accent/10 transition-colors disabled:opacity-50"
+                    >
+                      Save to drafts ({selectedEmailCount})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={actionPending}
+                    onClick={() => handleBulkIntent('reject')}
+                    className="flex-1 py-2.5 text-sm font-semibold text-foreground-muted rounded-lg border border-border hover:bg-surface-subtle transition-colors disabled:opacity-50"
+                  >
+                    Reject ({selectedIds.size})
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

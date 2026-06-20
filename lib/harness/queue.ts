@@ -8,6 +8,7 @@ import {
   approveQueuedAction,
   saveQueuedEmailDraft,
 } from './execute-queued-action';
+import { invalidateDevTasksCache } from './tasks-cache';
 
 export type ActionType =
   | 'email_reply'
@@ -46,6 +47,11 @@ export async function listActions(filter?: { status?: ActionStatus; type?: Actio
   return listQueuedActions(filter);
 }
 
+async function persistQueue(all: QueuedAction[]): Promise<void> {
+  await replaceQueue(all);
+  invalidateDevTasksCache();
+}
+
 export async function enqueueAction(
   action: Omit<QueuedAction, 'id' | 'status' | 'createdAt'>
 ): Promise<QueuedAction> {
@@ -57,7 +63,7 @@ export async function enqueueAction(
   };
   const all = await listQueuedActions();
   all.push(created);
-  await replaceQueue(all);
+  await persistQueue(all);
   return created;
 }
 
@@ -79,7 +85,7 @@ export async function resolveQueueAction(
 
   if (intent === 'reject') {
     all[idx] = { ...action, status: 'rejected', resolvedAt };
-    await replaceQueue(all);
+    await persistQueue(all);
     await recordQueueAudit(all[idx]);
     return all[idx];
   }
@@ -103,7 +109,7 @@ export async function resolveQueueAction(
           connectionId: draft.connectionId,
         },
       };
-      await replaceQueue(all);
+      await persistQueue(all);
       await recordQueueAudit(all[idx]);
       return all[idx];
     } catch (err) {
@@ -116,7 +122,7 @@ export async function resolveQueueAction(
           executionError: err instanceof Error ? err.message : String(err),
         },
       };
-      await replaceQueue(all);
+      await persistQueue(all);
       await recordQueueAudit(all[idx]);
       return all[idx];
     }
@@ -131,7 +137,7 @@ export async function resolveQueueAction(
       resolvedAt: new Date().toISOString(),
       payload: result.payload ?? action.payload,
     };
-    await replaceQueue(all);
+    await persistQueue(all);
     await recordQueueAudit(all[idx]);
     return all[idx];
   } catch (err) {
@@ -144,10 +150,35 @@ export async function resolveQueueAction(
         executionError: err instanceof Error ? err.message : String(err),
       },
     };
-    await replaceQueue(all);
+    await persistQueue(all);
     await recordQueueAudit(all[idx]);
     return all[idx];
   }
+}
+
+export interface QueueBulkResult {
+  id: string;
+  action: QueuedAction | null;
+  error?: string;
+}
+
+export async function resolveQueueActions(
+  ids: string[],
+  intent: QueueIntent,
+): Promise<QueueBulkResult[]> {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  const results: QueueBulkResult[] = [];
+
+  for (const id of uniqueIds) {
+    const action = await resolveQueueAction(id, intent);
+    results.push({
+      id,
+      action,
+      error: action ? undefined : 'Action not found',
+    });
+  }
+
+  return results;
 }
 
 /** @deprecated Use resolveQueueAction with intent instead */
@@ -164,6 +195,6 @@ export async function clearResolved(): Promise<number> {
   const all = await listQueuedActions();
   const remaining = all.filter(a => a.status === 'pending');
   const count = all.length - remaining.length;
-  await replaceQueue(remaining);
+  await persistQueue(remaining);
   return count;
 }

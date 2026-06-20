@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, type Dispatch, type SetStateAction } 
 import { useHarnessSession } from '@/hooks/useHarnessSession';
 import { ChatProvider, useChatConversations } from '@/hooks/useChatConversations';
 import { WorkFeedProvider, useWorkFeed } from '@/hooks/useWorkFeed';
+import { readOnboardingCache, writeOnboardingCache } from '@/lib/client/onboarding-cache';
 import AppSidebar, { type MainView } from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import ConversationDrawer from './sidebar/ConversationDrawer';
@@ -17,29 +18,33 @@ import QuickStartOnboarding from './onboarding/QuickStartOnboarding';
 import HumanInputOverlay from './HumanInputOverlay';
 
 export default function HarnessDashboard() {
-  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    const cached = readOnboardingCache();
+    return cached === false;
+  });
   const [onboardingMode, setOnboardingMode] = useState<'quick' | 'full'>('quick');
 
   useEffect(() => {
     fetch('/api/onboarding')
       .then(r => r.json())
-      .then(d => setShowOnboarding(!d.complete))
-      .catch(() => setShowOnboarding(false));
+      .then(d => {
+        writeOnboardingCache(Boolean(d.complete));
+        setShowOnboarding(!d.complete);
+      })
+      .catch(() => {
+        if (readOnboardingCache() === null) {
+          writeOnboardingCache(true);
+          setShowOnboarding(false);
+        }
+      });
   }, []);
-
-  if (showOnboarding === null) {
-    return (
-      <div className="min-h-screen bg-surface-muted flex items-center justify-center">
-        <div className="text-sm text-foreground-muted">Loading…</div>
-      </div>
-    );
-  }
 
   if (showOnboarding) {
     if (onboardingMode === 'full') {
       return (
         <OnboardingWizard
           onComplete={() => {
+            writeOnboardingCache(true);
             setShowOnboarding(false);
             setOnboardingMode('quick');
           }}
@@ -48,7 +53,10 @@ export default function HarnessDashboard() {
     }
     return (
       <QuickStartOnboarding
-        onComplete={() => setShowOnboarding(false)}
+        onComplete={() => {
+          writeOnboardingCache(true);
+          setShowOnboarding(false);
+        }}
         onFullProfile={() => setOnboardingMode('full')}
       />
     );

@@ -12,6 +12,11 @@ import {
 } from 'react';
 import type { TaskItem } from '@/lib/harness/tasks';
 import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
+import {
+  POLL_BADGE_MS,
+  POLL_HOME_ACTIVE_MS,
+  POLL_HOME_IDLE_MS,
+} from '@/lib/client/poll-intervals';
 
 export interface WorkFeedAutonomy {
   level: UserAutonomyPreference;
@@ -37,16 +42,17 @@ interface WorkFeedContextValue {
 
 const WorkFeedContext = createContext<WorkFeedContextValue | null>(null);
 
-const POLL_HOME_IDLE_MS = 20_000;
-const POLL_HOME_ACTIVE_MS = 6_000;
-const POLL_BADGE_MS = 45_000;
-
 interface ProviderProps {
   children: ReactNode;
   homeActive: boolean;
   agentsRunning: boolean;
   chatStreaming: boolean;
   refreshKey?: number;
+}
+
+function pollDelayMs(homeActive: boolean, active: boolean): number {
+  if (!homeActive) return POLL_BADGE_MS;
+  return active ? POLL_HOME_ACTIVE_MS : POLL_HOME_IDLE_MS;
 }
 
 export function WorkFeedProvider({
@@ -59,6 +65,11 @@ export function WorkFeedProvider({
   const [data, setData] = useState<WorkFeedPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const inFlightRef = useRef<AbortController | null>(null);
+  const homeActiveRef = useRef(homeActive);
+  const activeRef = useRef(agentsRunning || chatStreaming);
+
+  homeActiveRef.current = homeActive;
+  activeRef.current = agentsRunning || chatStreaming;
 
   const fetchFeed = useCallback(async (full: boolean) => {
     inFlightRef.current?.abort();
@@ -99,31 +110,43 @@ export function WorkFeedProvider({
   }, []);
 
   const refresh = useCallback(async () => {
-    await fetchFeed(homeActive);
-  }, [fetchFeed, homeActive]);
-
-  const active = agentsRunning || chatStreaming;
+    if (homeActiveRef.current) {
+      await fetchFeed(true);
+      return;
+    }
+    await fetchFeed(false);
+  }, [fetchFeed]);
 
   useEffect(() => {
     if (refreshKey > 0) refresh();
   }, [refreshKey, refresh]);
 
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      await fetchFeed(false);
+      if (!cancelled && homeActive) await fetchFeed(true);
+    })();
+    return () => { cancelled = true; };
+  }, [homeActive, fetchFeed]);
+
+  useEffect(() => {
     if (typeof document === 'undefined') return;
 
-    const tick = () => {
-      if (document.hidden) return;
-      fetchFeed(homeActive);
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const schedule = () => {
+      timeoutId = setTimeout(async () => {
+        if (!document.hidden) {
+          await fetchFeed(homeActiveRef.current);
+        }
+        schedule();
+      }, pollDelayMs(homeActiveRef.current, activeRef.current));
     };
 
-    const intervalMs = homeActive
-      ? (active ? POLL_HOME_ACTIVE_MS : POLL_HOME_IDLE_MS)
-      : POLL_BADGE_MS;
-
-    tick();
-    const id = setInterval(tick, intervalMs);
-    return () => clearInterval(id);
-  }, [homeActive, active, fetchFeed]);
+    schedule();
+    return () => clearTimeout(timeoutId);
+  }, [fetchFeed]);
 
   const value = useMemo<WorkFeedContextValue>(() => ({
     tasks: data?.tasks ?? [],

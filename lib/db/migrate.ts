@@ -2,10 +2,12 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { getSql, hasDatabase } from './client';
 
+const globalForDb = globalThis as typeof globalThis & { __aideaDbMigrated?: boolean };
+
 let migrated = false;
 
 export async function ensureMigrated(): Promise<void> {
-  if (migrated || !hasDatabase()) return;
+  if (globalForDb.__aideaDbMigrated || migrated || !hasDatabase()) return;
 
   const sql = getSql();
   const schema = readFileSync(join(process.cwd(), 'lib/db/schema.sql'), 'utf-8');
@@ -19,4 +21,5 @@ export async function ensureMigrated(): Promise<void> {
   }
 
   migrated = true;
+  globalForDb.__aideaDbMigrated = true;
 }

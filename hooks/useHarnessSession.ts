@@ -360,7 +360,8 @@ export function useHarnessSession() {
     };
 
     void poll();
-    const interval = setInterval(poll, 4000);
+    const pollMs = process.env.NODE_ENV === 'development' ? 12_000 : 4_000;
+    const interval = setInterval(poll, pollMs);
     return () => {
       cancelled = true;
       clearInterval(interval);

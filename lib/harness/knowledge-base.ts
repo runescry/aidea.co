@@ -2,7 +2,7 @@ import { readProfile, writeProfile, mergeProfile } from '@/lib/storage';
 import { getNestedKey, setNestedKey } from '@/lib/storage/nested-keys';
 
 let profileCache: { data: Record<string, unknown>; at: number } | null = null;
-const PROFILE_CACHE_MS = 15_000;
+const PROFILE_CACHE_MS = process.env.NODE_ENV === 'development' ? 60_000 : 15_000;
 
 function invalidateProfileCache(): void {
   profileCache = null;

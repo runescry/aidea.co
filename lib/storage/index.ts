@@ -60,6 +60,12 @@ export async function listQueuedActions(filter?: {
   });
 }
 
+export async function countPendingQueuedActions(): Promise<number> {
+  await ready();
+  const userId = getUserId();
+  return usePostgres() ? pg.countPendingQueue(userId) : fs.countPendingQueue();
+}
+
 export async function saveQueuedAction(action: QueuedAction): Promise<void> {
   await ready();
   const userId = getUserId();

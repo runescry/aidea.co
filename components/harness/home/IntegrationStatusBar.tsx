@@ -12,10 +12,22 @@ export default function IntegrationStatusBar({ onOpenSettings, refreshKey = 0 }:
   const [status, setStatus] = useState<IntegrationStatus | null>(null);
 
   useEffect(() => {
-    fetch('/api/integrations')
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => setStatus(data as IntegrationStatus | null))
-      .catch(() => setStatus(null));
+    const load = () => {
+      fetch('/api/integrations')
+        .then(r => (r.ok ? r.json() : null))
+        .then(data => setStatus(data as IntegrationStatus | null))
+        .catch(() => setStatus(null));
+    };
+
+    if (typeof window === 'undefined') return;
+
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(load, { timeout: 2000 });
+      return () => window.cancelIdleCallback(id);
+    }
+
+    const id = setTimeout(load, 300);
+    return () => clearTimeout(id);
   }, [refreshKey]);
 
   if (!status || status.missingCount === 0) return null;

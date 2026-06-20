@@ -1,7 +1,7 @@
 import { hasApiKey } from '@/lib/ai/provider';
 import { getSettingsStatus } from '@/lib/settings';
 import { nangoConfigured } from '@/lib/nango/client';
-import { listNangoConnections } from '@/lib/nango/connections';
+import { listNangoConnectionsLite } from '@/lib/nango/connections';
 
 export interface IntegrationItem {
   id: 'llm' | 'brave' | 'google';
@@ -22,7 +22,7 @@ export async function getIntegrationStatus(): Promise<IntegrationStatus> {
   let googleConfigured = false;
   let googleDetail: string | undefined;
   if (nangoConfigured()) {
-    const connections = await listNangoConnections();
+    const connections = await listNangoConnectionsLite();
     const google = connections.filter(c =>
       c.integrationId.startsWith('google'),
     );
