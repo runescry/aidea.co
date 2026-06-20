@@ -72,10 +72,18 @@ interface RelationshipMonitorOutput {
     name: string;
     email?: string;
     type?: string;
+    lastContact?: string;
     weeksSince?: number;
     draftQueued?: boolean;
   }>;
 }
+
+const RELATIONSHIP_TYPE_LABEL: Record<string, string> = {
+  mentor: 'Mentor',
+  collaborator: 'Collaborator',
+  client: 'Client',
+  friend: 'Friend',
+};
 
 const STALE_STATUS = /declined|rejected|closed|withdrawn|offer received/i;
 const MAX_PROACTIVE = 5;
@@ -154,7 +162,19 @@ function relationshipNudges(entities: EntityState[]): TaskItem[] {
         ? `Relationship · ${rel.weeksSince} week${rel.weeksSince === 1 ? '' : 's'} since contact`
         : 'Relationship · cooling',
       createdAt: latest!.checkedAt,
+      relationship: {
+        name: rel.name,
+        email: rel.email,
+        type: rel.type,
+        lastContact: rel.lastContact,
+        weeksSince: rel.weeksSince,
+      },
     }));
+}
+
+export function relationshipTypeLabel(type?: string): string {
+  if (!type) return 'Contact';
+  return RELATIONSHIP_TYPE_LABEL[type] ?? type;
 }
 
 export function buildProactiveTasks(input: {

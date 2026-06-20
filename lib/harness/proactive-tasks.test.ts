@@ -35,7 +35,14 @@ describe('buildProactiveTasks', () => {
       data: {
         relationship_monitor: {
           checkedAt: '2026-06-01T10:00:00.000Z',
-          coolingRelationships: [{ name: 'Sarah', weeksSince: 4, draftQueued: false }],
+          coolingRelationships: [{
+            name: 'Sarah',
+            email: 'sarah@example.com',
+            type: 'mentor',
+            weeksSince: 4,
+            lastContact: '2026-05-01',
+            draftQueued: false,
+          }],
         },
       },
       decisions: [],
@@ -44,6 +51,12 @@ describe('buildProactiveTasks', () => {
     }];
     const tasks = buildProactiveTasks({ kb: {}, entities });
     expect(tasks[0].title).toContain('Sarah');
+    expect(tasks[0].relationship).toMatchObject({
+      name: 'Sarah',
+      email: 'sarah@example.com',
+      type: 'mentor',
+      weeksSince: 4,
+    });
   });
 
   it('skips declined applications', () => {

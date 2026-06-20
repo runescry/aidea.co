@@ -7,7 +7,7 @@ import { isEmailQueueAction, isCalendarQueueAction, normalizeEmailQueueAction, n
 import { calendarPayloadFromAction, formatCalendarDuration, formatCalendarStart } from '@/lib/harness/calendar-display';
 import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
 import { formatTaskTime, sessionToTask, sortTaskItems, taskToChatPrompt } from '@/lib/harness/tasks';
-import { queueActionAutonomyNote } from '@/lib/harness/proactive-tasks';
+import { queueActionAutonomyNote, relationshipTypeLabel } from '@/lib/harness/proactive-tasks';
 import { describeKbUpdate, buildKbUpdatePreview } from '@/lib/harness/kb-update-display';
 import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
 import { patchQueueAction, patchQueueActions } from '@/lib/client/queue';
@@ -323,6 +323,46 @@ function TaskDetail({
           <HealthBriefRenderer data={task.healthBrief as Parameters<typeof HealthBriefRenderer>[0]['data']} />
         )}
 
+        {task.source === 'proactive' && task.relationship && (
+          <div className="rounded-lg bg-surface-subtle/80 p-4 text-sm border border-border/50 space-y-3">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-subtle mb-1">
+                Cooling relationship
+              </p>
+              <p className="text-foreground font-medium">{task.relationship.name}</p>
+            </div>
+            <dl className="space-y-2">
+              <div className="grid grid-cols-[minmax(0,7rem)_1fr] gap-2">
+                <dt className="text-[11px] font-medium text-foreground-subtle">Type</dt>
+                <dd className="text-foreground-muted">{relationshipTypeLabel(task.relationship.type)}</dd>
+              </div>
+              {task.relationship.weeksSince != null && (
+                <div className="grid grid-cols-[minmax(0,7rem)_1fr] gap-2">
+                  <dt className="text-[11px] font-medium text-foreground-subtle">Since contact</dt>
+                  <dd className="text-foreground-muted">
+                    {task.relationship.weeksSince} week{task.relationship.weeksSince === 1 ? '' : 's'}
+                  </dd>
+                </div>
+              )}
+              {task.relationship.lastContact && (
+                <div className="grid grid-cols-[minmax(0,7rem)_1fr] gap-2">
+                  <dt className="text-[11px] font-medium text-foreground-subtle">Last touch</dt>
+                  <dd className="text-foreground-muted">{task.relationship.lastContact}</dd>
+                </div>
+              )}
+              {task.relationship.email && (
+                <div className="grid grid-cols-[minmax(0,7rem)_1fr] gap-2">
+                  <dt className="text-[11px] font-medium text-foreground-subtle">Email</dt>
+                  <dd className="text-foreground-muted">{task.relationship.email}</dd>
+                </div>
+              )}
+            </dl>
+            <p className="text-xs text-foreground-subtle leading-relaxed">
+              Relationship monitor flagged this contact — draft a check-in in chat or wait for a queued email in Awaiting approval.
+            </p>
+          </div>
+        )}
+
         {task.source === 'proactive' && !task.relationship && (
           <p className="text-sm text-foreground-muted leading-relaxed">
             A reminder from your profile or relationship monitor — not waiting for approval.
@@ -548,10 +588,10 @@ function TaskDetail({
         {onDiscussInChat && (task.source === 'proactive' || task.status === 'suggestion') && (
           <button
             type="button"
-            onClick={() => onDiscussInChat(taskToChatPrompt(task))}
+            onClick={() => onDiscussInChat(taskToChatPrompt(task, task.relationship ? 'Help me reconnect' : 'Why did you suggest this?'))}
             className="btn-primary text-sm w-full sm:w-auto"
           >
-            Discuss in chat
+            {task.relationship ? 'Draft check-in in chat' : 'Discuss in chat'}
           </button>
         )}
 

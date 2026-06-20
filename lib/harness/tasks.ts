@@ -368,6 +368,19 @@ export function taskToChatPrompt(
     if (task.preview) lines.push('', task.preview);
     return lines.join('\n');
   }
+  if (task.source === 'proactive' && task.relationship) {
+    const rel = task.relationship;
+    const lines = [
+      `Help me reconnect with ${rel.name}.`,
+      '',
+      `Work item: ${task.title}`,
+    ];
+    if (rel.type) lines.push(`Type: ${rel.type}`);
+    if (rel.weeksSince) lines.push(`Last contact: ~${rel.weeksSince} week${rel.weeksSince === 1 ? '' : 's'} ago`);
+    if (rel.email) lines.push(`Email: ${rel.email}`);
+    lines.push('', 'Draft a personal check-in email or suggest how I should reach out.');
+    return lines.join('\n');
+  }
   const lines = [question, '', `Work item: ${task.title}`];
   if (task.subtitle) lines.push(task.subtitle);
   if (task.action?.detail) {

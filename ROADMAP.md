@@ -111,7 +111,7 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - [x] **Suggestion dismiss / snooze** — Hygiene for proactive Inbox items
 - [x] **Audit trail viewer** — Browse queue approve/reject/save history in UI
 - [x] **Non-email Inbox cards** — Calendar and KB queue items with polished approval UX
-- [ ] **Cron outcomes → Inbox** — Health-briefer and relationship-monitor surface like inbox-triage
+- [x] **Cron outcomes → Inbox** — Health-briefer and relationship-monitor surface like inbox-triage
 - [ ] **request_human_input on Home** — Human-in-the-loop outside Studio
 
 ---
