@@ -15,6 +15,13 @@ export function createHarnessSSEStream(
 
   return new ReadableStream({
     async start(controller) {
+      // Pad the stream so proxies (Vercel/nginx) flush early — avoids silent SSE buffering.
+      try {
+        controller.enqueue(encoder.encode(`: ${' '.repeat(2048)}\n\n`));
+      } catch {
+        // client disconnected
+      }
+
       const send = (event: HarnessEvent) => {
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));

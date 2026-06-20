@@ -40,7 +40,6 @@ export const dailyEntityConfig: EntityConfig = {
     maxTierDepth: 2,
     realWorldToolMode: 'dry-run',
   },
-  deferStatePersist: true,
   buildInitialContext: (_input) => ({
     currentDate: new Date().toISOString().split('T')[0],
     currentTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),

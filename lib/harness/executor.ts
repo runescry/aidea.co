@@ -151,6 +151,10 @@ export async function runAgentLoop(
         system: systemPrompt,
         messages,
         tools: Object.keys(aiTools).length > 0 ? aiTools : undefined,
+        toolChoice:
+          iterations === 1 && agent.authority === 'directive' && Object.keys(aiTools).length > 0
+            ? 'required'
+            : 'auto',
         maxTokens: agent.maxTokens ?? 4096,
         ...(agent.useThinking
           ? {

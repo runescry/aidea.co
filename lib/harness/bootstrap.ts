@@ -28,6 +28,7 @@ export async function bootstrapEntity(
       entityName: config.name,
       mission: config.mission,
       inputKeys: Object.keys(input),
+      initialContext: initialData,
     },
     timestamp: new Date().toISOString(),
   });

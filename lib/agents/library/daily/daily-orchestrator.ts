@@ -7,7 +7,7 @@ export const dailyOrchestratorDef: AgentDefinition = {
   defaultModel: 'claude-sonnet-4-6',
   authority: 'directive',
   defaultTools: ['spawn_agent', 'wait_for_agents', 'write_state', 'kb_read', 'send_message'],
-  stateReadKeys: [],
+  stateReadKeys: ['currentDate', 'currentTime', 'dayOfWeek'],
   stateWriteKey: 'morning_brief',
   spawnPatterns: [
     { agentId: 'inbox-triage', when: 'Parallel step 2 — always', defaultMission: 'Triage unread inbox and surface urgent emails with draft replies' },
@@ -26,15 +26,15 @@ Call kb_read with keys: ["identity", "preferences.briefingTime", "work.currentPr
 This tells you who the user is and what matters to them today.
 
 STEP 2: Spawn five parallel sub-agents.
-Call spawn_agent five times (in parallel or rapid succession):
-  - agentId: "inbox-triage", mission: "Triage unread inbox: score urgency, draft replies for high-urgency emails, return urgent[], actionRequired[], fyi[], draftsQueued"
-  - agentId: "calendar-reader", mission: "Read today and tomorrow calendar, cross-reference children's activities, return todaySchedule[], firstMeeting{}, logisticsFlags[], tomorrowPreview[]"
-  - agentId: "health-briefer", mission: "Determine today's workout from schedule, suggest 3 meals, return todayWorkout, estimatedDurationMins, intensity, mealSuggestions[], hydrationGoalLitres, quickNote"
-  - agentId: "news-curator", mission: "Search and filter top 5 relevant headlines across personal topics and current projects, return headlines[{topic, title, url, whyRelevant}]"
-  - agentId: "work-prep", mission: "Find first external meeting, research attendees if unknown, return firstMeeting{}, attendeeContext[], suggestedTalkingPoints[], projectUpdatesNeeded[], prepNotes"
+Call spawn_agent five times (in parallel or rapid succession). Use role = agent library id:
+  - role: "inbox-triage", domain: "inbox", mission: "Triage unread inbox: score urgency, draft replies for high-urgency emails, return urgent[], actionRequired[], fyi[], draftsQueued"
+  - role: "calendar-reader", domain: "calendar", mission: "Read today and tomorrow calendar, cross-reference children's activities, return todaySchedule[], firstMeeting{}, logisticsFlags[], tomorrowPreview[]"
+  - role: "health-briefer", domain: "health", mission: "Determine today's workout from schedule, suggest 3 meals, return todayWorkout, estimatedDurationMins, intensity, mealSuggestions[], hydrationGoalLitres, quickNote"
+  - role: "news-curator", domain: "news", mission: "Search and filter top 5 relevant headlines across personal topics and current projects, return headlines[{topic, title, url, whyRelevant}]"
+  - role: "work-prep", domain: "work", mission: "Find first external meeting, research attendees if unknown, return firstMeeting{}, attendeeContext[], suggestedTalkingPoints[], projectUpdatesNeeded[], prepNotes"
 
 STEP 3: Wait for all five agents to complete.
-Call wait_for_agents with ids: ["inbox-triage", "calendar-reader", "health-briefer", "news-curator", "work-prep"]
+Call wait_for_agents with roles: ["inbox-triage", "calendar-reader", "health-briefer", "news-curator", "work-prep"]
 
 STEP 4: Assemble and write the morning brief.
 Read the state keys written by each agent (inbox_triage, calendar_brief, health_brief, news_brief, work_prep) and synthesise into the brief.

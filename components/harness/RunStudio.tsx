@@ -64,7 +64,7 @@ export default function RunStudio({ state, startSession, reset }: Props) {
       if (fields[f.key]) input[f.key] = f.type === 'number' ? Number(fields[f.key]) : fields[f.key];
     }
     startSession(entity, input);
-    setPanel('artifacts');
+    setPanel('tools');
   };
 
   const handleReset = () => {

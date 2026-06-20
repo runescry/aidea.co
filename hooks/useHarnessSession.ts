@@ -110,14 +110,19 @@ function reducer(state: HarnessState, action: Action): HarnessState {
   const log = [...state.eventLog.slice(-200), event];
 
   switch (event.type as HarnessEventType) {
-    case 'entity_started':
+    case 'entity_started': {
+      const initialContext = event.data.initialContext as Record<string, unknown> | undefined;
       return {
         ...state,
         entityId: event.entityId,
         entityType: event.data.entityType as string,
         status: 'running',
+        entityState: initialContext
+          ? { ...state.entityState, ...initialContext }
+          : state.entityState,
         eventLog: log,
       };
+    }
 
     case 'entity_complete':
       return {
@@ -231,8 +236,13 @@ function reducer(state: HarnessState, action: Action): HarnessState {
     }
 
     case 'state_updated': {
-      // Rebuild entityState from toolCalls that are write_state
-      return { ...state, eventLog: log };
+      const key = event.data.key as string | undefined;
+      const value = event.data.value;
+      const entityState =
+        key != null && value !== undefined
+          ? { ...state.entityState, [key]: value }
+          : state.entityState;
+      return { ...state, entityState, eventLog: log };
     }
 
     case 'consensus_started': {

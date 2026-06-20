@@ -33,12 +33,12 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
     inputSchema: {
       type: 'object',
       properties: {
-        role: { type: 'string', description: 'Agent role ID from the library (e.g. "cpo", "health-director")' },
-        domain: { type: 'string', description: 'Domain this agent operates in (e.g. "product", "health")' },
+        role: { type: 'string', description: 'Agent role ID from the library (alias: agentId), e.g. "inbox-triage"' },
+        domain: { type: 'string', description: 'Domain this agent operates in (optional — defaults from role)' },
         mission: { type: 'string', description: 'The specific task or mission for this agent' },
         authority: { type: 'string', enum: ['directive', 'advisory', 'executor'], description: 'Authority level' },
       },
-      required: ['role', 'domain', 'mission'],
+      required: ['role', 'mission'],
     },
   },
 
@@ -51,7 +51,8 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
     inputSchema: {
       type: 'object',
       properties: {
-        roles: { type: 'array', items: { type: 'string' }, description: 'List of agent roles to wait for' },
+        roles: { type: 'array', items: { type: 'string' }, description: 'Agent role ids to wait for (alias: ids)' },
+        ids: { type: 'array', items: { type: 'string' }, description: 'Alias for roles' },
         timeoutMs: { type: 'number', description: 'Max ms to wait (default: 120000)' },
       },
       required: ['roles'],
@@ -457,9 +458,19 @@ export async function executeHarnessTool(
     // ── Core coordination ──────────────────────────────────────────────────────
 
     case 'spawn_agent': {
-      const { role, domain, mission, authority = 'executor' } = input as {
-        role: string; domain: string; mission: string; authority?: string;
+      const raw = input as {
+        role?: string;
+        agentId?: string;
+        domain?: string;
+        mission?: string;
+        authority?: string;
       };
+      const role = raw.role ?? raw.agentId;
+      if (!role) return { error: 'spawn_agent requires role (agent library id, e.g. "inbox-triage")' };
+      const mission = raw.mission;
+      if (!mission) return { error: 'spawn_agent requires mission' };
+      const domain = raw.domain ?? role.split('-')[0] ?? 'general';
+      const authority = raw.authority ?? 'executor';
       if (!ctx.cost.canSpawnAgent()) return { error: 'Agent limit reached.' };
       if (!ctx.cost.canSpawnAtTier(callerAgent.tier + 1)) return { error: 'Depth limit reached.' };
 
@@ -477,7 +488,10 @@ export async function executeHarnessTool(
     }
 
     case 'wait_for_agents': {
-      const { roles, timeoutMs = 120_000 } = input as { roles: string[]; timeoutMs?: number };
+      const raw = input as { roles?: string[]; ids?: string[]; timeoutMs?: number };
+      const roles = raw.roles ?? raw.ids ?? [];
+      if (roles.length === 0) return { error: 'wait_for_agents requires roles (agent ids to wait for)' };
+      const { timeoutMs = 120_000 } = raw;
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
         const allDone = roles.every(role => getAgentByRole(ctx.registry, role)?.status === 'complete');
@@ -506,7 +520,7 @@ export async function executeHarnessTool(
         entityId: ctx.entityId,
         agentId: callerAgent.id,
         agentRole: callerAgent.role,
-        data: { key, valueType: typeof value },
+        data: { key, value, valueType: typeof value },
         timestamp: new Date().toISOString(),
       });
       return { ok: true, key };
