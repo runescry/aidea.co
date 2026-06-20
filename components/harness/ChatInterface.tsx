@@ -2,11 +2,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { HarnessEvent } from '@/lib/harness/types';
 import { consumeHarnessSSE } from '@/lib/client/sse';
+import ChatMarkdown from './ChatMarkdown';
+import InboxSummaryCard, { isInboxStructured, type DispatchInboxStructured } from './chat/InboxSummaryCard';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  structured?: unknown;
   toolCalls?: Array<{ tool: string; summary: string }>;
   timestamp: string;
   status?: 'streaming' | 'done' | 'error';
@@ -28,6 +31,36 @@ function ToolPill({ tool, summary }: { tool: string; summary: string }) {
   );
 }
 
+function AssistantContent({ msg }: { msg: Message }) {
+  if (msg.status === 'streaming' && !msg.content) {
+    return <span className="text-foreground-subtle animate-pulse">Working…</span>;
+  }
+
+  if (msg.status === 'error') {
+    return (
+      <div className="text-sm text-foreground leading-relaxed">
+        {msg.content ? <ChatMarkdown content={msg.content} /> : 'Something went wrong.'}
+        <span className="text-danger text-xs ml-1">Error</span>
+      </div>
+    );
+  }
+
+  if (isInboxStructured(msg.structured)) {
+    return (
+      <InboxSummaryCard
+        data={msg.structured as DispatchInboxStructured}
+        fallbackMarkdown={msg.content}
+      />
+    );
+  }
+
+  if (msg.content) {
+    return <ChatMarkdown content={msg.content} />;
+  }
+
+  return null;
+}
+
 function ChatMessage({ msg, variant }: { msg: Message; variant: 'default' | 'home' }) {
   if (msg.role === 'user') {
     return (
@@ -42,24 +75,30 @@ function ChatMessage({ msg, variant }: { msg: Message; variant: 'default' | 'hom
       </div>
     );
   }
+
+  const showToolPills = variant !== 'home' && msg.toolCalls && msg.toolCalls.length > 0;
+
   return (
     <div className="flex flex-col gap-1 max-w-[90%]">
-      {msg.toolCalls && msg.toolCalls.length > 0 && (
-        <div className="px-1 space-y-0.5">
-          {msg.toolCalls.map((tc, i) => (
-            <ToolPill key={i} tool={tc.tool} summary={tc.summary} />
-          ))}
-        </div>
+      {showToolPills && (
+        <details className="px-1 group">
+          <summary className="text-[11px] text-foreground-subtle cursor-pointer hover:text-foreground-muted list-none flex items-center gap-1">
+            <span className="group-open:rotate-90 transition-transform inline-block">›</span>
+            {msg.toolCalls!.length} step{msg.toolCalls!.length === 1 ? '' : 's'}
+          </summary>
+          <div className="mt-1 space-y-0.5 pl-3 border-l border-border/60">
+            {msg.toolCalls!.map((tc, i) => (
+              <ToolPill key={i} tool={tc.tool} summary={tc.summary} />
+            ))}
+          </div>
+        </details>
       )}
       <div className={`text-sm text-foreground leading-relaxed ${
         variant === 'home'
-          ? 'px-1 py-1'
+          ? 'rounded-xl border border-border bg-surface-subtle/30 px-4 py-3 max-w-full'
           : 'bg-surface border border-border rounded-2xl rounded-bl-md px-4 py-2.5 shadow-sm'
       } ${msg.status === 'streaming' && variant !== 'home' ? 'border-accent/30' : ''}`}>
-        {msg.content || (msg.status === 'streaming' ? (
-          <span className="text-foreground-subtle animate-pulse">Working…</span>
-        ) : null)}
-        {msg.status === 'error' && <span className="text-danger text-xs ml-1">Error</span>}
+        <AssistantContent msg={msg} />
       </div>
     </div>
   );
@@ -101,9 +140,14 @@ export default function ChatInterface({ variant = 'default', onMessageComplete }
     }
     if (event.type === 'agent_complete') {
       const summary = event.data.summary as string | undefined;
+      const structured = event.data.structured;
       setMessages(prev => prev.map(m =>
         m.id === assistantMsgId
-          ? { ...m, content: summary?.trim() || m.content || 'Done.' }
+          ? {
+              ...m,
+              content: summary?.trim() || m.content || 'Done.',
+              ...(structured !== undefined ? { structured } : {}),
+            }
           : m
       ));
     }

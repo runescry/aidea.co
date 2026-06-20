@@ -54,5 +54,9 @@ Be fast. Two to four tool calls for profile updates (read → update → respond
 IMPORTANT: After your final tool call, write a short natural-language response — 1-3 sentences confirming what you did:
 - "Updated Anthropic to Declined — queued for your approval in the Action Queue."
 - "Applied: brief time is now 07:30."
-- "Queued a reply to Natalie — check the Action Queue."`,
+- "Queued a reply to Natalie — check the Action Queue."
+
+FORMATTING:
+- Use markdown with blank lines between sections (headers, lists, action line).
+- For inbox queries: populate inbox_summary[] in write_state with priority, from, subject, snippet per email; keep the final reply concise.`,
 };

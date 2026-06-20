@@ -235,6 +235,7 @@ export async function runAgentLoop(
           stateWriteKey: agent.stateWriteKey,
           tokensUsed: ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0,
           summary: buildAgentSummary(agent, ctx, result.text ?? '').slice(0, 8000),
+          structured: agent.stateWriteKey ? ctx.state.data[agent.stateWriteKey] : undefined,
         },
         timestamp: new Date().toISOString(),
       });
