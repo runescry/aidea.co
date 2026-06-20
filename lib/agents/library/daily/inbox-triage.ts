@@ -31,18 +31,22 @@ Apply these rules in order (first match wins):
     - Sender is in keyContacts or urgentFrom
     - Subject contains: "urgent", "action required", "deadline", "asap", "by today", "by [today's date]"
     - Thread is a reply to something you sent
-    - Email from school, doctor, mortgage broker, recruiter, or government authority
-    - Hiring outcomes: offer, rejection, next steps, interview invite from tracked companies (Anthropic, Vercel, Dedrone, etc.)
+    - Email from school, doctor, mortgage broker, or government authority (time-sensitive)
+    - Recruiter/hiring email about a TRACKED application (company matches work.currentProjects.jobApplications) — offer, rejection, interview invite, scheduling, next steps
     - Property/conveyancing updates for active house purchase
   LOW urgency:
     - Sender is in skipFrom
     - Newsletter/promotional patterns
     - Automated notifications (no-reply@, noreply@)
+    - Mass recruiting, job ads, "we're hiring", job board alerts, or unsolicited roles from companies NOT in jobApplications
+    - Generic recruiter outreach with no existing application thread
   NORMAL: everything else
+
+Do NOT call update_kb jobApplication for recruiting ads or companies the user is not tracking. Only update profile when the email advances a company already in jobApplications (or user clearly started a new application in the thread).
 
 STEP 4: Profile updates from email (update_kb).
 For emails that change facts in the user's profile, call update_kb BEFORE or alongside queue_action.
-Use jobApplication for hiring emails matched to work.currentProjects.jobApplications:
+Use jobApplication ONLY for hiring emails where the company matches an entry in work.currentProjects.jobApplications (or the thread proves an application already exists):
   - Offer / acceptance → status: "Offer received", nextAction: specific deadline from email
   - Rejection / decline → status: "Declined", nextAction: "Send thank-you" or "Archive"
   - Interview invite / next round → status: "In progress — [stage]", nextAction: from email
@@ -52,7 +56,7 @@ For property (Bryce, Macquarie, conveyancer): update_kb with updates.work or upd
 
 For school (Xavier, Genazzano, MLC): update_kb family.children notes or goals if enrollment/placement news.
 
-Set priority: "high" for job offers, rejections, finance deadlines.
+Set priority: "high" for job offers, rejections, finance deadlines on TRACKED applications only.
 Set requireApproval: true for ambiguous interpretation; otherwise let autonomy setting decide (semi-autonomous = queue, autonomous = auto-apply).
 
 STEP 5: For each HIGH urgency email needing a reply, queue a draft.
