@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
   if (!hasApiKey()) {
     return NextResponse.json(
-      { error: 'Anthropic API key not configured — set ANTHROPIC_API_KEY in environment' },
+      { error: 'LLM not configured — set AI_GATEWAY_API_KEY (recommended) or ANTHROPIC_API_KEY in environment' },
       { status: 500 }
     );
   }

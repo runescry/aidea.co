@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
   if (!hasApiKey()) {
     return new Response(
-      JSON.stringify({ error: 'Anthropic API key not configured — set ANTHROPIC_API_KEY in environment' }),
+      JSON.stringify({ error: 'LLM not configured — set AI_GATEWAY_API_KEY (recommended) or ANTHROPIC_API_KEY in environment' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

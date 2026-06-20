@@ -12,6 +12,10 @@ const GATEWAY_MODEL_IDS: Record<string, string> = {
 
 let _provider: ReturnType<typeof createAnthropic> | null = null;
 
+function isPlaceholderAnthropicKey(key: string): boolean {
+  return key.includes('YOUR_KEY') || key.length < 30;
+}
+
 export function useAiGateway(): boolean {
   return Boolean(
     process.env.AI_GATEWAY_API_KEY
@@ -36,8 +40,8 @@ function getProvider() {
       });
     } else {
       const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        throw new Error('Set AI_GATEWAY_API_KEY or ANTHROPIC_API_KEY');
+      if (!apiKey || isPlaceholderAnthropicKey(apiKey)) {
+        throw new Error('Set AI_GATEWAY_API_KEY or a valid ANTHROPIC_API_KEY');
       }
       _provider = createAnthropic({ apiKey });
     }
@@ -62,9 +66,10 @@ export function getModel(modelId?: string): LanguageModelV1 {
 }
 
 export function hasApiKey(): boolean {
-  return Boolean(
-    process.env.AI_GATEWAY_API_KEY
-    ?? process.env.VERCEL_OIDC_TOKEN
-    ?? process.env.ANTHROPIC_API_KEY
-  );
+  const gateway = process.env.AI_GATEWAY_API_KEY ?? '';
+  if (gateway.length > 10) return true;
+  const oidc = process.env.VERCEL_OIDC_TOKEN ?? '';
+  if (oidc.length > 10) return true;
+  const anthropic = process.env.ANTHROPIC_API_KEY ?? '';
+  return anthropic.length > 0 && !isPlaceholderAnthropicKey(anthropic);
 }

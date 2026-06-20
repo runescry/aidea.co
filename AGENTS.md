@@ -171,8 +171,28 @@ GitHub Actions (`.github/workflows/ci.yml`) runs **typecheck → unit tests → 
 |-------|----------|---------|
 | Unit | `lib/**/*.test.ts` | Pure logic, no network |
 | Contract | `app/api/**/*.contract.test.ts` | Handler status + JSON shape |
+| Integration | `tests/integration/**/*.test.ts` | Multi-step API scenarios (opt-in) |
 
 Do not merge behavior or API changes without updating the relevant tests.
+
+### Integration tests (API scenario runner)
+
+Runs only when explicitly requested — **not** part of default CI.
+
+```bash
+# Handler mode — calls route handlers directly (no dev server)
+npm run test:integration
+
+# HTTP mode — against a running app
+npm run dev   # separate terminal
+TEST_BASE_URL=http://localhost:3000 npm run test:integration
+```
+
+`npm run test:integration` sets `INTEGRATION_CHAT=1`. Chat dispatch runs when `.env.local` has `AI_GATEWAY_API_KEY` (Vercel AI Gateway — recommended) or a valid direct `ANTHROPIC_API_KEY`. Placeholder keys are ignored.
+
+Reads `.env.local` for `AI_GATEWAY_API_KEY` (preferred) or `ANTHROPIC_API_KEY`. Chat scenarios run when `INTEGRATION_CHAT=1` (default in `npm run test:integration`) and a valid gateway or Anthropic key is set.
+
+Scenarios: agent library load + override round-trip, Work feed + queue reject, optional chat dispatch SSE completion (skipped if API key is missing or placeholder).
 
 Client bundles must not import server-only modules (`lib/storage`, `lib/harness/queue` value exports). Use `action-labels.ts` for shared constants.
 

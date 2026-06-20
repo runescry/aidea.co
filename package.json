@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run lib",
     "test:contract": "vitest run app/api",
+    "test:integration": "RUN_INTEGRATION=1 INTEGRATION_CHAT=1 vitest run --config vitest.integration.config.ts",
     "test:all": "vitest run",
     "test:watch": "vitest"
   },
