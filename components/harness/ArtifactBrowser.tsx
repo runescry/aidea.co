@@ -1,10 +1,14 @@
 'use client';
 import { useState } from 'react';
 import MorningBriefRenderer from './MorningBriefRenderer';
+import InboxTriageRenderer from './InboxTriageRenderer';
+import CalendarBriefRenderer from './CalendarBriefRenderer';
 import { getArtifactLabel, getKnownArtifactKeys, sortArtifactKeys } from '@/lib/agents/artifact-labels';
 
 const RICH_RENDERERS: Record<string, boolean> = {
   morning_brief: true,
+  inbox_triage: true,
+  calendar_brief: true,
 };
 
 function downloadJson(key: string, data: unknown) {
@@ -42,7 +46,7 @@ function ArtifactDetail({ stateKey, value }: { stateKey: string; value: unknown 
       )
     : undefined;
 
-  if (isRichRenderable && stateKey === 'morning_brief' && !rawMode) {
+  if (isRichRenderable && !rawMode) {
     return (
       <div className="space-y-3">
         <div className="flex gap-2">
@@ -59,7 +63,15 @@ function ArtifactDetail({ stateKey, value }: { stateKey: string; value: unknown 
             Raw JSON
           </button>
         </div>
-        <MorningBriefRenderer data={value as Parameters<typeof MorningBriefRenderer>[0]['data']} />
+        {stateKey === 'morning_brief' && (
+          <MorningBriefRenderer data={value as Parameters<typeof MorningBriefRenderer>[0]['data']} />
+        )}
+        {stateKey === 'inbox_triage' && (
+          <InboxTriageRenderer data={value as Parameters<typeof InboxTriageRenderer>[0]['data']} />
+        )}
+        {stateKey === 'calendar_brief' && (
+          <CalendarBriefRenderer data={value as Parameters<typeof CalendarBriefRenderer>[0]['data']} />
+        )}
       </div>
     );
   }

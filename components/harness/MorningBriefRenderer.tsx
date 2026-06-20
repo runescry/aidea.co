@@ -4,7 +4,11 @@ interface MustDoItem {
   priority: number;
   action: string;
   context: string;
+  detail?: string;
   source: string;
+  urgency?: string;
+  queueActionId?: string;
+  messageId?: string;
 }
 
 interface ScheduleItem {
@@ -13,6 +17,7 @@ interface ScheduleItem {
   location: string;
   attendees: string[];
   notes: string;
+  date?: string;
 }
 
 interface HealthBrief {
@@ -44,10 +49,12 @@ interface WorkPrep {
 
 interface MorningBriefData {
   date: string;
+  dayOfWeek?: string;
   generatedAt: string;
   mustDo: MustDoItem[];
   schedule: ScheduleItem[];
   logistics: string[];
+  tomorrowPreview?: ScheduleItem[];
   health: HealthBrief;
   news: NewsHeadline[];
   workPrep: WorkPrep;
@@ -93,15 +100,27 @@ export default function MorningBriefRenderer({ data }: { data: MorningBriefData 
       <Section title="Must do today" empty={!data.mustDo?.length}>
         <div className="space-y-2">
           {data.mustDo?.map((item, i) => (
-            <div key={i} className="flex items-start gap-3 py-2 border-b border-border last:border-0">
-              <span className="text-foreground-muted font-mono text-xs mt-0.5 w-4 shrink-0">{item.priority}.</span>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-foreground">{item.action}</div>
-                {item.context && <div className="text-xs text-foreground-muted mt-0.5">{item.context}</div>}
+            <div key={i} className="card p-3 space-y-1.5">
+              <div className="flex items-start gap-3">
+                <span className="text-foreground-muted font-mono text-xs mt-0.5 w-4 shrink-0">{item.priority}.</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-foreground font-medium">{item.action}</div>
+                  {item.context && <div className="text-xs text-foreground-muted">{item.context}</div>}
+                </div>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${SOURCE_BADGE[item.source] ?? 'bg-surface-subtle text-foreground-subtle'}`}>
+                  {item.source}
+                </span>
               </div>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${SOURCE_BADGE[item.source] ?? 'bg-surface-subtle text-foreground-subtle'}`}>
-                {item.source}
-              </span>
+              {item.detail && (
+                <div className="text-xs text-foreground border-l-2 border-accent pl-2 ml-7">
+                  {item.detail}
+                </div>
+              )}
+              {item.queueActionId && (
+                <div className="text-[11px] text-accent font-medium ml-7">
+                  Reply draft queued — open Home → Work → Awaiting approval
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -130,6 +149,17 @@ export default function MorningBriefRenderer({ data }: { data: MorningBriefData 
                   <div className="text-xs text-foreground-subtle">{item.attendees.slice(0, 3).join(', ')}</div>
                 )}
               </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Tomorrow preview" empty={!data.tomorrowPreview?.length}>
+        <div className="space-y-1.5">
+          {data.tomorrowPreview?.map((item, i) => (
+            <div key={i} className="flex items-start gap-3 opacity-80">
+              <span className="text-xs font-mono text-foreground-subtle w-12 shrink-0 pt-0.5">{item.time}</span>
+              <div className="text-sm text-foreground-muted">{item.title}</div>
             </div>
           ))}
         </div>

@@ -130,6 +130,29 @@ describe('buildUnifiedTaskFeed', () => {
     expect(tasks.some(t => t.id === 'entity-e1')).toBe(true);
   });
 
+  it('counts only queue items in needsYou, not proactive suggestions', () => {
+    const now = new Date('2026-06-01T12:00:00.000Z').getTime();
+    const { tasks, needsYou, suggestions } = buildUnifiedTaskFeed({
+      now,
+      actions: [makeAction({ id: 'a1', status: 'pending' })],
+      entities: [],
+      kb: {
+        work: {
+          currentProjects: {
+            jobApplications: [{
+              company: 'Acme',
+              status: 'Interviewing',
+              nextAction: 'Send thank-you note',
+            }],
+          },
+        },
+      },
+    });
+    expect(needsYou).toBe(1);
+    expect(suggestions).toBe(1);
+    expect(tasks.filter(t => t.status === 'suggestion')).toHaveLength(1);
+  });
+
   it('drops completed entities older than seven days', () => {
     const now = new Date('2026-06-01T12:00:00.000Z').getTime();
     const { tasks } = buildUnifiedTaskFeed({

@@ -4,7 +4,7 @@ import type { KnowledgeBase } from '@/types/knowledge-base';
 import { ACTION_TYPE_LABELS } from './action-labels';
 import { buildProactiveTasks, type UserAutonomyPreference } from './proactive-tasks';
 
-export type TaskStatus = 'needs_you' | 'running' | 'done' | 'failed';
+export type TaskStatus = 'needs_you' | 'suggestion' | 'running' | 'done' | 'failed';
 
 export interface TaskItem {
   id: string;
@@ -23,9 +23,10 @@ export interface TaskItem {
 
 const TASK_STATUS_ORDER: Record<TaskStatus, number> = {
   needs_you: 0,
-  running: 1,
-  failed: 2,
-  done: 3,
+  suggestion: 1,
+  running: 2,
+  failed: 3,
+  done: 4,
 };
 
 export function sortTaskItems(tasks: TaskItem[]): TaskItem[] {
@@ -37,7 +38,11 @@ export function sortTaskItems(tasks: TaskItem[]): TaskItem[] {
 }
 
 export function countNeedsYou(tasks: TaskItem[]): number {
-  return tasks.filter(t => t.status === 'needs_you').length;
+  return tasks.filter(t => t.status === 'needs_you' && t.source === 'queue').length;
+}
+
+export function countSuggestions(tasks: TaskItem[]): number {
+  return tasks.filter(t => t.status === 'suggestion').length;
 }
 
 function queueStatusToTaskStatus(status: QueuedAction['status']): TaskStatus {
@@ -173,7 +178,12 @@ export function buildUnifiedTaskFeed(input: {
   entities: EntityState[];
   kb?: KnowledgeBase;
   now?: number;
-}): { tasks: TaskItem[]; needsYou: number; autonomy?: UserAutonomyPreference } {
+}): {
+  tasks: TaskItem[];
+  needsYou: number;
+  suggestions: number;
+  autonomy?: UserAutonomyPreference;
+} {
   const now = input.now ?? Date.now();
   const queueTasks = input.actions.map(queueActionToTask);
 
@@ -193,6 +203,7 @@ export function buildUnifiedTaskFeed(input: {
   return {
     tasks,
     needsYou: countNeedsYou(tasks),
+    suggestions: countSuggestions(tasks),
     autonomy: input.kb?.preferences?.defaultAutonomyLevel,
   };
 }

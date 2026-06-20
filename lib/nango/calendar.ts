@@ -1,10 +1,20 @@
 import { getNango, calendarIntegrationId } from './client';
 import { resolveCalendarConnections, type NangoConnectionPublic } from './connections';
+import {
+  addCalendarDays,
+  calendarDayRange,
+  eventDateYmd,
+  formatEventTime,
+  isSameCalendarDay,
+  toDateYmd,
+} from '@/lib/calendar/dates';
 
 export interface CalendarEvent {
   title: string;
   start: string;
   end: string;
+  date: string;
+  time: string;
   attendees: string[];
   location: string;
   description: string;
@@ -14,11 +24,10 @@ export interface CalendarEvent {
 
 async function readCalendarForConnection(
   conn: NangoConnectionPublic,
-  options: { date?: string; daysAhead: number; maxResults: number },
+  options: { date: string; spanDays: number; maxResults: number },
 ): Promise<CalendarEvent[]> {
   const nango = getNango();
-  const timeMin = options.date ? new Date(options.date).toISOString() : new Date().toISOString();
-  const timeMax = new Date(new Date(timeMin).getTime() + options.daysAhead * 86_400_000).toISOString();
+  const { timeMin, timeMax } = calendarDayRange(options.date, options.spanDays);
 
   const res = await nango.get<{
     items?: Array<{
@@ -42,16 +51,21 @@ async function readCalendarForConnection(
     },
   });
 
-  return (res.data.items ?? []).map(e => ({
-    title: e.summary ?? '(no title)',
-    start: e.start?.dateTime ?? e.start?.date ?? '',
-    end: e.end?.dateTime ?? e.end?.date ?? '',
-    attendees: (e.attendees ?? []).map(a => a.displayName ?? a.email),
-    location: e.location ?? '',
-    description: (e.description ?? '').slice(0, 200),
-    connectionId: conn.connectionId,
-    account: conn.email,
-  }));
+  return (res.data.items ?? []).map(e => {
+    const start = e.start?.dateTime ?? e.start?.date ?? '';
+    return {
+      title: e.summary ?? '(no title)',
+      start,
+      end: e.end?.dateTime ?? e.end?.date ?? '',
+      date: eventDateYmd(start),
+      time: formatEventTime(start),
+      attendees: (e.attendees ?? []).map(a => a.displayName ?? a.email),
+      location: e.location ?? '',
+      description: (e.description ?? '').slice(0, 200),
+      connectionId: conn.connectionId,
+      account: conn.email,
+    };
+  });
 }
 
 export async function readCalendarEvents(options: {
@@ -59,14 +73,30 @@ export async function readCalendarEvents(options: {
   daysAhead?: number;
   maxResults?: number;
   connectionId?: string;
-}): Promise<{ events: CalendarEvent[]; daysAhead: number; date: string; connections: string[] }> {
-  const { date, daysAhead = 1, maxResults = 20, connectionId } = options;
+}): Promise<{
+  events: CalendarEvent[];
+  todayEvents: CalendarEvent[];
+  tomorrowEvents: CalendarEvent[];
+  daysAhead: number;
+  date: string;
+  tomorrowDate: string;
+  connections: string[];
+}> {
+  const anchorDate = options.date?.slice(0, 10) ?? toDateYmd();
+  const daysAhead = Math.max(1, options.daysAhead ?? 1);
+  const maxResults = options.maxResults ?? 20;
+  const { connectionId } = options;
   const connections = await resolveCalendarConnections(connectionId);
+  const tomorrowDate = addCalendarDays(anchorDate, 1);
 
   const batches = await Promise.all(
     connections.map(async conn => {
       try {
-        return await readCalendarForConnection(conn, { date, daysAhead, maxResults });
+        return await readCalendarForConnection(conn, {
+          date: anchorDate,
+          spanDays: daysAhead,
+          maxResults,
+        });
       } catch {
         return [];
       }
@@ -74,12 +104,16 @@ export async function readCalendarEvents(options: {
   );
 
   const events = batches.flat().sort((a, b) => a.start.localeCompare(b.start));
-  const timeMin = date ? new Date(date).toISOString() : new Date().toISOString();
+  const todayEvents = events.filter(e => isSameCalendarDay(e.start, anchorDate));
+  const tomorrowEvents = events.filter(e => isSameCalendarDay(e.start, tomorrowDate));
 
   return {
     events,
+    todayEvents,
+    tomorrowEvents,
     daysAhead,
-    date: timeMin,
+    date: anchorDate,
+    tomorrowDate,
     connections: connections.map(c => c.connectionId),
   };
 }

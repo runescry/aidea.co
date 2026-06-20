@@ -96,8 +96,8 @@ Extend routing in `shouldUseFastChat` (and tests in `fast-chat.test.ts`) — do 
 
 **Tasks API:**
 
-- `GET /api/tasks` — full feed `{ tasks, needsYou, autonomy }`
-- `GET /api/tasks?summary=1` — badge only `{ needsYou }`
+- `GET /api/tasks` — full feed `{ tasks, needsYou, suggestions, autonomy }` (`needsYou` = queue items awaiting approval only)
+- `GET /api/tasks?summary=1` — badge counts `{ needsYou, suggestions }`
 
 Work feed UI lives in `components/harness/home/TaskFeed.tsx`. Do not add a separate `ActionQueue` component.
 

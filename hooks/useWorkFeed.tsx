@@ -22,12 +22,14 @@ export interface WorkFeedAutonomy {
 interface WorkFeedPayload {
   tasks: TaskItem[];
   needsYou: number;
+  suggestions: number;
   autonomy: WorkFeedAutonomy | null;
 }
 
 interface WorkFeedContextValue {
   tasks: TaskItem[];
   needsYou: number;
+  suggestions: number;
   autonomy: WorkFeedAutonomy | null;
   loading: boolean;
   refresh: () => Promise<void>;
@@ -68,22 +70,24 @@ export function WorkFeedProvider({
       const res = await fetch(url, { signal: abort.signal });
       if (!res.ok) {
         if (!full) return;
-        setData({ tasks: [], needsYou: 0, autonomy: null });
+        setData({ tasks: [], needsYou: 0, suggestions: 0, autonomy: null });
         return;
       }
-      const body = await res.json() as Partial<WorkFeedPayload> & { needsYou?: number };
+      const body = await res.json() as Partial<WorkFeedPayload> & { needsYou?: number; suggestions?: number };
       if (abort.signal.aborted) return;
 
       if (full) {
         setData({
           tasks: body.tasks ?? [],
           needsYou: body.needsYou ?? 0,
+          suggestions: body.suggestions ?? 0,
           autonomy: body.autonomy ?? null,
         });
       } else if (typeof body.needsYou === 'number') {
         setData(prev => ({
           tasks: prev?.tasks ?? [],
           needsYou: body.needsYou!,
+          suggestions: body.suggestions ?? prev?.suggestions ?? 0,
           autonomy: prev?.autonomy ?? null,
         }));
       }
@@ -124,6 +128,7 @@ export function WorkFeedProvider({
   const value = useMemo<WorkFeedContextValue>(() => ({
     tasks: data?.tasks ?? [],
     needsYou: data?.needsYou ?? 0,
+    suggestions: data?.suggestions ?? 0,
     autonomy: data?.autonomy ?? null,
     loading: loading && !data,
     refresh,

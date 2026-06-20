@@ -64,13 +64,25 @@ Call queue_action type='email_reply' with specific suggestedReply (not a templat
 
 STEP 6: Write triage output to write_state key "inbox_triage":
 {
-  "urgent": [...],
+  "urgent": [
+    {
+      "from": "Sender Name",
+      "subject": "...",
+      "messageId": "gmail-message-id",
+      "urgency": "HIGH",
+      "reason": "one sentence why",
+      "action": "what to do next",
+      "queueActionId": "uuid-if-queued"
+    }
+  ],
   "actionRequired": [...],
   "fyi": [...],
   "profileUpdatesQueued": 0,
   "profileUpdatesApplied": 0,
   "draftsQueued": 0
 }
+
+Include messageId from gmail_read for each email. When you queue_action, include the returned actionId as queueActionId on that email item.
 
 Limits: urgent[] max 5. actionRequired[] max 5. fyi[] max 3.
 

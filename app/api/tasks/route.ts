@@ -28,19 +28,20 @@ export async function GET(req: NextRequest) {
       ? { ...entity, status: 'error' as const, updatedAt: new Date().toISOString() }
       : entity,
   );
-  const { tasks, needsYou, autonomy } = buildUnifiedTaskFeed({
+  const { tasks, needsYou, suggestions, autonomy } = buildUnifiedTaskFeed({
     actions,
     entities,
     kb: kb as KnowledgeBase,
   });
 
   if (summary) {
-    return NextResponse.json({ needsYou });
+    return NextResponse.json({ needsYou, suggestions });
   }
 
   return NextResponse.json({
     tasks,
     needsYou,
+    suggestions,
     autonomy: autonomy
       ? { level: autonomy, label: autonomyLabel(autonomy), hint: autonomyHint(autonomy) }
       : null,

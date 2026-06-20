@@ -2,6 +2,7 @@ import type { HarnessAgent, HarnessContext } from './types';
 import { getAgentByRole, setAgentStatus } from './registry';
 import { setStateKey } from './state';
 import { executeHarnessTool } from './tools';
+import { eventDateYmd } from '@/lib/calendar/dates';
 
 const PARALLEL_ROLES = [
   'inbox-triage',
@@ -99,42 +100,97 @@ export async function kickstartDailyOrchestrator(
   ctx.state.data.dailyKickstartComplete = true;
 }
 
+function normalizeScheduleItem(item: unknown, restrictToDate: string | null): Record<string, unknown> | null {
+  if (!item || typeof item !== 'object') return null;
+  const o = item as Record<string, unknown>;
+  const start = String(o.start ?? '');
+  const date = String(o.date ?? (start ? eventDateYmd(start) : restrictToDate ?? ''));
+  if (restrictToDate && date && date !== restrictToDate) return null;
+  return {
+    time: String(o.time ?? (start ? start.slice(11, 16) : '')),
+    title: String(o.title ?? o.summary ?? 'Event'),
+    location: String(o.location ?? ''),
+    attendees: Array.isArray(o.attendees) ? o.attendees.map(String) : [],
+    notes: String(o.notes ?? ''),
+    date,
+  };
+}
+
+function filterLogisticsForToday(flags: unknown[], schedule: Record<string, unknown>[]): string[] {
+  const titles = schedule.map(s => String(s.title ?? '').toLowerCase());
+  const hasPeToday = titles.some(t => t.includes('pe'));
+  return flags
+    .map(f => (typeof f === 'string' ? f : JSON.stringify(f)))
+    .filter(flag => {
+      const lower = flag.toLowerCase();
+      if ((lower.includes(' pe') || lower.includes('pe today') || lower.includes('sports kit')) && !hasPeToday) {
+        return false;
+      }
+      return true;
+    });
+}
+
 function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
+  const todayDate = String(ctx.state.data.currentDate ?? new Date().toISOString().split('T')[0]);
   const inbox = ctx.state.data.inbox_triage as Record<string, unknown> | undefined;
   const calendar = ctx.state.data.calendar_brief as Record<string, unknown> | undefined;
   const health = ctx.state.data.health_brief as Record<string, unknown> | undefined;
   const news = ctx.state.data.news_brief as Record<string, unknown> | undefined;
   const work = ctx.state.data.work_prep as Record<string, unknown> | undefined;
 
-  const urgent = (inbox?.urgent as unknown[]) ?? (inbox?.actionRequired as unknown[]) ?? [];
-  const mustDo = urgent.slice(0, 5).map((item, i) => {
+  const urgent = (inbox?.urgent as unknown[]) ?? [];
+  const actionRequired = (inbox?.actionRequired as unknown[]) ?? [];
+  const mustDoSource = [...urgent, ...actionRequired].slice(0, 8);
+
+  const mustDo = mustDoSource.map((item, i) => {
     if (typeof item === 'string') {
       return { priority: i + 1, action: item, context: '', source: 'email' };
     }
     if (item && typeof item === 'object') {
       const o = item as Record<string, unknown>;
+      const subject = String(o.subject ?? o.summary ?? o.action ?? 'Review item');
+      const from = String(o.from ?? o.context ?? '');
+      const nextStep = String(o.action ?? o.nextStep ?? '');
       return {
         priority: i + 1,
-        action: String(o.summary ?? o.subject ?? o.action ?? 'Review item'),
-        context: String(o.from ?? o.context ?? ''),
+        action: subject,
+        context: from,
+        detail: nextStep,
         source: 'email',
+        urgency: String(o.urgency ?? ''),
+        queueActionId: o.queueActionId ? String(o.queueActionId) : undefined,
+        messageId: o.messageId ? String(o.messageId) : undefined,
       };
     }
     return { priority: i + 1, action: String(item), context: '', source: 'email' };
-  });
+  }).slice(0, 5);
 
-  const schedule = (calendar?.todaySchedule as unknown[])
+  const rawSchedule = (calendar?.todaySchedule as unknown[])
+    ?? (calendar?.todayEvents as unknown[])
     ?? (calendar?.events as unknown[])
     ?? [];
 
-  const logistics = (calendar?.logisticsFlags as unknown[]) ?? [];
+  const schedule = rawSchedule
+    .map(item => normalizeScheduleItem(item, todayDate))
+    .filter((item): item is Record<string, unknown> => item != null);
+
+  const logistics = filterLogisticsForToday(
+    (calendar?.logisticsFlags as unknown[]) ?? [],
+    schedule,
+  );
+
+  const tomorrowPreview = ((calendar?.tomorrowPreview as unknown[]) ?? [])
+    .map(item => normalizeScheduleItem(item, ''))
+    .filter(Boolean);
 
   return {
-    date: ctx.state.data.currentDate ?? new Date().toISOString().split('T')[0],
+    date: todayDate,
+    dayOfWeek: ctx.state.data.dayOfWeek ?? '',
     generatedAt: new Date().toISOString(),
     mustDo,
     schedule,
-    logistics: logistics.map(l => (typeof l === 'string' ? l : JSON.stringify(l))),
+    logistics,
+    tomorrowPreview,
     health: health ?? {},
     news: (news?.headlines as unknown[]) ?? [],
     workPrep: work ?? {},

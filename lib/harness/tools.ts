@@ -20,6 +20,7 @@ import {
   type KbPatchInput,
 } from './kb-updates';
 import { emitChatAgentResponse } from './chat-events';
+import { addCalendarDays } from '@/lib/calendar/dates';
 
 // ── Tool Catalog ──────────────────────────────────────────────────────────────
 
@@ -943,14 +944,27 @@ function getDryRunResponse(toolName: string, input: ToolInput): unknown {
     case 'gmail_draft':
     case 'gmail_send':
       return { dryRun: true, message: `[DRY RUN] Would send email to ${(input as { to: string }).to}`, input };
-    case 'calendar_read':
-      return {
-        events: [
-          { title: '[DRY RUN] Team standup', start: new Date().toISOString(), end: new Date(Date.now() + 1800000).toISOString(), attendees: ['team@company.com'], location: 'Zoom', description: '' },
-          { title: '[DRY RUN] 1:1 with Sarah', start: new Date(Date.now() + 7200000).toISOString(), end: new Date(Date.now() + 9000000).toISOString(), attendees: ['sarah@company.com'], location: '', description: '' },
-        ],
-        daysAhead: (input as { daysAhead?: number }).daysAhead ?? 1,
+    case 'calendar_read': {
+      const date = (input as { date?: string }).date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+      const mockEvent = {
+        title: '[DRY RUN] Team standup',
+        start: `${date}T09:00:00.000Z`,
+        end: `${date}T09:30:00.000Z`,
+        date,
+        time: '09:00',
+        attendees: ['team@company.com'],
+        location: 'Zoom',
+        description: '',
       };
+      return {
+        events: [mockEvent],
+        todayEvents: [mockEvent],
+        tomorrowEvents: [],
+        daysAhead: (input as { daysAhead?: number }).daysAhead ?? 1,
+        date,
+        tomorrowDate: addCalendarDays(date, 1),
+      };
+    }
     case 'calendar_draft':
     case 'calendar_create':
       return { dryRun: true, message: `[DRY RUN] Would create event: ${(input as { title: string }).title}`, input };

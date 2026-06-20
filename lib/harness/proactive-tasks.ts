@@ -43,7 +43,7 @@ function staleProjectTasks(projects?: CurrentProjects): TaskItem[] {
     tasks.push({
       id: `proactive-job-${slug(app.company)}`,
       source: 'proactive',
-      status: 'needs_you',
+      status: 'suggestion',
       title: `${app.company}: ${app.nextAction}`,
       subtitle: `Job application · ${app.status ?? 'In progress'}`,
       createdAt: new Date().toISOString(),
@@ -56,7 +56,7 @@ function staleProjectTasks(projects?: CurrentProjects): TaskItem[] {
     tasks.push({
       id: `proactive-build-${slug(build.name)}`,
       source: 'proactive',
-      status: 'needs_you',
+      status: 'suggestion',
       title: `${build.name}: ${build.nextAction}`,
       subtitle: `Personal project · ${build.status ?? 'Active'}`,
       createdAt: new Date().toISOString(),
@@ -84,7 +84,7 @@ function relationshipNudges(entities: EntityState[]): TaskItem[] {
     .map(rel => ({
       id: `proactive-rel-${slug(rel.email ?? rel.name)}`,
       source: 'proactive' as const,
-      status: 'needs_you' as const,
+      status: 'suggestion' as const,
       title: `Reconnect with ${rel.name}`,
       subtitle: rel.weeksSince
         ? `Relationship · ${rel.weeksSince} week${rel.weeksSince === 1 ? '' : 's'} since contact`

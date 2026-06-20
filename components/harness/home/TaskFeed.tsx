@@ -10,10 +10,11 @@ import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
 import { patchQueueAction } from '@/lib/client/queue';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 
-type Filter = 'all' | 'needs_you' | 'running' | 'done';
+type Filter = 'all' | 'approval' | 'suggestions' | 'running' | 'done';
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
-  needs_you: 'Needs you',
+  needs_you: 'Awaiting approval',
+  suggestion: 'Suggestion',
   running: 'Running',
   done: 'Done',
   failed: 'Failed',
@@ -21,6 +22,7 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
 
 const STATUS_STYLE: Record<TaskStatus, string> = {
   needs_you: 'text-accent',
+  suggestion: 'text-foreground-muted',
   running: 'text-accent',
   done: 'text-foreground-subtle',
   failed: 'text-danger',
@@ -28,6 +30,7 @@ const STATUS_STYLE: Record<TaskStatus, string> = {
 
 const DOT_STYLE: Record<TaskStatus, string> = {
   needs_you: 'bg-accent',
+  suggestion: 'bg-foreground-subtle/60',
   running: 'bg-accent animate-pulse',
   done: 'bg-foreground-subtle/40',
   failed: 'bg-danger',
@@ -117,7 +120,8 @@ function TaskDetail({
 
         {task.source === 'proactive' && (
           <p className="text-sm text-foreground-muted leading-relaxed">
-            Your workforce flagged this — stale project or a relationship that may need attention.
+            A reminder from your profile or relationship monitor — not waiting for approval.
+            Use chat to act on it or update your Context.
           </p>
         )}
 
@@ -164,13 +168,33 @@ function TaskDetail({
           </p>
         )}
 
-        {onDiscussInChat && (
+        {onDiscussInChat && (task.source === 'proactive' || task.status === 'suggestion') && (
+          <button
+            type="button"
+            onClick={() => onDiscussInChat(taskToChatPrompt(task))}
+            className="btn-primary text-sm w-full sm:w-auto"
+          >
+            Discuss in chat
+          </button>
+        )}
+
+        {onDiscussInChat && task.source === 'queue' && task.status !== 'needs_you' && (
           <button
             type="button"
             onClick={() => onDiscussInChat(taskToChatPrompt(task))}
             className="text-sm font-medium text-accent hover:text-accent/80 transition-colors"
           >
             Discuss in chat →
+          </button>
+        )}
+
+        {onDiscussInChat && task.source === 'queue' && task.status === 'needs_you' && (
+          <button
+            type="button"
+            onClick={() => onDiscussInChat(taskToChatPrompt(task))}
+            className="text-sm font-medium text-foreground-muted hover:text-foreground transition-colors"
+          >
+            Ask about this draft →
           </button>
         )}
       </div>
@@ -202,7 +226,7 @@ export default function TaskFeed({ session, onOpenStudio, onDiscussInChat, onTas
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'ok' | 'err'; message: string } | null>(null);
 
-  const { tasks, needsYou: needsYouCount, autonomy, loading, refresh } = useWorkFeed();
+  const { tasks, needsYou: approvalCount, suggestions: suggestionCount, autonomy, loading, refresh } = useWorkFeed();
 
   const allTasks = useMemo(() => {
     if (!session || session.status === 'idle') return tasks;
@@ -229,7 +253,8 @@ export default function TaskFeed({ session, onOpenStudio, onDiscussInChat, onTas
   );
 
   const filtered = useMemo(() => {
-    if (filter === 'needs_you') return allTasks.filter(t => t.status === 'needs_you');
+    if (filter === 'approval') return allTasks.filter(t => t.status === 'needs_you');
+    if (filter === 'suggestions') return allTasks.filter(t => t.status === 'suggestion');
     if (filter === 'running') return allTasks.filter(t => t.status === 'running');
     if (filter === 'done') return allTasks.filter(t => t.status === 'done' || t.status === 'failed');
     return allTasks;
@@ -255,7 +280,8 @@ export default function TaskFeed({ session, onOpenStudio, onDiscussInChat, onTas
 
   const filters: Array<{ id: Filter; label: string; count?: number }> = [
     { id: 'all', label: 'All' },
-    { id: 'needs_you', label: 'Needs you', count: needsYouCount },
+    { id: 'approval', label: 'Awaiting approval', count: approvalCount },
+    { id: 'suggestions', label: 'Suggestions', count: suggestionCount },
     { id: 'running', label: 'Running', count: runningCount },
     { id: 'done', label: 'Done' },
   ];
@@ -274,9 +300,9 @@ export default function TaskFeed({ session, onOpenStudio, onDiscussInChat, onTas
                 {autonomy.label}
               </span>
             )}
-            {needsYouCount > 0 && (
+            {approvalCount > 0 && (
               <span className="text-[11px] font-medium text-accent tabular-nums">
-                {needsYouCount} waiting
+                {approvalCount} to approve
               </span>
             )}
           </div>
@@ -338,8 +364,12 @@ export default function TaskFeed({ session, onOpenStudio, onDiscussInChat, onTas
         ) : filtered.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
             <p className="text-sm text-foreground-muted">Nothing here yet</p>
-            <p className="text-xs text-foreground-subtle mt-1 max-w-[220px] leading-relaxed">
-              Ask your chief of staff to do something — drafts, research, and updates show up here.
+            <p className="text-xs text-foreground-subtle mt-1 max-w-[240px] leading-relaxed">
+              {filter === 'approval'
+                ? 'Drafts and profile updates from your agents appear here for Approve or Reject.'
+                : filter === 'suggestions'
+                  ? 'Reminders from your projects and relationships — open one to discuss in chat.'
+                  : 'Ask your chief of staff to do something — drafts and updates show up here.'}
             </p>
           </div>
         ) : (
