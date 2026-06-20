@@ -22,6 +22,24 @@ function buildAgentPrompt(agent: HarnessAgent, ctx: HarnessContext): string {
   ].filter(Boolean).join('\n\n');
 }
 
+function buildAgentSummary(
+  agent: HarnessAgent,
+  ctx: HarnessContext,
+  resultText: string,
+): string {
+  const fromText = resultText.trim();
+  if (fromText) return fromText;
+
+  const stateVal = agent.stateWriteKey ? ctx.state.data[agent.stateWriteKey] : null;
+  if (stateVal && typeof stateVal === 'object' && stateVal !== null && 'summary' in stateVal) {
+    const s = (stateVal as { summary?: unknown }).summary;
+    if (typeof s === 'string' && s.trim()) return s.trim();
+  }
+  if (typeof stateVal === 'string' && stateVal.trim()) return stateVal.trim();
+
+  return 'Done.';
+}
+
 interface ToolCallRecord { name: string; inputHash: string }
 
 function hashInput(input: ToolInput): string {
@@ -216,7 +234,7 @@ export async function runAgentLoop(
           tier: agent.tier,
           stateWriteKey: agent.stateWriteKey,
           tokensUsed: ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0,
-          summary: (result.text ?? '').slice(0, 200),
+          summary: buildAgentSummary(agent, ctx, result.text ?? '').slice(0, 8000),
         },
         timestamp: new Date().toISOString(),
       });

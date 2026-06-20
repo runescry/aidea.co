@@ -100,17 +100,21 @@ export default function ChatInterface({ variant = 'default', onMessageComplete }
       ));
     }
     if (event.type === 'agent_complete') {
-      const summary = event.data.summary as string;
-      if (summary) {
-        setMessages(prev => prev.map(m =>
-          m.id === assistantMsgId ? { ...m, content: summary } : m
-        ));
-      }
-    }
-    if (event.type === 'error') {
+      const summary = event.data.summary as string | undefined;
       setMessages(prev => prev.map(m =>
         m.id === assistantMsgId
-          ? { ...m, status: 'error', content: (event.data.message as string) || 'Error' }
+          ? { ...m, content: summary?.trim() || m.content || 'Done.' }
+          : m
+      ));
+    }
+    if (event.type === 'error' || event.type === 'agent_error' || event.type === 'entity_error') {
+      const message =
+        (event.data.message as string | undefined)
+        ?? (event.data.error as string | undefined)
+        ?? 'Something went wrong.';
+      setMessages(prev => prev.map(m =>
+        m.id === assistantMsgId
+          ? { ...m, status: 'error', content: message }
           : m
       ));
     }
@@ -154,6 +158,11 @@ export default function ChatInterface({ variant = 'default', onMessageComplete }
         signal: abort.signal,
       });
 
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(errBody.error ?? `Request failed (${res.status})`);
+      }
+
       if (!res.body) throw new Error('No response body');
 
       await consumeHarnessSSE<HarnessEvent>(res, (event) => {
@@ -166,9 +175,10 @@ export default function ChatInterface({ variant = 'default', onMessageComplete }
       onMessageComplete?.();
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
+        const message = err instanceof Error ? err.message : 'Something went wrong.';
         setMessages(prev => prev.map(m =>
           m.id === assistantMsgId
-            ? { ...m, status: 'error', content: m.content || 'Something went wrong.' }
+            ? { ...m, status: 'error', content: m.content || message }
             : m
         ));
       }

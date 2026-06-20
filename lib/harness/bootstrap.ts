@@ -32,17 +32,23 @@ export async function bootstrapEntity(
     realWorldMode = 'auto';
   }
 
-  const cost = createCostTracker(
-    { ...DEFAULT_COST_CONFIG, ...config.costConfig },
-    realWorldMode,
-  );
+  const effectiveConfig: EntityConfig = {
+    ...config,
+    costConfig: {
+      ...DEFAULT_COST_CONFIG,
+      ...config.costConfig,
+      realWorldToolMode: realWorldMode,
+    },
+  };
+
+  const cost = createCostTracker(effectiveConfig.costConfig!, realWorldMode);
 
   const agentOverrides = await loadAgentOverrides();
 
   const ctx: HarnessContext = {
     entityId,
     sessionId,
-    config,
+    config: effectiveConfig,
     registry,
     state,
     cost,

@@ -8,7 +8,12 @@ const GATEWAY_MODEL_IDS: Record<string, string> = {
   'claude-sonnet-4-6': 'anthropic/claude-sonnet-4.6',
   'claude-opus-4-6': 'anthropic/claude-opus-4.6',
   'claude-haiku-4-5': 'anthropic/claude-haiku-4.5',
+  'claude-haiku-4-5-20251001': 'anthropic/claude-haiku-4.5',
 };
+
+function normalizeBareModelId(modelId: string): string {
+  return modelId.replace(/^anthropic\//, '').replace(/-\d{8}$/, '');
+}
 
 let _provider: ReturnType<typeof createAnthropic> | null = null;
 
@@ -51,13 +56,13 @@ function getProvider() {
 
 /** Gateway uses provider/model ids; direct Anthropic uses bare ids. */
 function resolveModelId(modelId: string): string {
+  const bare = normalizeBareModelId(modelId);
   if (useAiGateway()) {
-    const bare = modelId.replace(/^anthropic\//, '');
-    const mapped = GATEWAY_MODEL_IDS[bare] ?? modelId;
+    const mapped = GATEWAY_MODEL_IDS[bare] ?? GATEWAY_MODEL_IDS[modelId] ?? bare;
     if (mapped.includes('/')) return mapped;
     return `anthropic/${mapped.replace(/-(\d)-(\d)$/, '-$1.$2')}`;
   }
-  return modelId.replace(/^anthropic\//, '');
+  return bare;
 }
 
 export function getModel(modelId?: string): LanguageModelV1 {
