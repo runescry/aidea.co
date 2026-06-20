@@ -9,7 +9,7 @@ export type TaskStatus = 'needs_you' | 'suggestion' | 'running' | 'done' | 'fail
 
 export interface TaskItem {
   id: string;
-  source: 'queue' | 'session' | 'proactive';
+  source: 'queue' | 'session' | 'proactive' | 'brief';
   status: TaskStatus;
   title: string;
   subtitle?: string;
@@ -20,6 +20,7 @@ export interface TaskItem {
   action?: QueuedAction;
   entityId?: string;
   preview?: string;
+  brief?: Record<string, unknown>;
 }
 
 const TASK_STATUS_ORDER: Record<TaskStatus, number> = {
@@ -36,6 +37,75 @@ export function sortTaskItems(tasks: TaskItem[]): TaskItem[] {
     if (diff !== 0) return diff;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
+}
+
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return a.toDateString() === b.toDateString();
+}
+
+export function isTodayBrief(brief: Record<string, unknown>, now = new Date()): boolean {
+  const generatedAt = brief.generatedAt;
+  if (typeof generatedAt === 'string') {
+    const parsed = new Date(generatedAt);
+    if (!Number.isNaN(parsed.getTime())) return isSameCalendarDay(parsed, now);
+  }
+  const date = brief.date;
+  if (typeof date === 'string') {
+    const parsed = new Date(date);
+    if (!Number.isNaN(parsed.getTime())) return isSameCalendarDay(parsed, now);
+  }
+  return false;
+}
+
+export function latestBriefToTask(
+  brief: Record<string, unknown> | null | undefined,
+  now = new Date(),
+): TaskItem | null {
+  if (!brief || typeof brief !== 'object' || !isTodayBrief(brief, now)) return null;
+
+  const mustDo = Array.isArray(brief.mustDo) ? brief.mustDo : [];
+  const priorityCount = mustDo.length;
+  const generatedAt =
+    typeof brief.generatedAt === 'string' && !Number.isNaN(new Date(brief.generatedAt).getTime())
+      ? brief.generatedAt
+      : now.toISOString();
+
+  let title = 'Morning brief';
+  if (typeof brief.date === 'string') {
+    const parsed = new Date(brief.date);
+    if (!Number.isNaN(parsed.getTime())) {
+      title = `Morning brief · ${parsed.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`;
+    }
+  }
+
+  const firstMustDo = mustDo[0];
+  const preview =
+    firstMustDo &&
+    typeof firstMustDo === 'object' &&
+    firstMustDo !== null &&
+    typeof (firstMustDo as { action?: unknown }).action === 'string'
+      ? (firstMustDo as { action: string }).action
+      : undefined;
+
+  return {
+    id: 'brief-latest',
+    source: 'brief',
+    status: 'done',
+    title,
+    subtitle: priorityCount > 0 ? `${priorityCount} priorit${priorityCount === 1 ? 'y' : 'ies'} today` : 'Daily brief',
+    preview,
+    createdAt: generatedAt,
+    brief,
+  };
+}
+
+/** Pin today's brief after approvals, before other items. */
+export function insertBriefTask(tasks: TaskItem[], briefTask: TaskItem | null): TaskItem[] {
+  if (!briefTask) return tasks;
+  const withoutBrief = tasks.filter(t => t.source !== 'brief');
+  const sorted = sortTaskItems(withoutBrief);
+  const needsYouCount = sorted.filter(t => t.status === 'needs_you').length;
+  return [...sorted.slice(0, needsYouCount), briefTask, ...sorted.slice(needsYouCount)];
 }
 
 export function countNeedsYou(tasks: TaskItem[]): number {
@@ -181,6 +251,7 @@ export function buildUnifiedTaskFeed(input: {
   actions: QueuedAction[];
   entities: EntityState[];
   kb?: KnowledgeBase;
+  brief?: Record<string, unknown> | null;
   now?: number;
 }): {
   tasks: TaskItem[];
@@ -188,22 +259,27 @@ export function buildUnifiedTaskFeed(input: {
   suggestions: number;
   autonomy?: UserAutonomyPreference;
 } {
-  const now = input.now ?? Date.now();
+  const nowMs = input.now ?? Date.now();
+  const nowDate = new Date(nowMs);
   const queueTasks = input.actions.map(queueActionToTask);
 
   const entityTasks = input.entities
     .filter(entity => {
-      const normalized = normalizeEntityForFeed(entity, now);
+      const normalized = normalizeEntityForFeed(entity, nowMs);
       if (normalized.status === 'running' || normalized.status === 'paused') return true;
-      return now - new Date(normalized.updatedAt).getTime() <= RECENT_ENTITY_MS;
+      return nowMs - new Date(normalized.updatedAt).getTime() <= RECENT_ENTITY_MS;
     })
-    .map(entity => entityStateToTask(normalizeEntityForFeed(entity, now)));
+    .map(entity => entityStateToTask(normalizeEntityForFeed(entity, nowMs)));
 
   const proactiveTasks = input.kb ? buildProactiveTasks({ kb: input.kb, entities: input.entities }) : [];
   const existingIds = new Set([...queueTasks, ...entityTasks].map(t => t.id));
   const dedupedProactive = proactiveTasks.filter(t => !existingIds.has(t.id));
 
-  const tasks = sortTaskItems([...queueTasks, ...dedupedProactive, ...entityTasks]);
+  const briefTask = latestBriefToTask(input.brief, nowDate);
+  const tasks = insertBriefTask(
+    sortTaskItems([...queueTasks, ...dedupedProactive, ...entityTasks]),
+    briefTask,
+  );
   return {
     tasks,
     needsYou: countNeedsYou(tasks),

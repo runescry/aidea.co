@@ -319,7 +319,7 @@ Mark `[x]` only when `npm run typecheck`, `npm test`, `npm run test:contract`, a
 ### P7.1 — UX on existing data
 
 - [x] **Daily lite brief** — Single-agent morning mode; skip 5 parallel sub-agents ([ROADMAP P6 backlog](../ROADMAP.md#p6-backlog-not-started))
-- [ ] **Morning brief on Home** — Cron/lite output → Inbox row or chat card, not Studio-only (`MorningBriefRenderer`, `HomeScreen`)
+- [x] **Morning brief on Home** — Cron/lite output → Inbox row or chat card, not Studio-only (`MorningBriefRenderer`, `HomeScreen`)
 - [ ] **Suggestion dismiss** — Persist dismissed proactive IDs; hide from feed (`proactive-tasks.ts`, profile or storage)
 - [ ] **Suggestion snooze** — Snooze until date; re-surface in feed
 - [ ] **Audit trail viewer** — Browse approved/rejected/saved queue history (`queue-audit.ts`, new Settings or Inbox panel)

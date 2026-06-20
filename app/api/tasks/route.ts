@@ -3,7 +3,7 @@ import { listActionsForFeed, scrubQueuePayloadBloat } from '@/lib/harness/queue-
 import { buildUnifiedTaskFeed, isStaleRunningEntity } from '@/lib/harness/tasks';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB } from '@/lib/harness/knowledge-base';
-import { countPendingQueuedActions, loadEntityStates, saveEntityState } from '@/lib/storage';
+import { countPendingQueuedActions, loadEntityStates, readLatestBrief, saveEntityState } from '@/lib/storage';
 import { autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
 import { getDevTasksCache, invalidateDevTasksCache, setDevTasksCache } from '@/lib/harness/tasks-cache';
 
@@ -36,10 +36,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(cached);
   }
 
-  const [actions, rawEntities, kb] = await Promise.all([
+  const [actions, rawEntities, kb, brief] = await Promise.all([
     listActionsForFeed(),
     loadEntityStates(),
     readAllKB(),
+    readLatestBrief(),
   ]);
 
   const stale = rawEntities.filter(isStaleRunningEntity);
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
     actions,
     entities,
     kb: kb as KnowledgeBase,
+    brief,
   });
 
   const payload = {

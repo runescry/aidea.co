@@ -5,6 +5,7 @@ import ChatInterface from '../ChatInterface';
 import TaskFeed from './TaskFeed';
 import IntegrationStatusBar from './IntegrationStatusBar';
 import EntityRunLauncher from './EntityRunLauncher';
+import MorningBriefCard from './MorningBriefCard';
 import { IconBriefcase, IconMenu } from '../sidebar/icons';
 import { type HomeRunnableEntity } from '@/lib/entities/run-meta';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
@@ -37,7 +38,9 @@ export default function HomeScreen({
 }: Props) {
   const [chatPrefill, setChatPrefill] = useState<string | null>(null);
   const [inboxOpen, setInboxOpen] = useState(false);
-  const { needsYou } = useWorkFeed();
+  const { needsYou, tasks } = useWorkFeed();
+
+  const briefTask = tasks.find(t => t.source === 'brief') ?? null;
 
   const inboxInitialFilter = needsYou > 0 ? 'approval' as const : 'all' as const;
 
@@ -97,7 +100,13 @@ export default function HomeScreen({
           </div>
         )}
 
-        <div className="flex-1 min-h-0 flex flex-col px-3 py-2 sm:px-4 lg:px-6 lg:py-3">
+        <div className="flex-1 min-h-0 flex flex-col px-3 py-2 sm:px-4 lg:px-6 lg:py-3 gap-2">
+          {briefTask && (
+            <MorningBriefCard
+              task={briefTask}
+              onOpenInbox={() => setInboxOpen(true)}
+            />
+          )}
           <ChatInterface
             variant="home"
             onMessageComplete={onTaskRefresh}

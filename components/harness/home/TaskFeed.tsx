@@ -12,6 +12,7 @@ import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
 import { patchQueueAction, patchQueueActions } from '@/lib/client/queue';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 import { Label, TextArea, TextField } from '@/components/harness/forms';
+import MorningBriefRenderer from '@/components/harness/MorningBriefRenderer';
 
 type Filter = 'all' | 'approval' | 'suggestions' | 'running' | 'done';
 
@@ -249,6 +250,10 @@ function TaskDetail({
             <p className="text-xs text-foreground-muted mt-1">{task.subtitle}</p>
           )}
         </div>
+
+        {task.source === 'brief' && task.brief && (
+          <MorningBriefRenderer data={task.brief as unknown as Parameters<typeof MorningBriefRenderer>[0]['data']} />
+        )}
 
         {task.source === 'proactive' && (
           <p className="text-sm text-foreground-muted leading-relaxed">

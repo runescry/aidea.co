@@ -7,6 +7,9 @@ import {
   sortTaskItems,
   taskToChatPrompt,
   formatTaskTime,
+  latestBriefToTask,
+  isTodayBrief,
+  insertBriefTask,
 } from './tasks';
 import type { QueuedAction } from './queue-types';
 import type { EntityState } from './types';
@@ -172,6 +175,82 @@ describe('buildUnifiedTaskFeed', () => {
       ],
     });
     expect(tasks).toHaveLength(0);
+  });
+
+  it('includes today brief after approvals in the feed', () => {
+    const now = new Date('2026-06-01T12:00:00.000Z').getTime();
+    const { tasks } = buildUnifiedTaskFeed({
+      now,
+      actions: [makeAction({ id: 'a1', status: 'pending' })],
+      entities: [],
+      brief: {
+        date: '2026-06-01',
+        generatedAt: '2026-06-01T06:30:00.000Z',
+        mustDo: [{ priority: 1, action: 'Reply to Sarah', context: 'Urgent', source: 'email' }],
+        schedule: [],
+        logistics: [],
+        health: { todayWorkout: 'Rest', estimatedDurationMins: 0, intensity: 'rest', mealSuggestions: [], hydrationGoalLitres: 2, quickNote: '' },
+        news: [],
+        workPrep: { firstMeeting: null, attendeeContext: [], suggestedTalkingPoints: [], prepNotes: '' },
+      },
+    });
+    const brief = tasks.find(t => t.source === 'brief');
+    expect(brief).toBeDefined();
+    expect(brief?.title).toContain('Morning brief');
+    expect(tasks[0].status).toBe('needs_you');
+    expect(tasks[1].source).toBe('brief');
+  });
+});
+
+describe('latestBriefToTask', () => {
+  it('returns null for stale briefs', () => {
+    expect(
+      latestBriefToTask(
+        { date: '2026-05-30', generatedAt: '2026-05-30T06:30:00.000Z', mustDo: [] },
+        new Date('2026-06-01T12:00:00.000Z'),
+      ),
+    ).toBeNull();
+  });
+
+  it('maps must-do count to subtitle', () => {
+    const task = latestBriefToTask(
+      {
+        date: '2026-06-01',
+        generatedAt: '2026-06-01T06:30:00.000Z',
+        mustDo: [{ action: 'A' }, { action: 'B' }],
+      },
+      new Date('2026-06-01T12:00:00.000Z'),
+    );
+    expect(task?.subtitle).toBe('2 priorities today');
+    expect(isTodayBrief({ generatedAt: '2026-06-01T06:30:00.000Z' }, new Date('2026-06-01T12:00:00.000Z'))).toBe(true);
+  });
+});
+
+describe('insertBriefTask', () => {
+  it('pins brief after needs_you items', () => {
+    const needsYou = {
+      id: 'queue-1',
+      source: 'queue' as const,
+      status: 'needs_you' as const,
+      title: 'Draft',
+      createdAt: '2026-06-01T10:00:00.000Z',
+    };
+    const suggestion = {
+      id: 'proactive-1',
+      source: 'proactive' as const,
+      status: 'suggestion' as const,
+      title: 'Nudge',
+      createdAt: '2026-06-01T09:00:00.000Z',
+    };
+    const brief = {
+      id: 'brief-latest',
+      source: 'brief' as const,
+      status: 'done' as const,
+      title: 'Morning brief',
+      createdAt: '2026-06-01T06:30:00.000Z',
+    };
+    const ordered = insertBriefTask(sortTaskItems([suggestion, needsYou]), brief);
+    expect(ordered.map(t => t.id)).toEqual(['queue-1', 'brief-latest', 'proactive-1']);
   });
 });
 

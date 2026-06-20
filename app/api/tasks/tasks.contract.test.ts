@@ -21,7 +21,7 @@ describe('GET /api/tasks', () => {
     for (const task of body.tasks) {
       expect(task).toMatchObject({
         id: expect.any(String),
-        source: expect.stringMatching(/^(queue|session|proactive)$/),
+        source: expect.stringMatching(/^(queue|session|proactive|brief)$/),
         status: expect.any(String),
         title: expect.any(String),
         createdAt: expect.any(String),

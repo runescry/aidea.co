@@ -10,11 +10,11 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
-**Phase:** P7.1 daily lite brief shipped; P7.0 deployed  
-**Next up:** P7.1 morning brief surfacing on Home  
+**Phase:** P7.1 morning brief on Home shipped  
+**Next up:** P7.1 suggestion dismiss / snooze  
 **Live:** [aidea-co.vercel.app](https://aidea-co.vercel.app) — local dev at `http://localhost:3000`
 
-**Recent:** P7.1 daily lite brief — single-agent morning mode; cron uses lite; Studio keeps full 6-agent path
+**Recent:** P7.1 morning brief surfacing — today's brief in Inbox + Home card via `/api/tasks`
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
 **Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
@@ -109,7 +109,7 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 
 - [x] **P7.0 Ship post-P6** — Deployed polish to production (`e9b6d55`)
 - [x] **Daily lite brief on Home** — Single-agent morning mode ([P6 backlog](#p6-backlog-not-started))
-- [ ] **Morning brief surfacing** — Brief → Inbox row or chat card, not Studio-only
+- [x] **Morning brief surfacing** — Brief → Inbox row or chat card, not Studio-only
 - [ ] **Suggestion dismiss / snooze** — Hygiene for proactive Inbox items
 - [ ] **Audit trail viewer** — Browse queue approve/reject/save history in UI
 - [ ] **Non-email Inbox cards** — Calendar and KB queue items with polished approval UX
@@ -140,4 +140,4 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - 2026-06-20 — P5 batch (visual system, quick onboarding, audit trail, deploy docs) — `EntityTypeIcon`, `QuickStartOnboarding`, `queue-audit`, `docs/DEPLOYMENT.md`
 - 2026-06-20 — P6 performance (Work feed, fast chat, caches, CEO tier) — `useWorkFeed`, `fast-chat`, `4348afb`
 - 2026-06-21 — P7.0 deploy — pushed `e9b6d55` to main; prod smoke pass (Home, Inbox API, /docs/plan)
-- 2026-06-21 — P7.1 daily lite brief — `daily-lite-briefer` agent; cron + `mode: lite` on `/api/run`; Studio keeps full path
+- 2026-06-21 — P7.1 morning brief on Home — Inbox row + chat card; `latestBriefToTask`, `/api/tasks`
