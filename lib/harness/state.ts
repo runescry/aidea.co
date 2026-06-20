@@ -32,11 +32,14 @@ export async function findEntityState(entityId: string): Promise<EntityState | u
 export async function setStateKey(
   state: EntityState,
   key: string,
-  value: unknown
+  value: unknown,
+  options?: { persist?: boolean },
 ): Promise<void> {
   state.data[key] = value;
   state.updatedAt = new Date().toISOString();
-  await persistEntityState(state);
+  if (options?.persist !== false) {
+    await persistEntityState(state);
+  }
 }
 
 export function getStateKeys(

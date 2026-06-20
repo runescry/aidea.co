@@ -283,7 +283,7 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Gmail search query (e.g. "is:unread", "from:boss@company.com")' },
-        maxResults: { type: 'number', description: 'Max emails to return per account (default: 10)' },
+        maxResults: { type: 'number', description: 'Max emails to return per account (default: 5)' },
         connectionId: { type: 'string', description: 'Optional — one connected Gmail account; omit for all' },
       },
       required: [],
@@ -495,7 +495,9 @@ export async function executeHarnessTool(
 
     case 'write_state': {
       const { key, value } = input as { key: string; value: unknown };
-      await setStateKey(ctx.state, key, value);
+      await setStateKey(ctx.state, key, value, {
+        persist: !ctx.config.deferStatePersist,
+      });
       ctx.send({
         type: 'state_updated',
         sessionId: ctx.sessionId,
@@ -724,11 +726,23 @@ export async function executeHarnessTool(
     // ── Gmail ─────────────────────────────────────────────────────────────────
 
     case 'gmail_read': {
-      const { query = 'is:unread', maxResults = 10, connectionId } = input as {
+      const { query = 'is:unread', maxResults = 5, connectionId } = input as {
         query?: string; maxResults?: number; connectionId?: string;
       };
       try {
-        return await readGmailMessages({ query, maxResults, connectionId });
+        const result = await readGmailMessages({ query, maxResults, connectionId });
+        return {
+          ...result,
+          emails: result.emails.map(e => ({
+            id: e.id,
+            from: e.from,
+            subject: e.subject,
+            date: e.date,
+            snippet: e.snippet.slice(0, 180),
+            isUnread: e.isUnread,
+            account: e.account,
+          })),
+        };
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) };
       }

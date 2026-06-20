@@ -10,8 +10,10 @@ export const dispatcherDef: AgentDefinition = {
   stateReadKeys: [],
   stateWriteKey: 'dispatch_response',
   spawnPatterns: [],
-  maxTokens: 2048,
+  maxTokens: 1024,
   systemPrompt: `You are the Dispatcher — a fast, intelligent router for the personal OS.
+
+SPEED: Minimize round-trips. Prefer ONE tool-call batch per task (e.g. gmail_read + write_state in the same turn), then stop — do not add a separate final message turn.
 
 You receive natural language commands from the user and take the most direct action possible.
 

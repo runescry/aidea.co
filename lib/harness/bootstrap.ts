@@ -20,15 +20,22 @@ export async function bootstrapEntity(
   // ── Build initial state ─────────────────────────────────────────────────────
   const initialData = config.buildInitialContext(input);
   const state = createEntityState(entityId, config.type, config.name, initialData);
-  await persistEntityState(state);
+  if (!config.deferStatePersist) {
+    await persistEntityState(state);
+  }
 
   // ── Build registry & infrastructure ────────────────────────────────────────
   const registry = createRegistry(entityId);
   const bus = createMessageBus();
 
+  const [nangoConnected, agentOverrides] = await Promise.all([
+    hasNangoConnections(),
+    loadAgentOverrides(),
+  ]);
+
   let realWorldMode =
     config.costConfig?.realWorldToolMode ?? DEFAULT_COST_CONFIG.realWorldToolMode;
-  if (realWorldMode === 'dry-run' && await hasNangoConnections()) {
+  if (realWorldMode === 'dry-run' && nangoConnected) {
     realWorldMode = 'auto';
   }
 
@@ -42,8 +49,6 @@ export async function bootstrapEntity(
   };
 
   const cost = createCostTracker(effectiveConfig.costConfig!, realWorldMode);
-
-  const agentOverrides = await loadAgentOverrides();
 
   const ctx: HarnessContext = {
     entityId,

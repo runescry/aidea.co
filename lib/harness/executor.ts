@@ -46,6 +46,48 @@ function hashInput(input: ToolInput): string {
   return JSON.stringify(input ?? {});
 }
 
+function completeAgent(
+  agent: HarnessAgent,
+  ctx: HarnessContext,
+  resultText: string,
+): void {
+  setAgentStatus(ctx.registry, agent.id, 'complete');
+  ctx.send({
+    type: 'agent_complete',
+    sessionId: ctx.sessionId,
+    entityId: ctx.entityId,
+    agentId: agent.id,
+    agentRole: agent.role,
+    data: {
+      tier: agent.tier,
+      stateWriteKey: agent.stateWriteKey,
+      tokensUsed: ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0,
+      summary: buildAgentSummary(agent, ctx, resultText).slice(0, 8000),
+      structured: agent.stateWriteKey ? ctx.state.data[agent.stateWriteKey] : undefined,
+    },
+    timestamp: new Date().toISOString(),
+  });
+
+  ctx.send({
+    type: 'cost_update',
+    sessionId: ctx.sessionId,
+    entityId: ctx.entityId,
+    data: { cost: ctx.cost.snapshot() },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+function shouldCompleteAfterTools(
+  agent: HarnessAgent,
+  ctx: HarnessContext,
+  toolNames: string[],
+): boolean {
+  if (!agent.stateWriteKey || !toolNames.includes('write_state')) return false;
+  const response = ctx.state.data[agent.stateWriteKey];
+  if (!response || typeof response !== 'object') return false;
+  return true;
+}
+
 export async function runAgentLoop(
   agent: HarnessAgent,
   ctx: HarnessContext
@@ -216,6 +258,11 @@ export async function runAgentLoop(
           messages.push({ role: 'user', content: `INCOMING MESSAGES:\n${incomingText}` });
         }
 
+        if (shouldCompleteAfterTools(agent, ctx, toolResultParts.map(p => p.toolName))) {
+          completeAgent(agent, ctx, '');
+          return;
+        }
+
         continue;
       }
 
@@ -223,31 +270,7 @@ export async function runAgentLoop(
         throw new Error(`Agent ${agent.role} hit max_tokens limit`);
       }
 
-      setAgentStatus(ctx.registry, agent.id, 'complete');
-      ctx.send({
-        type: 'agent_complete',
-        sessionId: ctx.sessionId,
-        entityId: ctx.entityId,
-        agentId: agent.id,
-        agentRole: agent.role,
-        data: {
-          tier: agent.tier,
-          stateWriteKey: agent.stateWriteKey,
-          tokensUsed: ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0,
-          summary: buildAgentSummary(agent, ctx, result.text ?? '').slice(0, 8000),
-          structured: agent.stateWriteKey ? ctx.state.data[agent.stateWriteKey] : undefined,
-        },
-        timestamp: new Date().toISOString(),
-      });
-
-      ctx.send({
-        type: 'cost_update',
-        sessionId: ctx.sessionId,
-        entityId: ctx.entityId,
-        data: { cost: ctx.cost.snapshot() },
-        timestamp: new Date().toISOString(),
-      });
-
+      completeAgent(agent, ctx, result.text ?? '');
       return;
     }
 

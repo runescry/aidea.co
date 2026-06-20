@@ -155,8 +155,40 @@ async function enrichConnections(conns: ListedConnection[]): Promise<NangoConnec
 
 export async function hasNangoConnections(): Promise<boolean> {
   if (!nangoConfigured()) return false;
-  const list = await listNangoConnections();
-  return list.length > 0;
+  const nango = getNango();
+  const res = await nango.listConnections({ tags: { end_user_id: getEndUserId() } });
+  return (res.connections ?? []).length > 0;
+}
+
+function mapConnectionLite(conn: ListedConnection): NangoConnectionPublic {
+  const email =
+    conn.end_user?.email
+    ?? tagEmail(conn.tags)
+    ?? (typeof conn.metadata?.email === 'string' ? conn.metadata.email : undefined);
+  const displayName =
+    (typeof conn.metadata?.displayName === 'string' ? conn.metadata.displayName : undefined)
+    ?? conn.end_user?.display_name
+    ?? undefined;
+
+  return {
+    connectionId: conn.connection_id,
+    integrationId: conn.provider_config_key,
+    email: email ?? undefined,
+    displayName: displayName ?? undefined,
+    createdAt: conn.created,
+  };
+}
+
+/** Fast path for tool calls — no Google profile enrichment. */
+export async function listNangoConnectionsLite(
+  integrationId?: string,
+): Promise<NangoConnectionPublic[]> {
+  const nango = getNango();
+  const res = await nango.listConnections({ tags: { end_user_id: getEndUserId() } });
+  const connections = (res.connections ?? []) as ListedConnection[];
+  return connections
+    .filter(c => !integrationId || c.provider_config_key === integrationId)
+    .map(mapConnectionLite);
 }
 
 export async function listNangoConnections(integrationId?: string): Promise<NangoConnectionPublic[]> {
@@ -177,12 +209,20 @@ export async function listGmailConnections(): Promise<NangoConnectionPublic[]> {
   return listNangoConnections(gmailIntegrationId());
 }
 
+export async function listGmailConnectionsLite(): Promise<NangoConnectionPublic[]> {
+  return listNangoConnectionsLite(gmailIntegrationId());
+}
+
 export async function listCalendarConnections(): Promise<NangoConnectionPublic[]> {
   return listNangoConnections(calendarIntegrationId());
 }
 
+export async function listCalendarConnectionsLite(): Promise<NangoConnectionPublic[]> {
+  return listNangoConnectionsLite(calendarIntegrationId());
+}
+
 export async function resolveGmailConnections(connectionId?: string): Promise<NangoConnectionPublic[]> {
-  const all = await listGmailConnections();
+  const all = await listGmailConnectionsLite();
   if (all.length === 0) {
     throw new Error('Gmail not connected — use Settings → Connect Google Mail');
   }
@@ -195,7 +235,7 @@ export async function resolveGmailConnections(connectionId?: string): Promise<Na
 }
 
 export async function resolveCalendarConnections(connectionId?: string): Promise<NangoConnectionPublic[]> {
-  const all = await listCalendarConnections();
+  const all = await listCalendarConnectionsLite();
   if (all.length === 0) {
     throw new Error('Google Calendar not connected — use Settings → Connect Google Calendar');
   }

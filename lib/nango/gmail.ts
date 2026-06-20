@@ -27,38 +27,39 @@ async function readGmailForConnection(
   });
 
   const messages = listRes.data.messages ?? [];
-  const emails: GmailMessage[] = [];
+  if (messages.length === 0) return [];
 
-  for (const m of messages) {
-    const msgRes = await nango.get<{
-      id: string;
-      snippet: string;
-      labelIds?: string[];
-      payload?: { headers?: Array<{ name: string; value: string }> };
-    }>({
-      providerConfigKey: integrationId,
-      connectionId: conn.connectionId,
-      endpoint: `/gmail/v1/users/me/messages/${m.id}`,
-      params: { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] },
-    });
+  const details = await Promise.all(
+    messages.map(m =>
+      nango.get<{
+        id: string;
+        snippet: string;
+        labelIds?: string[];
+        payload?: { headers?: Array<{ name: string; value: string }> };
+      }>({
+        providerConfigKey: integrationId,
+        connectionId: conn.connectionId,
+        endpoint: `/gmail/v1/users/me/messages/${m.id}`,
+        params: { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] },
+      }).then(msgRes => {
+        const msg = msgRes.data;
+        const headers = msg.payload?.headers ?? [];
+        const get = (name: string) => headers.find(h => h.name === name)?.value ?? '';
+        return {
+          id: msg.id,
+          from: get('From'),
+          subject: get('Subject'),
+          date: get('Date'),
+          snippet: msg.snippet,
+          isUnread: (msg.labelIds ?? []).includes('UNREAD'),
+          connectionId: conn.connectionId,
+          account: conn.email,
+        } satisfies GmailMessage;
+      }),
+    ),
+  );
 
-    const msg = msgRes.data;
-    const headers = msg.payload?.headers ?? [];
-    const get = (name: string) => headers.find(h => h.name === name)?.value ?? '';
-
-    emails.push({
-      id: msg.id,
-      from: get('From'),
-      subject: get('Subject'),
-      date: get('Date'),
-      snippet: msg.snippet,
-      isUnread: (msg.labelIds ?? []).includes('UNREAD'),
-      connectionId: conn.connectionId,
-      account: conn.email,
-    });
-  }
-
-  return emails;
+  return details;
 }
 
 export async function readGmailMessages(options: {

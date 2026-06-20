@@ -3,6 +3,9 @@ import type { AgentOverride, AgentOverridesMap } from '@/types/agent-overrides';
 import { AGENT_LIBRARY } from '@/lib/agents/library';
 import { readProfile } from '@/lib/storage';
 
+let _overridesCache: { at: number; data: AgentOverridesMap } | null = null;
+const OVERRIDE_CACHE_MS = 30_000;
+
 function toolsEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   const sa = [...a].sort();
@@ -78,8 +81,14 @@ export function mergeOverride(
 }
 
 export async function loadAgentOverrides(): Promise<AgentOverridesMap> {
+  const now = Date.now();
+  if (_overridesCache && now - _overridesCache.at < OVERRIDE_CACHE_MS) {
+    return _overridesCache.data;
+  }
   const profile = await readProfile();
-  return (profile.agentOverrides as AgentOverridesMap | undefined) ?? {};
+  const data = (profile.agentOverrides as AgentOverridesMap | undefined) ?? {};
+  _overridesCache = { at: now, data };
+  return data;
 }
 
 export function resolveLibraryAgent(id: string, overrides: AgentOverridesMap): AgentDefinition {

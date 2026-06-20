@@ -87,6 +87,7 @@ export const dispatchEntityConfig: EntityConfig = {
     maxTierDepth: 2,
     realWorldToolMode: 'dry-run',
   },
+  deferStatePersist: true,
   buildInitialContext: (input) => ({
     command: input.command ?? '',
     currentDate: new Date().toISOString().split('T')[0],

@@ -227,6 +227,8 @@ export interface EntityConfig {
   autonomy: AutonomyLevel;
   consensusThreshold: number;      // 0-1
   costConfig?: Partial<CostConfig>;
+  /** Skip Postgres writes on each write_state; persist once at entity end. */
+  deferStatePersist?: boolean;
   buildInitialContext: (input: EntityInput) => Record<string, unknown>;
   buildInitialTask: (input: EntityInput) => Pick<AgentTask, 'description' | 'contextKeys'>;
 }
