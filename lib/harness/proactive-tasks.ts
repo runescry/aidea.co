@@ -2,6 +2,70 @@ import type { KnowledgeBase, JobApplication, PersonalBuild, CurrentProjects } fr
 import type { EntityState } from './types';
 import type { TaskItem } from './tasks';
 
+export interface ProactiveHygiene {
+  dismissed: string[];
+  snoozed: Record<string, string>;
+}
+
+export function readProactiveHygiene(profile: Record<string, unknown>): ProactiveHygiene {
+  const dismissed = Array.isArray(profile.proactiveDismissed)
+    ? profile.proactiveDismissed.filter((id): id is string => typeof id === 'string')
+    : [];
+  const snoozedRaw = profile.proactiveSnoozed;
+  const snoozed: Record<string, string> = {};
+  if (snoozedRaw && typeof snoozedRaw === 'object' && !Array.isArray(snoozedRaw)) {
+    for (const [key, value] of Object.entries(snoozedRaw as Record<string, unknown>)) {
+      if (typeof value === 'string') snoozed[key] = value;
+    }
+  }
+  return { dismissed, snoozed };
+}
+
+export function applyProactiveHygiene(
+  tasks: TaskItem[],
+  hygiene: ProactiveHygiene,
+  now = new Date(),
+): TaskItem[] {
+  const dismissed = new Set(hygiene.dismissed);
+  return tasks.filter(task => {
+    if (task.source !== 'proactive') return true;
+    if (dismissed.has(task.id)) return false;
+    const until = hygiene.snoozed[task.id];
+    if (!until) return true;
+    const untilDate = new Date(until);
+    return Number.isNaN(untilDate.getTime()) || untilDate <= now;
+  });
+}
+
+export function dismissProactiveTask(hygiene: ProactiveHygiene, taskId: string): ProactiveHygiene {
+  if (hygiene.dismissed.includes(taskId)) return hygiene;
+  return { ...hygiene, dismissed: [...hygiene.dismissed, taskId] };
+}
+
+export function snoozeProactiveTask(
+  hygiene: ProactiveHygiene,
+  taskId: string,
+  until: Date,
+): ProactiveHygiene {
+  return {
+    ...hygiene,
+    snoozed: { ...hygiene.snoozed, [taskId]: until.toISOString() },
+  };
+}
+
+export function hygieneToProfileUpdates(hygiene: ProactiveHygiene): Record<string, unknown> {
+  return {
+    proactiveDismissed: hygiene.dismissed,
+    proactiveSnoozed: hygiene.snoozed,
+  };
+}
+
+export function addSnoozeDays(from: Date, days: number): Date {
+  const until = new Date(from);
+  until.setDate(until.getDate() + days);
+  return until;
+}
+
 interface RelationshipMonitorOutput {
   checkedAt?: string;
   coolingRelationships?: Array<{

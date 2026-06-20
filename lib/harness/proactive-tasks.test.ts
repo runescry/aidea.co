@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { buildProactiveTasks } from './proactive-tasks';
+import {
+  buildProactiveTasks,
+  readProactiveHygiene,
+  applyProactiveHygiene,
+  dismissProactiveTask,
+  snoozeProactiveTask,
+  addSnoozeDays,
+} from './proactive-tasks';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import type { EntityState } from './types';
 
@@ -50,5 +57,44 @@ describe('buildProactiveTasks', () => {
       },
     };
     expect(buildProactiveTasks({ kb, entities: [] })).toHaveLength(0);
+  });
+});
+
+describe('proactive hygiene', () => {
+  const kb: KnowledgeBase = {
+    work: {
+      currentProjects: {
+        jobApplications: [
+          { company: 'Acme', nextAction: 'Follow up', status: 'In progress' },
+        ],
+      },
+    },
+  };
+
+  it('hides dismissed proactive tasks', () => {
+    const tasks = buildProactiveTasks({ kb, entities: [] });
+    const hygiene = dismissProactiveTask(readProactiveHygiene({}), 'proactive-job-acme');
+    expect(applyProactiveHygiene(tasks, hygiene)).toHaveLength(0);
+  });
+
+  it('hides snoozed tasks until the snooze date', () => {
+    const tasks = buildProactiveTasks({ kb, entities: [] });
+    const now = new Date('2026-06-01T12:00:00.000Z');
+    const hygiene = snoozeProactiveTask(
+      readProactiveHygiene({}),
+      'proactive-job-acme',
+      addSnoozeDays(now, 7),
+    );
+    expect(applyProactiveHygiene(tasks, hygiene, now)).toHaveLength(0);
+    expect(applyProactiveHygiene(tasks, hygiene, addSnoozeDays(now, 8))).toHaveLength(1);
+  });
+
+  it('reads hygiene arrays from profile', () => {
+    const hygiene = readProactiveHygiene({
+      proactiveDismissed: ['proactive-job-acme'],
+      proactiveSnoozed: { 'proactive-rel-sarah': '2026-06-08T00:00:00.000Z' },
+    });
+    expect(hygiene.dismissed).toEqual(['proactive-job-acme']);
+    expect(hygiene.snoozed['proactive-rel-sarah']).toBe('2026-06-08T00:00:00.000Z');
   });
 });

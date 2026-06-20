@@ -10,6 +10,7 @@ import { queueActionAutonomyNote } from '@/lib/harness/proactive-tasks';
 import { describeKbUpdate } from '@/lib/harness/kb-update-display';
 import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
 import { patchQueueAction, patchQueueActions } from '@/lib/client/queue';
+import { patchSuggestion } from '@/lib/client/suggestions';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 import { Label, TextArea, TextField } from '@/components/harness/forms';
 import MorningBriefRenderer from '@/components/harness/MorningBriefRenderer';
@@ -197,6 +198,7 @@ function TaskDetail({
   onIntent,
   onOpenStudio,
   onDiscussInChat,
+  onSuggestionAction,
   autonomyLevel,
   actionPending,
 }: {
@@ -204,6 +206,7 @@ function TaskDetail({
   onIntent: (id: string, intent: QueueIntent, edits?: QueueEditOverrides) => void;
   onOpenStudio?: () => void;
   onDiscussInChat?: (prompt: string) => void;
+  onSuggestionAction?: (id: string, action: 'dismiss' | 'snooze', days?: number) => void;
   autonomyLevel?: UserAutonomyPreference;
   actionPending?: boolean;
 }) {
@@ -260,6 +263,35 @@ function TaskDetail({
             A reminder from your profile or relationship monitor — not waiting for approval.
             Use chat to act on it or update your Context.
           </p>
+        )}
+
+        {task.source === 'proactive' && onSuggestionAction && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={actionPending}
+              onClick={() => onSuggestionAction(task.id, 'dismiss')}
+              className="text-sm font-medium text-foreground-muted rounded-lg border border-border px-3 py-2 hover:bg-surface-subtle disabled:opacity-50"
+            >
+              Dismiss
+            </button>
+            <button
+              type="button"
+              disabled={actionPending}
+              onClick={() => onSuggestionAction(task.id, 'snooze', 1)}
+              className="text-sm font-medium text-foreground-muted rounded-lg border border-border px-3 py-2 hover:bg-surface-subtle disabled:opacity-50"
+            >
+              Snooze 1 day
+            </button>
+            <button
+              type="button"
+              disabled={actionPending}
+              onClick={() => onSuggestionAction(task.id, 'snooze', 7)}
+              className="text-sm font-medium text-foreground-muted rounded-lg border border-border px-3 py-2 hover:bg-surface-subtle disabled:opacity-50"
+            >
+              Snooze 1 week
+            </button>
+          </div>
         )}
 
         {task.source === 'session' && (
@@ -543,6 +575,28 @@ export default function TaskFeed({
     }
   };
 
+  const handleSuggestionAction = async (
+    id: string,
+    action: 'dismiss' | 'snooze',
+    days?: number,
+  ) => {
+    setActionPending(true);
+    const result = await patchSuggestion(id, action, days);
+    setActionPending(false);
+    if (result.ok) {
+      setActionFeedback({
+        type: 'ok',
+        message: action === 'dismiss' ? 'Dismissed' : `Snoozed${days ? ` for ${days} day${days === 1 ? '' : 's'}` : ''}`,
+      });
+      setSelectedId(null);
+      refresh();
+      onTasksChanged?.();
+      setTimeout(() => setActionFeedback(null), 3500);
+    } else {
+      setActionFeedback({ type: 'err', message: result.error });
+    }
+  };
+
   const handleBulkIntent = async (intent: QueueIntent) => {
     const tasks = intent === 'save'
       ? selectedBulkTasks.filter(task => task.action && isEmailQueueAction(task.action))
@@ -673,6 +727,7 @@ export default function TaskFeed({
                 onIntent={handleIntent}
                 onOpenStudio={onOpenStudio}
                 onDiscussInChat={onDiscussInChat}
+                onSuggestionAction={handleSuggestionAction}
                 autonomyLevel={autonomy?.level}
                 actionPending={actionPending}
               />

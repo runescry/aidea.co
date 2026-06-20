@@ -3,7 +3,7 @@ import type { EntityState } from './types';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { ACTION_TYPE_LABELS } from './action-labels';
 import { sanitizeQueueSummary } from './kb-update-display';
-import { buildProactiveTasks, type UserAutonomyPreference } from './proactive-tasks';
+import { buildProactiveTasks, type UserAutonomyPreference, type ProactiveHygiene, applyProactiveHygiene } from './proactive-tasks';
 
 export type TaskStatus = 'needs_you' | 'suggestion' | 'running' | 'done' | 'failed';
 
@@ -252,6 +252,7 @@ export function buildUnifiedTaskFeed(input: {
   entities: EntityState[];
   kb?: KnowledgeBase;
   brief?: Record<string, unknown> | null;
+  proactiveHygiene?: ProactiveHygiene;
   now?: number;
 }): {
   tasks: TaskItem[];
@@ -271,7 +272,10 @@ export function buildUnifiedTaskFeed(input: {
     })
     .map(entity => entityStateToTask(normalizeEntityForFeed(entity, nowMs)));
 
-  const proactiveTasks = input.kb ? buildProactiveTasks({ kb: input.kb, entities: input.entities }) : [];
+  const proactiveTasksRaw = input.kb ? buildProactiveTasks({ kb: input.kb, entities: input.entities }) : [];
+  const proactiveTasks = input.proactiveHygiene
+    ? applyProactiveHygiene(proactiveTasksRaw, input.proactiveHygiene, nowDate)
+    : proactiveTasksRaw;
   const existingIds = new Set([...queueTasks, ...entityTasks].map(t => t.id));
   const dedupedProactive = proactiveTasks.filter(t => !existingIds.has(t.id));
 
