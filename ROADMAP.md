@@ -10,11 +10,11 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
-**Phase:** P7.1 suggestion dismiss/snooze shipped  
-**Next up:** P7.1 audit trail viewer  
+**Phase:** P7.1 audit trail viewer shipped — P7.1 complete  
+**Next up:** P7.2 non-email Inbox cards  
 **Live:** [aidea-co.vercel.app](https://aidea-co.vercel.app) — local dev at `http://localhost:3000`
 
-**Recent:** P7.1 suggestion dismiss/snooze — persisted on profile; Inbox buttons; PATCH `/api/tasks/suggestions`
+**Recent:** P7.1 audit trail viewer — Settings queue activity list from GET `/api/queue/audit`
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
 **Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
@@ -111,7 +111,7 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - [x] **Daily lite brief on Home** — Single-agent morning mode ([P6 backlog](#p6-backlog-not-started))
 - [x] **Morning brief surfacing** — Brief → Inbox row or chat card, not Studio-only
 - [x] **Suggestion dismiss / snooze** — Hygiene for proactive Inbox items
-- [ ] **Audit trail viewer** — Browse queue approve/reject/save history in UI
+- [x] **Audit trail viewer** — Browse queue approve/reject/save history in UI
 - [ ] **Non-email Inbox cards** — Calendar and KB queue items with polished approval UX
 - [ ] **Cron outcomes → Inbox** — Health-briefer and relationship-monitor surface like inbox-triage
 - [ ] **request_human_input on Home** — Human-in-the-loop outside Studio

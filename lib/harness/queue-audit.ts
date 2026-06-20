@@ -13,6 +13,8 @@ export interface QueueAuditEntry {
 
 const AUDIT_STATUSES: ActionStatus[] = ['approved', 'rejected', 'executed', 'failed', 'saved'];
 
+export { auditStatusLabel } from './action-labels';
+
 export function shouldAuditStatus(status: ActionStatus): boolean {
   return AUDIT_STATUSES.includes(status);
 }
