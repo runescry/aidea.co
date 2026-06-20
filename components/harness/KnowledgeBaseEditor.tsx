@@ -13,6 +13,8 @@ import {
   PreferencesSection,
   type ProfileUpdater,
 } from './profile/ProfileSections';
+import ContactLensPanel from './ContactLensPanel';
+import HealthLensPanel from './HealthLensPanel';
 
 interface Props {
   onRestartOnboarding?: () => void;
@@ -75,7 +77,8 @@ export default function KnowledgeBaseEditor({ onRestartOnboarding, refreshKey = 
           </button>
         </div>
       </div>
-
+      <ContactLensPanel refreshKey={refreshKey} />
+      <HealthLensPanel refreshKey={refreshKey} />
       <IdentitySection data={data} u={u} />
       <WorkSection data={data} u={u} />
       <RelationshipsSection data={data} u={u} />

@@ -4,8 +4,14 @@ import { buildUnifiedTaskFeed, isStaleRunningEntity } from '@/lib/harness/tasks'
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB } from '@/lib/harness/knowledge-base';
 import { countPendingQueuedActions, loadEntityStates, readLatestBrief, readProfile, saveEntityState } from '@/lib/storage';
-import { readProactiveHygiene } from '@/lib/harness/proactive-tasks';
-import { autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
+import { readProactiveHygiene, autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
+import { listQueueAudit } from '@/lib/harness/queue-audit';
+import {
+  readDomainAutonomy,
+  domainAutonomyLabel,
+  domainAutonomyHint,
+  type AutonomyDomain,
+} from '@/lib/harness/domain-autonomy';
 import { getDevTasksCache, invalidateDevTasksCache, setDevTasksCache } from '@/lib/harness/tasks-cache';
 
 export const runtime = 'nodejs';
@@ -37,12 +43,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(cached);
   }
 
-  const [actions, rawEntities, kb, brief, profile] = await Promise.all([
+  const [actions, rawEntities, kb, brief, profile, audit] = await Promise.all([
     listActionsForFeed(),
     loadEntityStates(),
     readAllKB(),
     readLatestBrief(),
     readProfile(),
+    listQueueAudit(200),
   ]);
 
   const stale = rawEntities.filter(isStaleRunningEntity);
@@ -58,21 +65,37 @@ export async function GET(req: NextRequest) {
       ? { ...entity, status: 'error' as const, updatedAt: new Date().toISOString() }
       : entity,
   );
-  const { tasks, needsYou, suggestions, autonomy } = buildUnifiedTaskFeed({
+  const kbTyped = kb as KnowledgeBase;
+  const { tasks, needsYou, suggestions, timeline, autonomy } = buildUnifiedTaskFeed({
     actions,
     entities,
-    kb: kb as KnowledgeBase,
+    kb: kbTyped,
     brief,
+    audit,
     proactiveHygiene: readProactiveHygiene(profile),
   });
+
+  const domainLevels = readDomainAutonomy(kbTyped);
+  const defaultLevel = autonomy ?? domainLevels.email;
 
   const payload = {
     tasks,
     needsYou,
     suggestions,
-    autonomy: autonomy
-      ? { level: autonomy, label: autonomyLabel(autonomy), hint: autonomyHint(autonomy) }
-      : null,
+    timeline,
+    autonomy: {
+      level: defaultLevel,
+      label: autonomyLabel(defaultLevel),
+      hint: autonomyHint(defaultLevel),
+      domains: (Object.entries(domainLevels) as Array<[AutonomyDomain, typeof defaultLevel]>).map(
+        ([domain, level]) => ({
+          domain,
+          level,
+          label: domainAutonomyLabel(level),
+          hint: domainAutonomyHint(domain, level),
+        }),
+      ),
+    },
   };
 
   setDevTasksCache(payload);

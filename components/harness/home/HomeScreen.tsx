@@ -9,6 +9,7 @@ import MorningBriefCard from './MorningBriefCard';
 import { IconBriefcase, IconMenu } from '../sidebar/icons';
 import { type HomeRunnableEntity } from '@/lib/entities/run-meta';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
+import type { PendingHumanInput } from '@/lib/client/human-input';
 
 interface SessionInfo {
   status: 'idle' | 'starting' | 'running' | 'paused' | 'complete' | 'error';
@@ -25,6 +26,7 @@ interface Props {
   onStartRun?: (entityType: HomeRunnableEntity, input: Record<string, unknown>) => void;
   runInProgress?: boolean;
   onTaskRefresh?: () => void;
+  humanInputPending?: PendingHumanInput | null;
 }
 
 export default function HomeScreen({
@@ -35,6 +37,7 @@ export default function HomeScreen({
   onStartRun,
   runInProgress,
   onTaskRefresh,
+  humanInputPending,
 }: Props) {
   const [chatPrefill, setChatPrefill] = useState<string | null>(null);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -54,6 +57,7 @@ export default function HomeScreen({
     onOpenStudio,
     onDiscussInChat: handleDiscussInChat,
     onTasksChanged: onTaskRefresh,
+    humanInputPending,
   };
 
   return (

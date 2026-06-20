@@ -1,4 +1,5 @@
 import { readAllKB, writeManyKB, writeKB } from './knowledge-base';
+import { readDomainAutonomy } from './domain-autonomy';
 import type { CurrentProjects, JobApplication, KnowledgeBase } from '@/types/knowledge-base';
 import {
   formatKbPatchSummary,
@@ -100,7 +101,7 @@ export async function applyKbPatch(input: KbPatchInput | Record<string, unknown>
 
 export async function getKbAutonomy(): Promise<'supervised' | 'semi-autonomous' | 'autonomous'> {
   const kb = await readAllKB() as KnowledgeBase;
-  return kb.preferences?.defaultAutonomyLevel ?? 'semi-autonomous';
+  return readDomainAutonomy(kb).kb ?? 'semi-autonomous';
 }
 
 export function shouldAutoApplyKb(

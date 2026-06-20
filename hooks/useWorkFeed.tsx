@@ -28,6 +28,7 @@ interface WorkFeedPayload {
   tasks: TaskItem[];
   needsYou: number;
   suggestions: number;
+  timeline: TaskItem[];
   autonomy: WorkFeedAutonomy | null;
 }
 
@@ -35,6 +36,7 @@ interface WorkFeedContextValue {
   tasks: TaskItem[];
   needsYou: number;
   suggestions: number;
+  timeline: TaskItem[];
   autonomy: WorkFeedAutonomy | null;
   loading: boolean;
   refresh: () => Promise<void>;
@@ -81,7 +83,7 @@ export function WorkFeedProvider({
 
       if (!res.ok) {
         if (!full) return;
-        setData({ tasks: [], needsYou: 0, suggestions: 0, autonomy: null });
+        setData({ tasks: [], needsYou: 0, suggestions: 0, timeline: [], autonomy: null });
         return;
       }
       const body = await res.json() as Partial<WorkFeedPayload> & { needsYou?: number; suggestions?: number };
@@ -92,6 +94,7 @@ export function WorkFeedProvider({
           tasks: body.tasks ?? [],
           needsYou: body.needsYou ?? 0,
           suggestions: body.suggestions ?? 0,
+          timeline: body.timeline ?? [],
           autonomy: body.autonomy ?? null,
         });
       } else if (typeof body.needsYou === 'number') {
@@ -99,6 +102,7 @@ export function WorkFeedProvider({
           tasks: prev?.tasks ?? [],
           needsYou: body.needsYou!,
           suggestions: body.suggestions ?? prev?.suggestions ?? 0,
+          timeline: prev?.timeline ?? [],
           autonomy: prev?.autonomy ?? null,
         }));
       }
@@ -148,6 +152,7 @@ export function WorkFeedProvider({
     tasks: data?.tasks ?? [],
     needsYou: data?.needsYou ?? 0,
     suggestions: data?.suggestions ?? 0,
+    timeline: data?.timeline ?? [],
     autonomy: data?.autonomy ?? null,
     loading: loading && !data,
     refresh,

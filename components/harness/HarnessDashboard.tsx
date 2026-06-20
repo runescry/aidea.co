@@ -202,6 +202,7 @@ function DashboardChrome({
             }}
             runInProgress={agentsRunning}
             onTaskRefresh={bumpWorkFeed}
+            humanInputPending={humanInputPending}
           />
         )}
 

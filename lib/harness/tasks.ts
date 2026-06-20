@@ -4,12 +4,15 @@ import type { KnowledgeBase } from '@/types/knowledge-base';
 import { ACTION_TYPE_LABELS } from './action-labels';
 import { sanitizeQueueSummary } from './kb-update-display';
 import { buildProactiveTasks, type UserAutonomyPreference, type ProactiveHygiene, applyProactiveHygiene } from './proactive-tasks';
+import { buildYesterdayTimeline, timelineToTaskItems, type TimelineEntry } from './timeline';
+import { detectScheduleConflicts, conflictsToTaskItems, type ScheduleConflict } from './conflicts';
+import type { QueueAuditEntry } from './queue-audit';
 
 export type TaskStatus = 'needs_you' | 'suggestion' | 'running' | 'done' | 'failed';
 
 export interface TaskItem {
   id: string;
-  source: 'queue' | 'session' | 'proactive' | 'brief' | 'health';
+  source: 'queue' | 'session' | 'proactive' | 'brief' | 'health' | 'timeline';
   status: TaskStatus;
   title: string;
   subtitle?: string;
@@ -22,6 +25,8 @@ export interface TaskItem {
   preview?: string;
   brief?: Record<string, unknown>;
   healthBrief?: Record<string, unknown>;
+  timeline?: TimelineEntry;
+  conflict?: ScheduleConflict;
   relationship?: {
     name: string;
     email?: string;
@@ -314,12 +319,14 @@ export function buildUnifiedTaskFeed(input: {
   entities: EntityState[];
   kb?: KnowledgeBase;
   brief?: Record<string, unknown> | null;
+  audit?: QueueAuditEntry[];
   proactiveHygiene?: ProactiveHygiene;
   now?: number;
 }): {
   tasks: TaskItem[];
   needsYou: number;
   suggestions: number;
+  timeline: TaskItem[];
   autonomy?: UserAutonomyPreference;
 } {
   const nowMs = input.now ?? Date.now();
@@ -334,12 +341,29 @@ export function buildUnifiedTaskFeed(input: {
     })
     .map(entity => entityStateToTask(normalizeEntityForFeed(entity, nowMs)));
 
-  const proactiveTasksRaw = input.kb ? buildProactiveTasks({ kb: input.kb, entities: input.entities }) : [];
+  const conflictTasks = input.kb
+    ? conflictsToTaskItems(detectScheduleConflicts({
+        kb: input.kb,
+        brief: input.brief,
+        entities: input.entities,
+        now: nowDate,
+      }))
+    : [];
+  const proactiveTasksRaw = input.kb
+    ? [...buildProactiveTasks({ kb: input.kb, entities: input.entities }), ...conflictTasks]
+    : conflictTasks;
   const proactiveTasks = input.proactiveHygiene
     ? applyProactiveHygiene(proactiveTasksRaw, input.proactiveHygiene, nowDate)
     : proactiveTasksRaw;
   const existingIds = new Set([...queueTasks, ...entityTasks].map(t => t.id));
   const dedupedProactive = proactiveTasks.filter(t => !existingIds.has(t.id));
+
+  const timeline = timelineToTaskItems(buildYesterdayTimeline({
+    audit: input.audit,
+    entities: input.entities,
+    brief: input.brief,
+    now: nowDate,
+  }));
 
   const briefTask = latestBriefToTask(input.brief, nowDate);
   const healthTask = latestHealthBriefToTask(input.entities, nowDate);
@@ -354,6 +378,7 @@ export function buildUnifiedTaskFeed(input: {
     tasks,
     needsYou: countNeedsYou(tasks),
     suggestions: countSuggestions(tasks),
+    timeline,
     autonomy: input.kb?.preferences?.defaultAutonomyLevel,
   };
 }

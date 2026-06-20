@@ -16,8 +16,9 @@ import { useWorkFeed } from '@/hooks/useWorkFeed';
 import { Label, TextArea, TextField } from '@/components/harness/forms';
 import MorningBriefRenderer from '@/components/harness/MorningBriefRenderer';
 import HealthBriefRenderer from '@/components/harness/HealthBriefRenderer';
+import type { PendingHumanInput } from '@/lib/client/human-input';
 
-type Filter = 'all' | 'approval' | 'suggestions' | 'running' | 'done';
+type Filter = 'all' | 'approval' | 'suggestions' | 'running' | 'done' | 'yesterday';
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
   needs_you: 'Awaiting approval',
@@ -57,6 +58,7 @@ interface Props {
   onTasksChanged?: () => void;
   initialFilter?: Filter;
   onClose?: () => void;
+  humanInputPending?: PendingHumanInput | null;
 }
 
 function isBulkEligible(task: TaskItem): boolean {
@@ -321,6 +323,13 @@ function TaskDetail({
 
         {task.source === 'health' && task.healthBrief && (
           <HealthBriefRenderer data={task.healthBrief as Parameters<typeof HealthBriefRenderer>[0]['data']} />
+        )}
+
+        {task.source === 'proactive' && task.conflict && (
+          <div className="rounded-lg bg-warning/10 p-4 text-sm border border-warning/30 space-y-2">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-warning">Schedule conflict</p>
+            <p className="text-foreground leading-relaxed">{task.conflict.description}</p>
+          </div>
         )}
 
         {task.source === 'proactive' && task.relationship && (
@@ -667,6 +676,7 @@ export default function TaskFeed({
   onTasksChanged,
   initialFilter = 'all',
   onClose,
+  humanInputPending,
 }: Props) {
   const [filter, setFilter] = useState<Filter>(initialFilter);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -674,7 +684,7 @@ export default function TaskFeed({
   const [actionFeedback, setActionFeedback] = useState<{ type: 'ok' | 'err'; message: string } | null>(null);
   const [actionPending, setActionPending] = useState(false);
 
-  const { tasks, needsYou: approvalCount, suggestions: suggestionCount, autonomy, loading, refresh } = useWorkFeed();
+  const { tasks, needsYou: approvalCount, suggestions: suggestionCount, timeline, autonomy, loading, refresh } = useWorkFeed();
 
   const allTasks = useMemo(() => {
     if (!session || session.status === 'idle') return tasks;
@@ -701,12 +711,13 @@ export default function TaskFeed({
   );
 
   const filtered = useMemo(() => {
+    if (filter === 'yesterday') return timeline;
     if (filter === 'approval') return allTasks.filter(t => t.status === 'needs_you');
     if (filter === 'suggestions') return allTasks.filter(t => t.status === 'suggestion');
     if (filter === 'running') return allTasks.filter(t => t.status === 'running');
     if (filter === 'done') return allTasks.filter(t => t.status === 'done' || t.status === 'failed');
     return allTasks;
-  }, [allTasks, filter]);
+  }, [allTasks, filter, timeline]);
 
   const bulkEligible = useMemo(
     () => filtered.filter(isBulkEligible),
@@ -842,6 +853,7 @@ export default function TaskFeed({
     { id: 'all', label: 'All' },
     { id: 'approval', label: 'Awaiting approval', shortLabel: 'Approve', count: approvalCount },
     { id: 'suggestions', label: 'Suggestions', count: suggestionCount },
+    { id: 'yesterday', label: 'Yesterday', shortLabel: 'Timeline', count: timeline.length || undefined },
     { id: 'running', label: 'Running', count: runningCount },
     { id: 'done', label: 'Done' },
   ];
@@ -904,6 +916,12 @@ export default function TaskFeed({
       </div>
 
       <div className="flex-1 flex flex-col min-h-0">
+        {humanInputPending && (
+          <div className="shrink-0 px-4 py-3 text-[12px] border-b bg-warning/10 border-warning/20">
+            <p className="font-medium text-foreground">{humanInputPending.agentRole} needs your input</p>
+            <p className="text-foreground-muted mt-1 line-clamp-2">{humanInputPending.question}</p>
+          </div>
+        )}
         {actionFeedback && (
           <div
             className={`shrink-0 px-4 py-2 text-[12px] font-medium border-b ${
@@ -948,7 +966,9 @@ export default function TaskFeed({
                 ? 'Drafts and profile updates from your agents appear here for Approve or Reject.'
                 : filter === 'suggestions'
                   ? 'Reminders from your projects and relationships — open one to discuss in chat.'
-                  : 'Ask your chief of staff to do something — drafts and updates show up here.'}
+                  : filter === 'yesterday'
+                    ? 'Cross-domain activity from yesterday — mail, calendar, health, and agent runs.'
+                    : 'Ask your chief of staff to do something — drafts and updates show up here.'}
             </p>
           </div>
         ) : (

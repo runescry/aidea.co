@@ -10,9 +10,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
-**Phase:** P7.2 complete — all five workforce→Inbox slices shipped  
-**Next up:** P7.3 richer context (pick one connector spike)  
-**Recent:** P7.2 request_human_input on Home — chat + Studio share HumanInputOverlay
+**Phase:** P7.4 complete — timeline, conflicts, domain trust, context lenses  
+**Next up:** Deferred multi-connector / Daily OS (see PLAN non-goals)  
+**Recent:** P7.3–P7.4 contact graph, health sync, yesterday timeline, trust dashboard
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
 **Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
@@ -113,6 +113,8 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - [x] **Non-email Inbox cards** — Calendar and KB queue items with polished approval UX
 - [x] **Cron outcomes → Inbox** — Health-briefer and relationship-monitor surface like inbox-triage
 - [x] **request_human_input on Home** — Human-in-the-loop outside Studio
+- [x] **P7.3 contact graph + health sync spikes** — KB merge modules + agent read tools
+- [x] **P7.4 timeline + governance** — Yesterday tab, schedule conflicts, per-domain autonomy
 
 ---
 
@@ -146,3 +148,5 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - 2026-06-21 — P7.2 health-briefer → Inbox — `latestHealthBriefToTask`, `HealthBriefRenderer`
 - 2026-06-21 — P7.2 relationship-monitor cards — structured cooling-contact suggestions in TaskFeed
 - 2026-06-21 — P7.2 request_human_input on Home — `lib/client/human-input`, chat SSE overlay wiring
+- 2026-06-21 — P7.3 contact graph + health sync spikes — `lib/contacts/interaction-graph`, `lib/health/sync`, harness read tools
+- 2026-06-21 — P7.4 timeline + governance — `timeline`, `conflicts`, domain autonomy, Context/Settings lenses

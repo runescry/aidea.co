@@ -334,16 +334,16 @@ Mark `[x]` only when `npm run typecheck`, `npm test`, `npm run test:contract`, a
 
 ### P7.3 — Richer context (pick one per slice)
 
-- [ ] **Contact interaction graph (spike)** — Last touch, channels, interaction history beyond Google People read
-- [ ] **Health sync spike** — One wearable/API path → KB or live tool (Apple Health, Strava, or Whoop — pick one)
+- [x] **Contact interaction graph (spike)** — Last touch, channels, interaction history beyond Google People read
+- [x] **Health sync spike** — One wearable/API path → KB or live tool (Apple Health, Strava, or Whoop — pick one)
 
 ### P7.4 — Unified timeline + governance
 
-- [ ] **Unified timeline** — “What happened across domains yesterday” view on Home or dedicated tab
-- [ ] **Conflict surfacing** — When calendar vs health KB disagree, explicit merge UX for user
-- [ ] **Per-domain autonomy** — Trust dashboard: email semi-auto, finance never auto, etc. (`Settings`, `proactive-tasks.ts`)
-- [ ] **Contact-centric view** — “Everything about [person]” from KB + mail + calendar signals
-- [ ] **Health-centric view** — “This week’s training” from KB + sync when available
+- [x] **Unified timeline** — “What happened across domains yesterday” view on Home or dedicated tab
+- [x] **Conflict surfacing** — When calendar vs health KB disagree, explicit merge UX for user
+- [x] **Per-domain autonomy** — Trust dashboard: email semi-auto, finance never auto, etc. (`Settings`, `proactive-tasks.ts`)
+- [x] **Contact-centric view** — “Everything about [person]” from KB + mail + calendar signals
+- [x] **Health-centric view** — “This week’s training” from KB + sync when available
 
 ### Deferred (not P7)
 
