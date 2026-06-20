@@ -9,7 +9,7 @@ import { IconMenu } from '../sidebar/icons';
 import { HOME_RUN_ENTITIES, type HomeRunnableEntity } from '@/lib/entities/run-meta';
 
 interface SessionInfo {
-  status: 'idle' | 'running' | 'paused' | 'complete' | 'error';
+  status: 'idle' | 'starting' | 'running' | 'paused' | 'complete' | 'error';
   entityType?: string;
   entityId?: string;
   activeAgents: number;

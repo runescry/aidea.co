@@ -9,7 +9,7 @@ const DAILY_STEPS = ['Inbox triage', 'Calendar', 'Health brief', 'News', 'Work p
 interface Props {
   entity: EntityType;
   fields: Record<string, string>;
-  disabled?: boolean;
+  starting?: boolean;
   error?: string;
   onFieldChange: (key: string, value: string) => void;
   onStart: () => void;
@@ -18,7 +18,7 @@ interface Props {
 export default function StudioLaunchPanel({
   entity,
   fields,
-  disabled,
+  starting,
   error,
   onFieldChange,
   onStart,
@@ -70,7 +70,7 @@ export default function StudioLaunchPanel({
                     className="input-field resize-none text-sm"
                     placeholder={field.placeholder}
                     value={fields[field.key] ?? ''}
-                    disabled={disabled}
+                    disabled={starting}
                     onChange={e => onFieldChange(field.key, e.target.value)}
                   />
                 ) : (
@@ -79,7 +79,7 @@ export default function StudioLaunchPanel({
                     className="input-field text-sm"
                     placeholder={field.placeholder}
                     value={fields[field.key] ?? ''}
-                    disabled={disabled}
+                    disabled={starting}
                     onChange={e => onFieldChange(field.key, e.target.value)}
                   />
                 )}
@@ -92,10 +92,13 @@ export default function StudioLaunchPanel({
           <button
             type="button"
             onClick={onStart}
-            disabled={disabled}
-            className="btn-primary px-5"
+            disabled={starting}
+            className="btn-primary px-5 inline-flex items-center gap-2 disabled:opacity-70"
           >
-            Run {meta.label}
+            {starting && (
+              <span className="w-3.5 h-3.5 rounded-full border-2 border-surface/30 border-t-surface animate-spin" />
+            )}
+            {starting ? 'Starting…' : `Run ${meta.label}`}
           </button>
           <p className="text-micro text-foreground-subtle">
             Output, agents, and tools appear below once the run starts.

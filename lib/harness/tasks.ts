@@ -65,7 +65,7 @@ export function queueActionToTask(action: QueuedAction): TaskItem {
 export function sessionToTask(input: {
   entityType?: string;
   activeAgents: number;
-  status: 'running' | 'paused' | 'complete' | 'error';
+  status: 'starting' | 'running' | 'paused' | 'complete' | 'error';
   entityId?: string;
 }): TaskItem | null {
   const label = input.entityType
@@ -73,7 +73,7 @@ export function sessionToTask(input: {
     : 'Agent run';
 
   const status: TaskStatus =
-    input.status === 'running' || input.status === 'paused'
+    input.status === 'starting' || input.status === 'running' || input.status === 'paused'
       ? 'running'
       : input.status === 'error'
         ? 'failed'
@@ -86,7 +86,9 @@ export function sessionToTask(input: {
     entityId: input.entityId,
     title:
       status === 'running'
-        ? `${label} — ${input.activeAgents} agent${input.activeAgents === 1 ? '' : 's'} working`
+        ? input.status === 'starting'
+          ? `${label} — starting…`
+          : `${label} — ${input.activeAgents} agent${input.activeAgents === 1 ? '' : 's'} working`
         : status === 'failed'
           ? `${label} — run failed`
           : `${label} — run complete`,

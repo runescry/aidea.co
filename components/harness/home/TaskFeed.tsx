@@ -34,7 +34,7 @@ const DOT_STYLE: Record<TaskStatus, string> = {
 };
 
 interface SessionInfo {
-  status: 'idle' | 'running' | 'paused' | 'complete' | 'error';
+  status: 'idle' | 'starting' | 'running' | 'paused' | 'complete' | 'error';
   entityType?: string;
   entityId?: string;
   activeAgents: number;

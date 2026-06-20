@@ -45,7 +45,7 @@ export interface HarnessState {
   sessionId?: string;
   entityType?: string;
   entityId?: string;
-  status: 'idle' | 'running' | 'paused' | 'complete' | 'error';
+  status: 'idle' | 'starting' | 'running' | 'paused' | 'complete' | 'error';
   agents: Record<string, AgentNode>;       // agentId → node
   agentsByRole: Record<string, string>;    // role → agentId
   entityState: Record<string, unknown>;   // shared state data
@@ -60,8 +60,11 @@ export interface HarnessState {
 
 type Action =
   | { type: 'HARNESS_EVENT'; event: HarnessEvent }
+  | { type: 'SESSION_START'; entityType: EntityType }
   | { type: 'RESET' }
   | { type: 'CLEAR_PENDING_INPUT' };
+
+const TERMINAL_EVENT_TYPES = new Set(['entity_complete', 'entity_error', 'error']);
 
 const INITIAL_STATE: HarnessState = {
   status: 'idle',
@@ -77,6 +80,9 @@ const INITIAL_STATE: HarnessState = {
 function reducer(state: HarnessState, action: Action): HarnessState {
   if (action.type === 'RESET') return { ...INITIAL_STATE };
   if (action.type === 'CLEAR_PENDING_INPUT') return { ...state, pendingInput: null };
+  if (action.type === 'SESSION_START') {
+    return { ...INITIAL_STATE, status: 'starting', entityType: action.entityType };
+  }
 
   const { event } = action;
   const log = [...state.eventLog.slice(-200), event];
@@ -318,7 +324,7 @@ export function useHarnessSession() {
     const abort = new AbortController();
     abortRef.current = abort;
 
-    dispatch({ type: 'RESET' });
+    dispatch({ type: 'SESSION_START', entityType });
 
     try {
       const response = await fetch('/api/run', {
@@ -342,11 +348,36 @@ export function useHarnessSession() {
         return;
       }
 
-      if (!response.body) return;
+      if (!response.body) {
+        dispatch({
+          type: 'HARNESS_EVENT',
+          event: {
+            type: 'error',
+            sessionId: 'unknown',
+            data: { message: 'Run failed — empty response from server' },
+            timestamp: new Date().toISOString(),
+          },
+        });
+        return;
+      }
 
+      let terminal = false;
       await consumeHarnessSSE<HarnessEvent>(response, (event) => {
+        if (TERMINAL_EVENT_TYPES.has(event.type)) terminal = true;
         dispatch({ type: 'HARNESS_EVENT', event });
       });
+
+      if (!abort.signal.aborted && !terminal) {
+        dispatch({
+          type: 'HARNESS_EVENT',
+          event: {
+            type: 'error',
+            sessionId: 'unknown',
+            data: { message: 'Run ended unexpectedly — check Settings for API keys and try again' },
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
       dispatch({

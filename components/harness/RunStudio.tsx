@@ -46,9 +46,10 @@ export default function RunStudio({ state, startSession, reset }: Props) {
   const [panel, setPanel] = useState<Panel>('artifacts');
 
   const meta = ENTITY_META[entity];
-  const isActive = state.status === 'running';
+  const isBusy = state.status === 'running' || state.status === 'starting';
   const showWorkspace =
-    state.status === 'running'
+    state.status === 'starting'
+    || state.status === 'running'
     || state.status === 'complete'
     || state.status === 'paused'
     || Object.keys(state.agents).length > 0;
@@ -91,7 +92,7 @@ export default function RunStudio({ state, startSession, reset }: Props) {
             <button
               key={e}
               type="button"
-              disabled={isActive}
+              disabled={isBusy}
               onClick={() => { setEntity(e); setFields({}); }}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-caption font-medium transition-colors border ${
                 entity === e
@@ -108,7 +109,12 @@ export default function RunStudio({ state, startSession, reset }: Props) {
         {showWorkspace && (
           <div className="flex items-center gap-4 flex-wrap">
             <span className="text-caption text-foreground-muted">
-              {isActive ? (
+              {state.status === 'starting' ? (
+                <>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse mr-1.5 align-middle" />
+                  Starting run…
+                </>
+              ) : state.status === 'running' ? (
                 <>
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse mr-1.5 align-middle" />
                   {activeAgents} agent{activeAgents !== 1 ? 's' : ''} running
@@ -183,7 +189,14 @@ export default function RunStudio({ state, startSession, reset }: Props) {
             )}
             {panel === 'artifacts' && (
               <div className="h-full card p-4 overflow-y-auto">
-                <ArtifactBrowser entityState={state.entityState} />
+                {state.status === 'starting' && Object.keys(state.agents).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-center gap-3">
+                    <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                    <p className="text-caption text-foreground-muted">Connecting to agent workforce…</p>
+                  </div>
+                ) : (
+                  <ArtifactBrowser entityState={state.entityState} />
+                )}
               </div>
             )}
           </div>
@@ -192,10 +205,10 @@ export default function RunStudio({ state, startSession, reset }: Props) {
         <StudioLaunchPanel
           entity={entity}
           fields={fields}
-          disabled={isActive}
+          starting={state.status === 'starting'}
           onFieldChange={handleSetField}
           onStart={handleStart}
-          error={state.error}
+          error={state.status === 'error' ? state.error : undefined}
         />
       )}
     </div>

@@ -76,7 +76,7 @@ function DashboardBody({
   const [view, setView] = useState<MainView>('home');
   const [taskRefreshKey, setTaskRefreshKey] = useState(0);
 
-  const agentsRunning = state.status === 'running';
+  const agentsRunning = state.status === 'running' || state.status === 'starting';
 
   return (
     <WorkFeedProvider
@@ -128,7 +128,7 @@ function DashboardChrome({
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
 
   const activeAgents = Object.values(state.agents).filter(a => a.status === 'running').length;
-  const agentsRunning = state.status === 'running';
+  const agentsRunning = state.status === 'running' || state.status === 'starting';
 
   const bumpWorkFeed = useCallback(() => {
     setTaskRefreshKey(k => k + 1);
