@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getEntityConfig } from '@/lib/entities';
+import { resolveDailyEntityConfig } from '@/lib/entities/daily';
 import { bootstrapEntity } from '@/lib/harness/bootstrap';
 import { hasApiKey } from '@/lib/ai/provider';
 import { harnessSSEResponse } from '@/lib/api/sse';
@@ -26,7 +27,11 @@ export async function POST(req: NextRequest) {
   }
 
   return harnessSSEResponse(sessionId, async (send) => {
-    const config = getEntityConfig(body.entityType ?? 'company');
-    await bootstrapEntity(config, body.input, send, sessionId);
+    const entityType = body.entityType ?? 'company';
+    const config =
+      entityType === 'daily'
+        ? resolveDailyEntityConfig(body.input ?? {})
+        : getEntityConfig(entityType);
+    await bootstrapEntity(config, body.input ?? {}, send, sessionId);
   });
 }

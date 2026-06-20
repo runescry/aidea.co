@@ -314,11 +314,11 @@ Mark `[x]` only when `npm run typecheck`, `npm test`, `npm run test:contract`, a
 ### P7.0 — Ship & stabilize
 
 - [x] **Commit post-P6 polish** — Inbox, email edit, drafts, streaming, chat persist, reset, mobile, queue-types (`bd3a01b`)
-- [ ] **Deploy to aidea-co** — explicit user request; verify prod matches local Home/Inbox UX
+- [x] **Deploy to aidea-co** — explicit user request; verify prod matches local Home/Inbox UX
 
 ### P7.1 — UX on existing data
 
-- [ ] **Daily lite brief** — Single-agent morning mode; skip 5 parallel sub-agents ([ROADMAP P6 backlog](../ROADMAP.md#p6-backlog-not-started))
+- [x] **Daily lite brief** — Single-agent morning mode; skip 5 parallel sub-agents ([ROADMAP P6 backlog](../ROADMAP.md#p6-backlog-not-started))
 - [ ] **Morning brief on Home** — Cron/lite output → Inbox row or chat card, not Studio-only (`MorningBriefRenderer`, `HomeScreen`)
 - [ ] **Suggestion dismiss** — Persist dismissed proactive IDs; hide from feed (`proactive-tasks.ts`, profile or storage)
 - [ ] **Suggestion snooze** — Snooze until date; re-surface in feed

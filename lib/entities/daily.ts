@@ -1,4 +1,51 @@
-import type { EntityConfig } from '@/lib/harness/types';
+import type { EntityConfig, EntityInput } from '@/lib/harness/types';
+
+export type DailyMode = 'full' | 'lite';
+
+export function isDailyLiteMode(input: EntityInput = {}): boolean {
+  return input.mode === 'lite' || input.lite === true;
+}
+
+export function resolveDailyEntityConfig(input: EntityInput = {}): EntityConfig {
+  return isDailyLiteMode(input) ? dailyLiteEntityConfig : dailyEntityConfig;
+}
+
+const dailyContext = (_input: EntityInput) => ({
+  currentDate: new Date().toISOString().split('T')[0],
+  currentTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+  dayOfWeek: new Date().toLocaleDateString('en-GB', { weekday: 'long' }),
+});
+
+const dailyTask = (_input: EntityInput) => ({
+  description: `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}. Produce the morning brief.`,
+  contextKeys: [] as string[],
+});
+
+export const dailyLiteEntityConfig: EntityConfig = {
+  type: 'daily',
+  name: 'Daily OS (lite)',
+  mission: 'Produce a scannable morning brief in one agent pass — inbox, calendar, health, news, and work prep without parallel sub-agents.',
+  rootAgentId: 'daily-lite-briefer',
+  agentIds: ['daily-lite-briefer'],
+  availableTools: [
+    'write_state',
+    'read_state',
+    'kb_read',
+    'gmail_read',
+    'calendar_read',
+    'news_search',
+  ],
+  autonomy: 'semi-auto',
+  consensusThreshold: 0.60,
+  costConfig: {
+    maxTokensPerRun: 20_000,
+    maxAgentsPerRun: 1,
+    maxTierDepth: 1,
+    realWorldToolMode: 'dry-run',
+  },
+  buildInitialContext: dailyContext,
+  buildInitialTask: dailyTask,
+};
 
 export const dailyEntityConfig: EntityConfig = {
   type: 'daily',
@@ -40,15 +87,8 @@ export const dailyEntityConfig: EntityConfig = {
     maxTierDepth: 2,
     realWorldToolMode: 'dry-run',
   },
-  buildInitialContext: (_input) => ({
-    currentDate: new Date().toISOString().split('T')[0],
-    currentTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-    dayOfWeek: new Date().toLocaleDateString('en-GB', { weekday: 'long' }),
-  }),
-  buildInitialTask: (_input) => ({
-    description: `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}. Produce the morning brief.`,
-    contextKeys: [],
-  }),
+  buildInitialContext: dailyContext,
+  buildInitialTask: dailyTask,
 };
 
 export const dispatchEntityConfig: EntityConfig = {

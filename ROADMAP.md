@@ -9,12 +9,12 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 ## Current status
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
-**Last updated:** 2026-06-20  
-**Phase:** P7.0 commit done; deploy to prod next (explicit request)  
-**Next up:** P7.0 deploy to aidea-co — then P7.1 daily lite brief  
+**Last updated:** 2026-06-21  
+**Phase:** P7.1 daily lite brief shipped; P7.0 deployed  
+**Next up:** P7.1 morning brief surfacing on Home  
 **Live:** [aidea-co.vercel.app](https://aidea-co.vercel.app) — local dev at `http://localhost:3000`
 
-**Recent:** `bd3a01b` — post-P6 polish + P7 docs (Inbox edit, drafts, streaming, reset, mobile, docs reader, PLAN/VISION)
+**Recent:** P7.1 daily lite brief — single-agent morning mode; cron uses lite; Studio keeps full 6-agent path
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
 **Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
@@ -84,7 +84,7 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 ### P6 backlog (not started)
 
-- [ ] **Daily lite brief** — Single-agent morning brief mode (skip 5 parallel sub-agents)
+- [x] **Daily lite brief** — Single-agent morning brief mode (skip 5 parallel sub-agents)
 
 ---
 
@@ -107,8 +107,8 @@ Build / test / deploy: [PLAN.md § Build workflow](./docs/PLAN.md#build-workflow
 
 Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [docs/PLAN.md](./docs/PLAN.md). Summary checkboxes:
 
-- [ ] **P7.0 Ship post-P6** — Commit done (`bd3a01b`); deploy polish to production
-- [ ] **Daily lite brief on Home** — Single-agent morning mode ([P6 backlog](#p6-backlog-not-started))
+- [x] **P7.0 Ship post-P6** — Deployed polish to production (`e9b6d55`)
+- [x] **Daily lite brief on Home** — Single-agent morning mode ([P6 backlog](#p6-backlog-not-started))
 - [ ] **Morning brief surfacing** — Brief → Inbox row or chat card, not Studio-only
 - [ ] **Suggestion dismiss / snooze** — Hygiene for proactive Inbox items
 - [ ] **Audit trail viewer** — Browse queue approve/reject/save history in UI
@@ -139,4 +139,5 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - 2026-06-20 — P4 batch (proactive Work, autonomy UI, running filter) — `lib/harness/proactive-tasks.ts`, `TaskFeed.tsx`, `/api/tasks`
 - 2026-06-20 — P5 batch (visual system, quick onboarding, audit trail, deploy docs) — `EntityTypeIcon`, `QuickStartOnboarding`, `queue-audit`, `docs/DEPLOYMENT.md`
 - 2026-06-20 — P6 performance (Work feed, fast chat, caches, CEO tier) — `useWorkFeed`, `fast-chat`, `4348afb`
-- 2026-06-20 — P7.0 commit (post-P6 polish + PLAN/VISION/docs reader) — `bd3a01b`, gates pass
+- 2026-06-21 — P7.0 deploy — pushed `e9b6d55` to main; prod smoke pass (Home, Inbox API, /docs/plan)
+- 2026-06-21 — P7.1 daily lite brief — `daily-lite-briefer` agent; cron + `mode: lite` on `/api/run`; Studio keeps full path

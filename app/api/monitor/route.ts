@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { HarnessEvent } from '@/lib/harness/types';
 import { bootstrapEntity } from '@/lib/harness/bootstrap';
-import { dailyEntityConfig } from '@/lib/entities/daily';
+import { dailyEntityConfig, dailyLiteEntityConfig } from '@/lib/entities/daily';
 import { hasApiKey } from '@/lib/ai/provider';
 import { writeLatestBrief } from '@/lib/storage';
 
@@ -46,10 +46,13 @@ export async function GET(req: NextRequest) {
   const sessionId = crypto.randomUUID();
 
   try {
-    const config = {
-      ...dailyEntityConfig,
-      rootAgentId: MONITORS[name],
-    };
+    const config =
+      name === 'daily'
+        ? dailyLiteEntityConfig
+        : {
+            ...dailyEntityConfig,
+            rootAgentId: MONITORS[name],
+          };
     const state = await bootstrapEntity(config, {}, send, sessionId);
 
     if (name === 'daily' && state.data.morning_brief) {

@@ -3,7 +3,7 @@ import { companyEntityConfig } from './company';
 import { personalEntityConfig } from './personal';
 import { learningEntityConfig } from './learning';
 import { creatorEntityConfig } from './creator';
-import { dailyEntityConfig } from './daily';
+import { dailyEntityConfig, dailyLiteEntityConfig, resolveDailyEntityConfig, isDailyLiteMode } from './daily';
 
 export const ENTITY_CONFIGS: Record<string, EntityConfig> = {
   company: companyEntityConfig,
@@ -19,7 +19,7 @@ export function getEntityConfig(type: string): EntityConfig {
   return config;
 }
 
-export { companyEntityConfig, personalEntityConfig, learningEntityConfig, creatorEntityConfig, dailyEntityConfig };
+export { companyEntityConfig, personalEntityConfig, learningEntityConfig, creatorEntityConfig, dailyEntityConfig, dailyLiteEntityConfig, resolveDailyEntityConfig, isDailyLiteMode };
 
 // Re-export EntityType for convenience
 export type { EntityType };

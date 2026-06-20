@@ -24,7 +24,15 @@ import { sharedResearcherDef } from './shared/researcher';
 import { sharedPlannerDef } from './shared/planner';
 
 // Daily OS agents
-import { dailyOrchestratorDef, inboxTriageDef, calendarReaderDef, healthBrieferDef, newsCuratorDef, workPrepDef } from './daily';
+import {
+  dailyOrchestratorDef,
+  dailyLiteBrieferDef,
+  inboxTriageDef,
+  calendarReaderDef,
+  healthBrieferDef,
+  newsCuratorDef,
+  workPrepDef,
+} from './daily';
 
 // Dispatch
 import { dispatcherDef } from './dispatch/dispatcher';
@@ -72,6 +80,7 @@ export const AGENT_LIBRARY: Record<string, AgentDefinition> = {
 
   // Daily OS
   'daily-orchestrator': dailyOrchestratorDef,
+  'daily-lite-briefer': dailyLiteBrieferDef,
   'inbox-triage': inboxTriageDef,
   'calendar-reader': calendarReaderDef,
   'health-briefer': healthBrieferDef,
