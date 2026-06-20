@@ -106,6 +106,11 @@ async function pushStoreToServer(store: ChatStore): Promise<void> {
   });
 }
 
+function persistStore(store: ChatStore): void {
+  saveLocalStore(store);
+  pushStoreToServer(store).catch(() => {});
+}
+
 interface ChatContextValue {
   conversations: ChatConversation[];
   activeConversation: ChatConversation;
@@ -114,6 +119,8 @@ interface ChatContextValue {
   syncReady: boolean;
   switchConversation: (id: string) => void;
   createConversation: () => void;
+  deleteConversation: (id: string) => void;
+  /** @deprecated use deleteConversation */
   closeConversation: (id: string) => void;
   sendMessage: (text: string) => Promise<void>;
 }
@@ -190,17 +197,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const closeConversation = useCallback((id: string) => {
+  const deleteConversation = useCallback((id: string) => {
+    if (streaming && storeRef.current.activeId === id) {
+      abortRef.current?.abort();
+      setStreaming(false);
+    }
+
     setStore(prev => {
-      if (prev.conversations.length <= 1) {
+      const deletedConversationIds = [...new Set([...(prev.deletedConversationIds ?? []), id])];
+      let conversations = prev.conversations.filter(c => c.id !== id);
+      let activeId = prev.activeId;
+
+      if (conversations.length === 0) {
         const next = newConversation();
-        return { conversations: [next], activeId: next.id };
+        conversations = [next];
+        activeId = next.id;
+      } else if (activeId === id) {
+        activeId = conversations[0].id;
       }
-      const nextConversations = prev.conversations.filter(c => c.id !== id);
-      const activeId = prev.activeId === id ? nextConversations[0].id : prev.activeId;
-      return { conversations: nextConversations, activeId };
+
+      const nextStore: ChatStore = { conversations, activeId, deletedConversationIds };
+      persistStore(nextStore);
+      return nextStore;
     });
-  }, []);
+  }, [streaming]);
+
+  const closeConversation = deleteConversation;
 
   const sendMessage = useCallback(async (text: string) => {
     const command = text.trim();
@@ -343,6 +365,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     syncReady,
     switchConversation,
     createConversation,
+    deleteConversation,
     closeConversation,
     sendMessage,
   }), [
@@ -353,6 +376,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     syncReady,
     switchConversation,
     createConversation,
+    deleteConversation,
     closeConversation,
     sendMessage,
   ]);

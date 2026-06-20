@@ -9,7 +9,7 @@ export default function ConversationList() {
     activeId,
     streaming,
     switchConversation,
-    closeConversation,
+    deleteConversation,
   } = useChatConversations();
 
   const sorted = useMemo(
@@ -36,19 +36,19 @@ export default function ConversationList() {
             >
               {conv.title}
             </button>
-            {conversations.length > 1 && (
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  closeConversation(conv.id);
-                }}
-                className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded text-foreground-subtle opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-surface-subtle transition-opacity"
-                aria-label={`Close ${conv.title}`}
-              >
-                ×
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                deleteConversation(conv.id);
+              }}
+              disabled={streaming && active}
+              className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded text-foreground-subtle opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-foreground hover:bg-surface-subtle transition-opacity disabled:opacity-30"
+              aria-label={`Delete ${conv.title}`}
+              title="Delete conversation"
+            >
+              ×
+            </button>
           </li>
         );
       })}

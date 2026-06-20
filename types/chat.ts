@@ -19,6 +19,8 @@ export interface ChatConversation {
 export interface ChatStore {
   conversations: ChatConversation[];
   activeId: string;
+  /** Conversation ids removed by the user — kept so merges do not resurrect them. */
+  deletedConversationIds?: string[];
 }
 
 /** Prior turns sent to the dispatcher for follow-up context. */
