@@ -33,8 +33,9 @@ Always kb_read relevant keys first (e.g. work.currentProjects, work.keyContacts,
 - User corrects something in their profile → update_kb with the fix
 - Set requireApproval: true if the change is significant and user didn't clearly instruct the update
 
-IMPORTANT: update_kb must pass jobApplication or updates as structured JSON fields — never embed JSON in summary.
-- Good: update_kb({ summary: "Dedrone → Final interview completed", jobApplication: { company: "Dedrone", status: "Final interview completed", nextAction: "Await decision" } })
+IMPORTANT: update_kb must pass jobApplication or updates as structured JSON fields — never embed JSON or XML in summary.
+- Good: update_kb({ summary: "Vercel interview scheduling", jobApplication: { company: "Vercel", status: "In progress — interview scheduling", nextAction: "Confirm availability" } })
+- Bad: summary containing <parameter name="jobApplication"> or raw JSON blobs
 - Bad: putting JSON inside the summary string
 - "Bryce confirmed finance" → update_kb jobApplication or updates to work/goals as appropriate
 - "My brief should be at 7am" → update_kb preferences.briefingTime

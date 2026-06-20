@@ -2,6 +2,7 @@ import type { QueuedAction } from './queue';
 import type { EntityState } from './types';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { ACTION_TYPE_LABELS } from './action-labels';
+import { sanitizeQueueSummary } from './kb-update-display';
 import { buildProactiveTasks, type UserAutonomyPreference } from './proactive-tasks';
 
 export type TaskStatus = 'needs_you' | 'suggestion' | 'running' | 'done' | 'failed';
@@ -53,11 +54,14 @@ function queueStatusToTaskStatus(status: QueuedAction['status']): TaskStatus {
 
 export function queueActionToTask(action: QueuedAction): TaskItem {
   const typeLabel = ACTION_TYPE_LABELS[action.type] ?? action.type;
+  const title = action.type === 'kb_update'
+    ? sanitizeQueueSummary(action.summary)
+    : action.summary;
   return {
     id: `queue-${action.id}`,
     source: 'queue',
     status: queueStatusToTaskStatus(action.status),
-    title: action.summary,
+    title,
     subtitle: `${typeLabel} · ${action.agentRole}`,
     type: action.type,
     agentRole: action.agentRole,

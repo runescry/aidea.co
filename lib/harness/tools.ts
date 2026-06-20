@@ -17,6 +17,7 @@ import {
   shouldAutoApplyKb,
   formatKbPatchSummary,
   normalizeKbPatchInput,
+  sanitizeQueueSummary,
   type KbPatchInput,
 } from './kb-updates';
 import { emitChatAgentResponse } from './chat-events';
@@ -622,7 +623,9 @@ export async function executeHarnessTool(
 
       const action = await enqueueAction({
         type: 'kb_update',
-        summary: patchInput.summary || formatKbPatchSummary(normalized),
+        summary: formatKbPatchSummary(normalized) !== 'Profile update'
+          ? formatKbPatchSummary(normalized)
+          : sanitizeQueueSummary(patchInput.summary ?? 'Profile update'),
         detail: patchInput.reason,
         tool: 'update_kb',
         payload: {
@@ -683,7 +686,9 @@ export async function executeHarnessTool(
         ?? (raw.type === 'email_reply' || raw.type === 'email_send' ? 'gmail_send' : 'generic');
       const action = await enqueueAction({
         type: raw.type,
-        summary: raw.summary,
+        summary: raw.type === 'kb_update'
+          ? sanitizeQueueSummary(raw.summary)
+          : raw.summary,
         detail: draftBody,
         tool,
         payload,

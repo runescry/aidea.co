@@ -1,43 +1,22 @@
 import { readAllKB, writeManyKB, writeKB } from './knowledge-base';
 import type { CurrentProjects, JobApplication, KnowledgeBase } from '@/types/knowledge-base';
+import {
+  formatKbPatchSummary,
+  kbPatchInputFromPayload,
+  normalizeKbPatchInput,
+  sanitizeQueueSummary,
+  type JobApplicationPatch,
+  type KbPatchInput,
+} from './kb-update-display';
 
-export interface JobApplicationPatch {
-  company: string;
-  role?: string;
-  status?: string;
-  nextAction?: string;
-  priority?: number;
-}
-
-export interface KbPatchInput {
-  updates?: Partial<KnowledgeBase>;
-  jobApplication?: JobApplicationPatch;
-  key?: string;
-  value?: unknown;
-  summary?: string;
-}
-
-/** Recover structured fields when the model leaks JSON into summary text. */
-export function normalizeKbPatchInput(input: KbPatchInput): KbPatchInput {
-  if (input.jobApplication?.company || input.updates || input.key !== undefined) {
-    return input;
-  }
-
-  const text = input.summary ?? '';
-  const jsonMatch = text.match(/\{[\s\S]*"company"[\s\S]*?\}/);
-  if (!jsonMatch) return input;
-
-  try {
-    const parsed = JSON.parse(jsonMatch[0]) as JobApplicationPatch;
-    if (parsed.company) {
-      return { ...input, jobApplication: parsed };
-    }
-  } catch {
-    // ignore malformed JSON in summary
-  }
-
-  return input;
-}
+export type { JobApplicationPatch, KbPatchInput };
+export {
+  describeKbUpdate,
+  formatKbPatchSummary,
+  kbPatchInputFromPayload,
+  normalizeKbPatchInput,
+  sanitizeQueueSummary,
+} from './kb-update-display';
 
 export async function buildKbPatch(input: KbPatchInput): Promise<Record<string, unknown>> {
   input = normalizeKbPatchInput(input);
@@ -100,19 +79,6 @@ function mergeJobApplication(
   return { ...projects, jobApplications: jobs };
 }
 
-export function kbPatchInputFromPayload(payload: Record<string, unknown>): KbPatchInput | null {
-  const raw = payload.input as KbPatchInput | undefined;
-  if (raw && (raw.jobApplication?.company || raw.updates || raw.key !== undefined)) {
-    return normalizeKbPatchInput(raw);
-  }
-  const patch = payload.patch as Record<string, unknown> | undefined;
-  if (patch && Object.keys(patch).length > 0) return patch as KbPatchInput;
-  if (typeof payload.summary === 'string') {
-    return normalizeKbPatchInput({ summary: payload.summary });
-  }
-  return null;
-}
-
 export async function applyKbPatch(input: KbPatchInput | Record<string, unknown>): Promise<void> {
   const normalized = 'summary' in input && !('jobApplication' in input && (input as KbPatchInput).jobApplication)
     ? normalizeKbPatchInput(input as KbPatchInput)
@@ -143,17 +109,4 @@ export function shouldAutoApplyKb(
 ): boolean {
   if (requireApproval) return false;
   return autonomy === 'autonomous';
-}
-
-export function formatKbPatchSummary(input: KbPatchInput): string {
-  if (input.jobApplication) {
-    const j = input.jobApplication;
-    const parts = [j.company];
-    if (j.status) parts.push(`→ ${j.status}`);
-    if (j.nextAction) parts.push(`(${j.nextAction})`);
-    return parts.join(' ');
-  }
-  if (input.key) return `Set ${input.key}`;
-  if (input.updates) return `Update ${Object.keys(input.updates).join(', ')}`;
-  return 'Profile update';
 }

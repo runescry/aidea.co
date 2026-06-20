@@ -66,6 +66,11 @@ For school (Xavier, Genazzano, MLC): update_kb family.children notes or goals if
 Set priority: "high" for job offers, rejections, finance deadlines on TRACKED applications only.
 Set requireApproval: true for ambiguous interpretation; otherwise let autonomy setting decide (semi-autonomous = queue, autonomous = auto-apply).
 
+update_kb SUMMARY RULES:
+- summary must be a short human-readable line only (e.g. "Vercel → interview scheduling")
+- pass jobApplication as a separate structured field — never put JSON or <parameter> tags in summary
+- Good: update_kb({ summary: "Vercel interview scheduling", jobApplication: { company: "Vercel", status: "In progress — interview scheduling", nextAction: "Confirm availability" }, reason: "Cassidy requesting times" })
+
 STEP 5: For each HIGH urgency email needing a reply, queue a draft.
 Call queue_action with:
   type: 'email_reply'

@@ -7,6 +7,7 @@ import { isEmailQueueAction } from '@/lib/harness/normalize-queue-action';
 import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
 import { formatTaskTime, sessionToTask, sortTaskItems, taskToChatPrompt } from '@/lib/harness/tasks';
 import { queueActionAutonomyNote } from '@/lib/harness/proactive-tasks';
+import { describeKbUpdate } from '@/lib/harness/kb-update-display';
 import type { UserAutonomyPreference } from '@/lib/harness/proactive-tasks';
 import { patchQueueAction, patchQueueActions } from '@/lib/client/queue';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
@@ -169,6 +170,8 @@ function TaskDetail({
 }) {
   const action = task.action;
   const showSave = action != null && isEmailQueueAction(action);
+  const isKbUpdate = action?.type === 'kb_update';
+  const approveLabel = isKbUpdate ? 'Apply update' : 'Approve & send';
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -215,10 +218,10 @@ function TaskDetail({
           </div>
         )}
 
-        {action?.type === 'kb_update' && action.payload?.patch != null && (
-          <pre className="text-xs text-foreground-muted bg-surface-subtle rounded-lg p-3 overflow-auto max-h-48 whitespace-pre-wrap border border-border/50">
-            {JSON.stringify(action.payload.patch, null, 2)}
-          </pre>
+        {isKbUpdate && action && (
+          <div className="rounded-lg bg-surface-subtle/80 p-3 text-sm text-foreground-muted leading-relaxed whitespace-pre-wrap border border-border/50">
+            {describeKbUpdate(action)}
+          </div>
         )}
 
         {action && task.status === 'needs_you' && (
@@ -272,7 +275,7 @@ function TaskDetail({
             onClick={() => onIntent(action.id, 'approve')}
             className="w-full py-3 text-sm font-semibold bg-foreground text-surface rounded-lg hover:bg-foreground/90 transition-colors disabled:opacity-50"
           >
-            {actionPending ? 'Working…' : 'Approve & send'}
+            {actionPending ? 'Working…' : approveLabel}
           </button>
           <div className={`flex gap-2 ${showSave ? '' : 'hidden'}`}>
             <button
@@ -414,14 +417,17 @@ export default function TaskFeed({
             : 'Could not save draft';
         }
       } else if (intent === 'approve') {
-        if (action.status === 'executed') message = 'Sent';
-        else if (action.status === 'failed') {
+        if (action.status === 'executed') {
+          message = action.type === 'kb_update' ? 'Profile updated' : 'Sent';
+        } else if (action.status === 'failed') {
           type = 'err';
           message = typeof action.payload?.executionError === 'string'
             ? action.payload.executionError
-            : 'Send failed — try Save to drafts instead';
+            : action.type === 'kb_update'
+              ? 'Could not apply profile update'
+              : 'Send failed — try Save to drafts instead';
         } else {
-          message = 'Approved';
+          message = action.type === 'kb_update' ? 'Update approved' : 'Approved';
         }
       }
 
