@@ -654,16 +654,27 @@ export async function executeHarnessTool(
     // ── Action Queue ───────────────────────────────────────────────────────────
 
     case 'queue_action': {
-      const { type, summary, detail, tool: execTool, payload, priority = 'normal' } = input as {
+      const raw = input as {
         type: import('./queue').ActionType;
         summary: string;
         detail?: string;
-        tool: string;
-        payload: Record<string, unknown>;
+        suggestedReply?: string;
+        tool?: string;
+        payload?: Record<string, unknown>;
         priority?: import('./queue').QueuedAction['priority'];
       };
+      const draftBody = raw.detail ?? raw.suggestedReply;
+      let payload = raw.payload ?? {};
+      if (draftBody && !payload.body) payload = { ...payload, body: draftBody };
+      const tool = raw.tool
+        ?? (raw.type === 'email_reply' || raw.type === 'email_send' ? 'gmail_send' : 'generic');
       const action = await enqueueAction({
-        type, summary, detail, tool: execTool, payload, priority,
+        type: raw.type,
+        summary: raw.summary,
+        detail: draftBody,
+        tool,
+        payload,
+        priority: raw.priority ?? 'normal',
         agentRole: callerAgent.role,
         entityId: ctx.entityId,
       });
@@ -673,10 +684,10 @@ export async function executeHarnessTool(
         entityId: ctx.entityId,
         agentId: callerAgent.id,
         agentRole: callerAgent.role,
-        data: { queuedActionId: action.id, summary },
+        data: { queuedActionId: action.id, summary: raw.summary },
         timestamp: new Date().toISOString(),
       });
-      return { ok: true, actionId: action.id, summary };
+      return { ok: true, actionId: action.id, summary: raw.summary };
     }
 
     // ── Human input ───────────────────────────────────────────────────────────

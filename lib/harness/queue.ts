@@ -5,6 +5,7 @@ import {
 import { applyKbPatch, kbPatchInputFromPayload } from './kb-updates';
 import { executeQueuedAction } from './execute-queued-action';
 import { recordQueueAudit } from './queue-audit';
+import { canExecuteEmailAction, normalizeEmailQueueAction } from './normalize-queue-action';
 
 export type ActionType =
   | 'email_reply'
@@ -65,9 +66,18 @@ export async function updateActionStatus(
 
   const action = all[idx];
   const resolvedAt = new Date().toISOString();
-  all[idx] = { ...action, status, resolvedAt };
+  const emailNorm =
+    action.type === 'email_reply' || action.type === 'email_send'
+      ? normalizeEmailQueueAction(action)
+      : null;
+  all[idx] = {
+    ...action,
+    ...(emailNorm ?? {}),
+    status,
+    resolvedAt,
+  };
   await replaceQueue(all);
-  await recordQueueAudit({ ...action, status, resolvedAt });
+  await recordQueueAudit(all[idx]);
 
   if (status === 'approved') {
     try {
@@ -78,14 +88,33 @@ export async function updateActionStatus(
         });
         if (!patchInput) throw new Error('Profile update had no changes to apply');
         await applyKbPatch(patchInput);
+      } else if (action.type === 'email_reply' || action.type === 'email_send') {
+        const normalized = { ...all[idx], ...normalizeEmailQueueAction(all[idx]) };
+        all[idx] = normalized;
+        await replaceQueue(all);
+        if (canExecuteEmailAction(normalized)) {
+          await executeQueuedAction(normalized);
+          all[idx] = { ...all[idx], status: 'executed', resolvedAt: new Date().toISOString() };
+          await replaceQueue(all);
+          await recordQueueAudit(all[idx]);
+        }
+        // Draft-only approve (missing to) stays status approved — user can send via chat
       } else if (action.tool === 'gmail_send' || action.tool === 'calendar_create') {
         await executeQueuedAction(action);
+        all[idx] = { ...all[idx], status: 'executed', resolvedAt: new Date().toISOString() };
+        await replaceQueue(all);
+        await recordQueueAudit(all[idx]);
       }
-      all[idx] = { ...all[idx], status: 'executed', resolvedAt: new Date().toISOString() };
-      await replaceQueue(all);
-      await recordQueueAudit(all[idx]);
-    } catch {
-      all[idx] = { ...all[idx], status: 'failed', resolvedAt: new Date().toISOString() };
+    } catch (err) {
+      all[idx] = {
+        ...all[idx],
+        status: 'failed',
+        resolvedAt: new Date().toISOString(),
+        payload: {
+          ...all[idx].payload,
+          executionError: err instanceof Error ? err.message : String(err),
+        },
+      };
       await replaceQueue(all);
       await recordQueueAudit(all[idx]);
     }

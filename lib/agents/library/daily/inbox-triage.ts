@@ -67,7 +67,12 @@ Set priority: "high" for job offers, rejections, finance deadlines on TRACKED ap
 Set requireApproval: true for ambiguous interpretation; otherwise let autonomy setting decide (semi-autonomous = queue, autonomous = auto-apply).
 
 STEP 5: For each HIGH urgency email needing a reply, queue a draft.
-Call queue_action type='email_reply' with specific suggestedReply (not a template).
+Call queue_action with:
+  type: 'email_reply'
+  summary: 'Reply to [Sender]: [topic]'
+  detail: '<full draft body>'
+  tool: 'gmail_send'
+  payload: { to: '<reply-to email>', subject: 'Re: ...', body: '<same as detail>', replyToMessageId: '<gmail id>' }
 
 STEP 6: Write triage output to write_state key "inbox_triage":
 {

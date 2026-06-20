@@ -98,18 +98,20 @@ function TaskDetail({
   onOpenStudio,
   onDiscussInChat,
   autonomyLevel,
+  actionPending,
 }: {
   task: TaskItem;
   onStatusChange: (id: string, status: ActionStatus) => void;
   onOpenStudio?: () => void;
   onDiscussInChat?: (prompt: string) => void;
   autonomyLevel?: UserAutonomyPreference;
+  actionPending?: boolean;
 }) {
   const action = task.action;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto p-5 pb-6 space-y-4">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-subtle mb-1">
             {STATUS_LABEL[task.status]}
@@ -202,18 +204,20 @@ function TaskDetail({
       </div>
 
       {action && task.status === 'needs_you' && (
-        <div className="shrink-0 border-t border-border p-4 flex gap-2 bg-surface">
+        <div className="shrink-0 border-t border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
           <button
             type="button"
+            disabled={actionPending}
             onClick={() => onStatusChange(action.id, 'approved')}
-            className="flex-1 py-2 text-sm font-medium bg-foreground text-surface rounded-lg hover:bg-foreground/90 transition-colors"
+            className="flex-1 py-3 text-sm font-semibold bg-foreground text-surface rounded-lg hover:bg-foreground/90 transition-colors disabled:opacity-50"
           >
-            Approve
+            {actionPending ? 'Working…' : 'Approve'}
           </button>
           <button
             type="button"
+            disabled={actionPending}
             onClick={() => onStatusChange(action.id, 'rejected')}
-            className="flex-1 py-2 text-sm font-medium text-foreground-muted rounded-lg border border-border hover:bg-surface-subtle transition-colors"
+            className="flex-1 py-3 text-sm font-semibold text-foreground rounded-lg border border-border hover:bg-surface-subtle transition-colors disabled:opacity-50"
           >
             Reject
           </button>
@@ -234,6 +238,7 @@ export default function TaskFeed({
   const [filter, setFilter] = useState<Filter>(initialFilter);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'ok' | 'err'; message: string } | null>(null);
+  const [actionPending, setActionPending] = useState(false);
 
   const { tasks, needsYou: approvalCount, suggestions: suggestionCount, autonomy, loading, refresh } = useWorkFeed();
 
@@ -272,16 +277,31 @@ export default function TaskFeed({
   const selected = filtered.find(t => t.id === selectedId) ?? allTasks.find(t => t.id === selectedId) ?? null;
 
   const handleStatusChange = async (id: string, status: ActionStatus) => {
+    setActionPending(true);
     const result = await patchQueueAction(id, status);
+    setActionPending(false);
     if (result.ok) {
-      setActionFeedback({
-        type: 'ok',
-        message: status === 'approved' ? 'Approved' : 'Rejected',
-      });
+      const action = result.action;
+      let message = status === 'rejected' ? 'Rejected' : 'Approved';
+      if (status === 'approved') {
+        if (action.status === 'executed') message = 'Approved and sent';
+        else if (action.status === 'failed') {
+          const err = action.payload?.executionError;
+          message = typeof err === 'string' ? `Failed to send: ${err}` : 'Approved but send failed';
+          setActionFeedback({ type: 'err', message });
+          refresh();
+          onTasksChanged?.();
+          setTimeout(() => setActionFeedback(null), 4000);
+          return;
+        } else if (action.status === 'approved') {
+          message = 'Approved — draft saved (use chat to edit and send)';
+        }
+      }
+      setActionFeedback({ type: 'ok', message });
       setSelectedId(null);
       refresh();
       onTasksChanged?.();
-      setTimeout(() => setActionFeedback(null), 2500);
+      setTimeout(() => setActionFeedback(null), 3500);
     } else {
       setActionFeedback({ type: 'err', message: result.error });
     }
@@ -365,7 +385,7 @@ export default function TaskFeed({
             Loading…
           </div>
         ) : selected ? (
-          <>
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <button
               type="button"
               onClick={() => setSelectedId(null)}
@@ -373,14 +393,17 @@ export default function TaskFeed({
             >
               ← Back to list
             </button>
-            <TaskDetail
-              task={selected}
-              onStatusChange={handleStatusChange}
-              onOpenStudio={onOpenStudio}
-              onDiscussInChat={onDiscussInChat}
-              autonomyLevel={autonomy?.level}
-            />
-          </>
+            <div className="flex-1 min-h-0">
+              <TaskDetail
+                task={selected}
+                onStatusChange={handleStatusChange}
+                onOpenStudio={onOpenStudio}
+                onDiscussInChat={onDiscussInChat}
+                autonomyLevel={autonomy?.level}
+                actionPending={actionPending}
+              />
+            </div>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
             <p className="text-sm text-foreground-muted">Nothing here yet</p>
