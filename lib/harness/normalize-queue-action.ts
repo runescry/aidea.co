@@ -35,3 +35,14 @@ export function canExecuteEmailAction(action: QueuedAction): boolean {
   const to = payload.to;
   return typeof body === 'string' && body.length > 0 && typeof to === 'string' && to.length > 0;
 }
+
+export function canSaveEmailDraft(action: QueuedAction): boolean {
+  if (action.type !== 'email_reply' && action.type !== 'email_send') return false;
+  const { payload } = normalizeEmailQueueAction(action);
+  const body = payload.body;
+  return typeof body === 'string' && body.trim().length > 0;
+}
+
+export function isEmailQueueAction(action: QueuedAction): boolean {
+  return action.type === 'email_reply' || action.type === 'email_send';
+}

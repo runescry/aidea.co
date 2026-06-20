@@ -1,13 +1,13 @@
-import type { ActionStatus, QueuedAction } from '@/lib/harness/queue';
+import type { QueuedAction, QueueIntent } from '@/lib/harness/queue';
 
 export async function patchQueueAction(
   id: string,
-  status: ActionStatus,
+  intent: QueueIntent,
 ): Promise<{ ok: true; action: QueuedAction } | { ok: false; error: string }> {
   const res = await fetch('/api/queue', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, status }),
+    body: JSON.stringify({ id, intent }),
   });
   const body = await res.json().catch(() => ({})) as { error?: string; action?: QueuedAction };
   if (!res.ok) {

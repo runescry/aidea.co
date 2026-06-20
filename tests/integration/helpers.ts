@@ -77,16 +77,18 @@ export async function getTasks(): Promise<Response> {
   return GET(new NextRequest('http://localhost/api/tasks'));
 }
 
-export async function patchQueue(body: { id: string; status: string }): Promise<Response> {
+export async function patchQueue(body: { id: string; intent?: string; status?: string }): Promise<Response> {
+  const intent = body.intent ?? (body.status === 'rejected' ? 'reject' : body.status === 'approved' ? 'approve' : undefined);
+  const payload = { id: body.id, intent };
   if (testBaseUrl()) {
     return httpFetch('/api/queue', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
   }
   const { PATCH } = await import('@/app/api/queue/route');
-  return PATCH(jsonRequest('/api/queue', 'PATCH', body));
+  return PATCH(jsonRequest('/api/queue', 'PATCH', payload));
 }
 
 export async function postMessage(

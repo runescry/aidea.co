@@ -11,7 +11,7 @@ export interface QueueAuditEntry {
   resolvedAt: string;
 }
 
-const AUDIT_STATUSES: ActionStatus[] = ['approved', 'rejected', 'executed', 'failed'];
+const AUDIT_STATUSES: ActionStatus[] = ['approved', 'rejected', 'executed', 'failed', 'saved'];
 
 export function shouldAuditStatus(status: ActionStatus): boolean {
   return AUDIT_STATUSES.includes(status);

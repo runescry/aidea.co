@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canExecuteEmailAction, normalizeEmailQueueAction } from './normalize-queue-action';
+import { canExecuteEmailAction, canSaveEmailDraft, normalizeEmailQueueAction } from './normalize-queue-action';
 import type { QueuedAction } from './queue';
 
 const base: QueuedAction = {
@@ -28,5 +28,10 @@ describe('normalizeEmailQueueAction', () => {
       ...base,
       payload: { body: 'Hi', to: 'office@school.edu' },
     })).toBe(true);
+  });
+
+  it('detects when save is possible with body only', () => {
+    expect(canSaveEmailDraft(base)).toBe(true);
+    expect(canSaveEmailDraft({ ...base, detail: '', payload: {} })).toBe(false);
   });
 });

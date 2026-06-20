@@ -1,11 +1,13 @@
 import type { QueuedAction } from './queue';
-import { sendGmailMessage } from '@/lib/nango/gmail';
+import { sendGmailMessage, createGmailDraft } from '@/lib/nango/gmail';
 import { createCalendarEvent } from '@/lib/nango/calendar';
+import { canExecuteEmailAction, canSaveEmailDraft, normalizeEmailQueueAction } from './normalize-queue-action';
 
 export async function executeQueuedAction(action: QueuedAction): Promise<unknown> {
-  const payload = action.payload ?? {};
+  const normalized = { ...action, ...normalizeEmailQueueAction(action) };
+  const payload = normalized.payload ?? {};
 
-  switch (action.tool) {
+  switch (normalized.tool) {
     case 'gmail_send': {
       const { to, subject, body, connectionId } = payload as {
         to: string; subject: string; body: string; connectionId?: string;
@@ -15,11 +17,7 @@ export async function executeQueuedAction(action: QueuedAction): Promise<unknown
     }
     case 'calendar_create': {
       const { title, start, durationMinutes, description, attendees, connectionId } = payload as {
-        title: string;
-        start: string;
-        durationMinutes: number;
-        description?: string;
-        attendees?: string[];
+        title: string; start: string; durationMinutes: number; description?: string; attendees?: string[];
         connectionId?: string;
       };
       if (!title || !start || !durationMinutes) {
@@ -28,6 +26,51 @@ export async function executeQueuedAction(action: QueuedAction): Promise<unknown
       return createCalendarEvent({ title, start, durationMinutes, description, attendees, connectionId });
     }
     default:
-      throw new Error(`No executor for tool: ${action.tool}`);
+      throw new Error(`No executor for tool: ${normalized.tool}`);
   }
+}
+
+export async function saveQueuedEmailDraft(action: QueuedAction): Promise<unknown> {
+  const normalized = { ...action, ...normalizeEmailQueueAction(action) };
+  if (!canSaveEmailDraft(normalized)) {
+    throw new Error('Draft missing body text');
+  }
+  const payload = normalized.payload ?? {};
+  const { to, subject, body, replyToMessageId, connectionId } = payload as {
+    to?: string;
+    subject?: string;
+    body: string;
+    replyToMessageId?: string;
+    connectionId?: string;
+  };
+  return createGmailDraft({ to, subject, body, replyToMessageId, connectionId });
+}
+
+export async function approveQueuedAction(action: QueuedAction): Promise<QueuedAction> {
+  if (action.type === 'kb_update') {
+    const { applyKbPatch, kbPatchInputFromPayload } = await import('./kb-updates');
+    const patchInput = kbPatchInputFromPayload({
+      ...action.payload,
+      summary: action.summary,
+    });
+    if (!patchInput) throw new Error('Profile update had no changes to apply');
+    await applyKbPatch(patchInput);
+    return { ...action, status: 'executed' };
+  }
+
+  if (action.type === 'email_reply' || action.type === 'email_send') {
+    const normalized = { ...action, ...normalizeEmailQueueAction(action) };
+    if (!canExecuteEmailAction(normalized)) {
+      throw new Error('Email missing recipient — use Save to add to Gmail drafts instead');
+    }
+    await executeQueuedAction(normalized);
+    return { ...normalized, status: 'executed' };
+  }
+
+  if (action.tool === 'gmail_send' || action.tool === 'calendar_create') {
+    await executeQueuedAction(action);
+    return { ...action, status: 'executed' };
+  }
+
+  return { ...action, status: 'approved' };
 }

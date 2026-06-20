@@ -2,10 +2,12 @@ import {
   listQueuedActions,
   replaceQueue,
 } from '@/lib/storage';
-import { applyKbPatch, kbPatchInputFromPayload } from './kb-updates';
-import { executeQueuedAction } from './execute-queued-action';
 import { recordQueueAudit } from './queue-audit';
-import { canExecuteEmailAction, normalizeEmailQueueAction } from './normalize-queue-action';
+import { normalizeEmailQueueAction } from './normalize-queue-action';
+import {
+  approveQueuedAction,
+  saveQueuedEmailDraft,
+} from './execute-queued-action';
 
 export type ActionType =
   | 'email_reply'
@@ -20,7 +22,10 @@ export type ActionType =
 
 export { ACTION_TYPE_LABELS } from './action-labels';
 
-export type ActionStatus = 'pending' | 'approved' | 'rejected' | 'executed' | 'failed';
+export type ActionStatus = 'pending' | 'approved' | 'rejected' | 'executed' | 'failed' | 'saved';
+
+/** User intent from Inbox: send, save to Gmail drafts, or dismiss. */
+export type QueueIntent = 'approve' | 'save' | 'reject';
 
 export interface QueuedAction {
   id: string;
@@ -56,71 +61,103 @@ export async function enqueueAction(
   return created;
 }
 
-export async function updateActionStatus(
+function applyEmailNormalization(action: QueuedAction): QueuedAction {
+  if (action.type !== 'email_reply' && action.type !== 'email_send') return action;
+  return { ...action, ...normalizeEmailQueueAction(action) };
+}
+
+export async function resolveQueueAction(
   id: string,
-  status: ActionStatus
+  intent: QueueIntent,
 ): Promise<QueuedAction | null> {
   const all = await listQueuedActions();
   const idx = all.findIndex(a => a.id === id);
   if (idx === -1) return null;
 
-  const action = all[idx];
+  let action = applyEmailNormalization(all[idx]);
   const resolvedAt = new Date().toISOString();
-  const emailNorm =
-    action.type === 'email_reply' || action.type === 'email_send'
-      ? normalizeEmailQueueAction(action)
-      : null;
-  all[idx] = {
-    ...action,
-    ...(emailNorm ?? {}),
-    status,
-    resolvedAt,
-  };
-  await replaceQueue(all);
-  await recordQueueAudit(all[idx]);
 
-  if (status === 'approved') {
+  if (intent === 'reject') {
+    all[idx] = { ...action, status: 'rejected', resolvedAt };
+    await replaceQueue(all);
+    await recordQueueAudit(all[idx]);
+    return all[idx];
+  }
+
+  if (intent === 'save') {
     try {
-      if (action.type === 'kb_update') {
-        const patchInput = kbPatchInputFromPayload({
-          ...action.payload,
-          summary: action.summary,
-        });
-        if (!patchInput) throw new Error('Profile update had no changes to apply');
-        await applyKbPatch(patchInput);
-      } else if (action.type === 'email_reply' || action.type === 'email_send') {
-        const normalized = { ...all[idx], ...normalizeEmailQueueAction(all[idx]) };
-        all[idx] = normalized;
-        await replaceQueue(all);
-        if (canExecuteEmailAction(normalized)) {
-          await executeQueuedAction(normalized);
-          all[idx] = { ...all[idx], status: 'executed', resolvedAt: new Date().toISOString() };
-          await replaceQueue(all);
-          await recordQueueAudit(all[idx]);
-        }
-        // Draft-only approve (missing to) stays status approved — user can send via chat
-      } else if (action.tool === 'gmail_send' || action.tool === 'calendar_create') {
-        await executeQueuedAction(action);
-        all[idx] = { ...all[idx], status: 'executed', resolvedAt: new Date().toISOString() };
-        await replaceQueue(all);
-        await recordQueueAudit(all[idx]);
+      if (action.type !== 'email_reply' && action.type !== 'email_send') {
+        throw new Error('Only email drafts can be saved to Gmail');
       }
+      const draft = await saveQueuedEmailDraft(action) as {
+        draftId: string; messageId: string; subject: string; connectionId: string;
+      };
+      all[idx] = {
+        ...action,
+        status: 'saved',
+        resolvedAt,
+        payload: {
+          ...action.payload,
+          gmailDraftId: draft.draftId,
+          gmailMessageId: draft.messageId,
+          connectionId: draft.connectionId,
+        },
+      };
+      await replaceQueue(all);
+      await recordQueueAudit(all[idx]);
+      return all[idx];
     } catch (err) {
       all[idx] = {
-        ...all[idx],
+        ...action,
         status: 'failed',
-        resolvedAt: new Date().toISOString(),
+        resolvedAt,
         payload: {
-          ...all[idx].payload,
+          ...action.payload,
           executionError: err instanceof Error ? err.message : String(err),
         },
       };
       await replaceQueue(all);
       await recordQueueAudit(all[idx]);
+      return all[idx];
     }
   }
 
-  return all[idx];
+  // approve — send or apply
+  try {
+    const result = await approveQueuedAction(action);
+    all[idx] = {
+      ...action,
+      ...result,
+      resolvedAt: new Date().toISOString(),
+      payload: result.payload ?? action.payload,
+    };
+    await replaceQueue(all);
+    await recordQueueAudit(all[idx]);
+    return all[idx];
+  } catch (err) {
+    all[idx] = {
+      ...action,
+      status: 'failed',
+      resolvedAt,
+      payload: {
+        ...action.payload,
+        executionError: err instanceof Error ? err.message : String(err),
+      },
+    };
+    await replaceQueue(all);
+    await recordQueueAudit(all[idx]);
+    return all[idx];
+  }
+}
+
+/** @deprecated Use resolveQueueAction with intent instead */
+export async function updateActionStatus(
+  id: string,
+  status: ActionStatus,
+): Promise<QueuedAction | null> {
+  if (status === 'rejected') return resolveQueueAction(id, 'reject');
+  if (status === 'approved') return resolveQueueAction(id, 'approve');
+  return null;
 }
 
 export async function clearResolved(): Promise<number> {

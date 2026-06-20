@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { ActionStatus } from '@/lib/harness/queue';
+import type { QueueIntent } from '@/lib/harness/queue';
 import { ACTION_TYPE_LABELS } from '@/lib/harness/action-labels';
+import { isEmailQueueAction } from '@/lib/harness/normalize-queue-action';
 import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
 import { formatTaskTime, sessionToTask, sortTaskItems, taskToChatPrompt } from '@/lib/harness/tasks';
 import { queueActionAutonomyNote } from '@/lib/harness/proactive-tasks';
@@ -94,20 +95,21 @@ function TaskRow({
 
 function TaskDetail({
   task,
-  onStatusChange,
+  onIntent,
   onOpenStudio,
   onDiscussInChat,
   autonomyLevel,
   actionPending,
 }: {
   task: TaskItem;
-  onStatusChange: (id: string, status: ActionStatus) => void;
+  onIntent: (id: string, intent: QueueIntent) => void;
   onOpenStudio?: () => void;
   onDiscussInChat?: (prompt: string) => void;
   autonomyLevel?: UserAutonomyPreference;
   actionPending?: boolean;
 }) {
   const action = task.action;
+  const showSave = action != null && isEmailQueueAction(action);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -204,23 +206,43 @@ function TaskDetail({
       </div>
 
       {action && task.status === 'needs_you' && (
-        <div className="shrink-0 border-t border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
+        <div className="shrink-0 border-t border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-2 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
           <button
             type="button"
             disabled={actionPending}
-            onClick={() => onStatusChange(action.id, 'approved')}
-            className="flex-1 py-3 text-sm font-semibold bg-foreground text-surface rounded-lg hover:bg-foreground/90 transition-colors disabled:opacity-50"
+            onClick={() => onIntent(action.id, 'approve')}
+            className="w-full py-3 text-sm font-semibold bg-foreground text-surface rounded-lg hover:bg-foreground/90 transition-colors disabled:opacity-50"
           >
-            {actionPending ? 'Working…' : 'Approve'}
+            {actionPending ? 'Working…' : 'Approve & send'}
           </button>
-          <button
-            type="button"
-            disabled={actionPending}
-            onClick={() => onStatusChange(action.id, 'rejected')}
-            className="flex-1 py-3 text-sm font-semibold text-foreground rounded-lg border border-border hover:bg-surface-subtle transition-colors disabled:opacity-50"
-          >
-            Reject
-          </button>
+          <div className={`flex gap-2 ${showSave ? '' : 'hidden'}`}>
+            <button
+              type="button"
+              disabled={actionPending}
+              onClick={() => onIntent(action.id, 'save')}
+              className="flex-1 py-3 text-sm font-semibold text-foreground rounded-lg border border-accent/40 bg-accent/5 hover:bg-accent/10 transition-colors disabled:opacity-50"
+            >
+              Save to drafts
+            </button>
+            <button
+              type="button"
+              disabled={actionPending}
+              onClick={() => onIntent(action.id, 'reject')}
+              className="flex-1 py-3 text-sm font-semibold text-foreground-muted rounded-lg border border-border hover:bg-surface-subtle transition-colors disabled:opacity-50"
+            >
+              Reject
+            </button>
+          </div>
+          {!showSave && (
+            <button
+              type="button"
+              disabled={actionPending}
+              onClick={() => onIntent(action.id, 'reject')}
+              className="w-full py-3 text-sm font-semibold text-foreground-muted rounded-lg border border-border hover:bg-surface-subtle transition-colors disabled:opacity-50"
+            >
+              Reject
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -276,28 +298,38 @@ export default function TaskFeed({
 
   const selected = filtered.find(t => t.id === selectedId) ?? allTasks.find(t => t.id === selectedId) ?? null;
 
-  const handleStatusChange = async (id: string, status: ActionStatus) => {
+  const handleIntent = async (id: string, intent: QueueIntent) => {
     setActionPending(true);
-    const result = await patchQueueAction(id, status);
+    const result = await patchQueueAction(id, intent);
     setActionPending(false);
     if (result.ok) {
       const action = result.action;
-      let message = status === 'rejected' ? 'Rejected' : 'Approved';
-      if (status === 'approved') {
-        if (action.status === 'executed') message = 'Approved and sent';
+      let message = 'Done';
+      let type: 'ok' | 'err' = 'ok';
+
+      if (intent === 'reject') {
+        message = 'Rejected';
+      } else if (intent === 'save') {
+        if (action.status === 'saved') message = 'Saved to Gmail drafts';
         else if (action.status === 'failed') {
-          const err = action.payload?.executionError;
-          message = typeof err === 'string' ? `Failed to send: ${err}` : 'Approved but send failed';
-          setActionFeedback({ type: 'err', message });
-          refresh();
-          onTasksChanged?.();
-          setTimeout(() => setActionFeedback(null), 4000);
-          return;
-        } else if (action.status === 'approved') {
-          message = 'Approved — draft saved (use chat to edit and send)';
+          type = 'err';
+          message = typeof action.payload?.executionError === 'string'
+            ? `Could not save draft: ${action.payload.executionError}`
+            : 'Could not save draft';
+        }
+      } else if (intent === 'approve') {
+        if (action.status === 'executed') message = 'Sent';
+        else if (action.status === 'failed') {
+          type = 'err';
+          message = typeof action.payload?.executionError === 'string'
+            ? action.payload.executionError
+            : 'Send failed — try Save to drafts instead';
+        } else {
+          message = 'Approved';
         }
       }
-      setActionFeedback({ type: 'ok', message });
+
+      setActionFeedback({ type, message });
       setSelectedId(null);
       refresh();
       onTasksChanged?.();
@@ -396,7 +428,7 @@ export default function TaskFeed({
             <div className="flex-1 min-h-0">
               <TaskDetail
                 task={selected}
-                onStatusChange={handleStatusChange}
+                onIntent={handleIntent}
                 onOpenStudio={onOpenStudio}
                 onDiscussInChat={onDiscussInChat}
                 autonomyLevel={autonomy?.level}

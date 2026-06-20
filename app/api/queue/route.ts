@@ -1,25 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listActions, updateActionStatus, clearResolved } from '@/lib/harness/queue';
-import type { ActionStatus } from '@/lib/harness/queue';
+import { listActions, resolveQueueAction, clearResolved, type QueueIntent } from '@/lib/harness/queue';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const status = searchParams.get('status') as ActionStatus | null;
+  const status = searchParams.get('status');
 
-  const actions = await listActions(status ? { status } : undefined);
+  const actions = await listActions(status ? { status: status as import('@/lib/harness/queue').ActionStatus } : undefined);
   return NextResponse.json(actions);
 }
 
 export async function PATCH(req: NextRequest) {
-  const body = await req.json() as { id: string; status: ActionStatus };
+  const body = await req.json() as {
+    id: string;
+    intent?: QueueIntent;
+    status?: string;
+  };
 
-  if (!body.id || !body.status) {
-    return NextResponse.json({ error: '"id" and "status" are required' }, { status: 400 });
+  if (!body.id) {
+    return NextResponse.json({ error: '"id" is required' }, { status: 400 });
   }
 
-  const action = await updateActionStatus(body.id, body.status);
+  const intent: QueueIntent | null = body.intent
+    ?? (body.status === 'approved' ? 'approve' : body.status === 'rejected' ? 'reject' : null);
+
+  if (!intent) {
+    return NextResponse.json({ error: '"intent" (approve | save | reject) is required' }, { status: 400 });
+  }
+
+  const action = await resolveQueueAction(body.id, intent);
   if (!action) {
     return NextResponse.json({ error: 'Action not found' }, { status: 404 });
   }
