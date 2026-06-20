@@ -34,3 +34,9 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_action_queue_user_status ON action_queue (user_id, status);
+
+CREATE TABLE IF NOT EXISTS chat_store (
+  user_id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

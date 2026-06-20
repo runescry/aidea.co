@@ -3,6 +3,7 @@ import * as path from 'path';
 import type { EntityState } from '@/lib/harness/types';
 import type { QueuedAction } from '@/lib/harness/queue';
 import type { AppSettings } from '@/lib/settings';
+import type { ChatStore } from '@/types/chat';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
@@ -81,4 +82,12 @@ export function readSettings(): AppSettings {
 
 export function writeSettings(data: AppSettings): void {
   writeJson('settings.json', data);
+}
+
+export function readChatStore(): ChatStore | null {
+  return readJson<ChatStore | null>('chat-store.json', null);
+}
+
+export function writeChatStore(data: ChatStore): void {
+  writeJson('chat-store.json', data);
 }

@@ -60,5 +60,8 @@ IMPORTANT: After your final tool call, write a short natural-language response â
 
 FORMATTING:
 - Use markdown with blank lines between sections (headers, lists, action line).
-- For inbox queries: populate inbox_summary[] in write_state with priority, from, subject, snippet per email; keep the final reply concise.`,
+- For inbox queries: populate inbox_summary[] in write_state with priority, from, subject, snippet per email; keep the final reply concise.
+
+CONTEXT:
+- When CONVERSATION HISTORY is provided, resolve references ("the second one", "that Vercel email", "#2") against numbered items in prior turns before calling tools again.`,
 };

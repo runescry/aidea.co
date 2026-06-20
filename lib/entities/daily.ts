@@ -90,6 +90,7 @@ export const dispatchEntityConfig: EntityConfig = {
   deferStatePersist: true,
   buildInitialContext: (input) => ({
     command: input.command ?? '',
+    conversationHistory: input.history ?? [],
     currentDate: new Date().toISOString().split('T')[0],
     currentTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
   }),

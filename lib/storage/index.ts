@@ -1,6 +1,7 @@
 import type { EntityState } from '@/lib/harness/types';
 import type { QueuedAction, ActionStatus, ActionType } from '@/lib/harness/queue';
 import type { AppSettings } from '@/lib/settings';
+import type { ChatStore } from '@/types/chat';
 import { ensureMigrated } from '@/lib/db/migrate';
 import { hasDatabase } from '@/lib/db/client';
 import * as fs from './filesystem';
@@ -125,4 +126,17 @@ export async function writeStoredSettings(updates: Partial<AppSettings>): Promis
   }
   if (usePostgres()) await pg.writeSettings(userId, current);
   else fs.writeSettings(current);
+}
+
+export async function readChatStore(): Promise<ChatStore | null> {
+  await ready();
+  const userId = getUserId();
+  return usePostgres() ? pg.readChatStore(userId) : fs.readChatStore();
+}
+
+export async function writeChatStore(data: ChatStore): Promise<void> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) await pg.writeChatStore(userId, data);
+  else fs.writeChatStore(data);
 }

@@ -2,6 +2,7 @@ import { getSql, toJson } from '@/lib/db/client';
 import type { EntityState } from '@/lib/harness/types';
 import type { QueuedAction } from '@/lib/harness/queue';
 import type { AppSettings } from '@/lib/settings';
+import type { ChatStore } from '@/types/chat';
 
 export async function readProfile(userId: string): Promise<Record<string, unknown>> {
   const sql = getSql();
@@ -94,6 +95,24 @@ export async function writeSettings(userId: string, data: AppSettings): Promise<
   const sql = getSql();
   await sql`
     INSERT INTO app_settings (user_id, data, updated_at)
+    VALUES (${userId}, ${sql.json(toJson(data))}, NOW())
+    ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+  `;
+}
+
+export async function readChatStore(userId: string): Promise<ChatStore | null> {
+  const sql = getSql();
+  const rows = await sql<{ data: ChatStore }[]>`
+    SELECT data FROM chat_store WHERE user_id = ${userId}
+  `;
+  if (rows.length === 0) return null;
+  return rows[0].data;
+}
+
+export async function writeChatStore(userId: string, data: ChatStore): Promise<void> {
+  const sql = getSql();
+  await sql`
+    INSERT INTO chat_store (user_id, data, updated_at)
     VALUES (${userId}, ${sql.json(toJson(data))}, NOW())
     ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
   `;

@@ -6,15 +6,23 @@ import { executeHarnessTool } from './tools';
 import { spawnChildAgent } from './spawn';
 import { getModel } from '@/lib/ai/provider';
 import { buildAiSdkTools } from '@/lib/ai/tools';
+import { formatConversationHistory } from '@/lib/chat/history';
+import type { ChatHistoryEntry } from '@/types/chat';
 
 function buildAgentPrompt(agent: HarnessAgent, ctx: HarnessContext): string {
   const stateContext = getStateKeys(ctx.state, agent.stateReadKeys);
   const hasContext = Object.values(stateContext).some(v => v !== null);
+  const command = ctx.state.data.command as string | undefined;
+  const history = ctx.state.data.conversationHistory as ChatHistoryEntry[] | undefined;
 
   return [
     hasContext
       ? `ENTITY STATE (your context):\n${JSON.stringify(stateContext, null, 2)}`
       : '',
+    history?.length
+      ? `CONVERSATION HISTORY (use for references like "the second one", "that email", "reply to #2"):\n${formatConversationHistory(history)}`
+      : '',
+    command ? `CURRENT USER COMMAND:\n${command}` : '',
     `ENTITY MISSION: ${ctx.config.mission}`,
     agent.memory.crossRunContext
       ? `YOUR PRIOR CONTEXT:\n${agent.memory.crossRunContext}`

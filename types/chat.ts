@@ -20,3 +20,10 @@ export interface ChatStore {
   conversations: ChatConversation[];
   activeId: string;
 }
+
+/** Prior turns sent to the dispatcher for follow-up context. */
+export interface ChatHistoryEntry {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: string;
+}

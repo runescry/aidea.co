@@ -3,13 +3,18 @@ import { bootstrapEntity } from '@/lib/harness/bootstrap';
 import { dispatchEntityConfig } from '@/lib/entities/daily';
 import { hasApiKey } from '@/lib/ai/provider';
 import { harnessSSEResponse } from '@/lib/api/sse';
+import type { ChatHistoryEntry } from '@/types/chat';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 1800;
 
 export async function POST(req: NextRequest) {
-  const body = await req.json() as { command?: string; sessionId?: string };
+  const body = await req.json() as {
+    command?: string;
+    sessionId?: string;
+    history?: ChatHistoryEntry[];
+  };
   const sessionId = body.sessionId ?? crypto.randomUUID();
 
   if (!hasApiKey()) {
@@ -27,7 +32,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const history = Array.isArray(body.history) ? body.history.slice(-16) : [];
+
   return harnessSSEResponse(sessionId, async (send) => {
-    await bootstrapEntity(dispatchEntityConfig, { command }, send, sessionId);
+    await bootstrapEntity(
+      dispatchEntityConfig,
+      { command, history },
+      send,
+      sessionId,
+    );
   });
 }
