@@ -1,4 +1,5 @@
 import type { QueuedAction } from './queue';
+import type { EntityState } from './types';
 import { ACTION_TYPE_LABELS } from './action-labels';
 
 export type TaskStatus = 'needs_you' | 'running' | 'done' | 'failed';
@@ -14,6 +15,27 @@ export interface TaskItem {
   priority?: QueuedAction['priority'];
   createdAt: string;
   action?: QueuedAction;
+  entityId?: string;
+  preview?: string;
+}
+
+const TASK_STATUS_ORDER: Record<TaskStatus, number> = {
+  needs_you: 0,
+  running: 1,
+  failed: 2,
+  done: 3,
+};
+
+export function sortTaskItems(tasks: TaskItem[]): TaskItem[] {
+  return [...tasks].sort((a, b) => {
+    const diff = TASK_STATUS_ORDER[a.status] - TASK_STATUS_ORDER[b.status];
+    if (diff !== 0) return diff;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+}
+
+export function countNeedsYou(tasks: TaskItem[]): number {
+  return tasks.filter(t => t.status === 'needs_you').length;
 }
 
 function queueStatusToTaskStatus(status: QueuedAction['status']): TaskStatus {
@@ -42,6 +64,7 @@ export function sessionToTask(input: {
   entityType?: string;
   activeAgents: number;
   status: 'running' | 'paused' | 'complete' | 'error';
+  entityId?: string;
 }): TaskItem | null {
   const label = input.entityType
     ? input.entityType.charAt(0).toUpperCase() + input.entityType.slice(1)
@@ -55,9 +78,10 @@ export function sessionToTask(input: {
         : 'done';
 
   return {
-    id: 'session-active',
+    id: input.entityId ? `entity-${input.entityId}` : 'session-active',
     source: 'session',
     status,
+    entityId: input.entityId,
     title:
       status === 'running'
         ? `${label} — ${input.activeAgents} agent${input.activeAgents === 1 ? '' : 's'} working`
@@ -67,6 +91,87 @@ export function sessionToTask(input: {
     subtitle: 'Studio session',
     createdAt: new Date().toISOString(),
   };
+}
+
+function artifactPreviewFromEntityData(data: Record<string, unknown>): string | undefined {
+  for (const value of Object.values(data)) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      const line = value.trim().split('\n')[0];
+      return line.length > 80 ? `${line.slice(0, 77)}…` : line;
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const nested = artifactPreviewFromEntityData(value as Record<string, unknown>);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+}
+
+export function entityStateToTask(entity: EntityState): TaskItem {
+  const typeLabel = entity.entityType.charAt(0).toUpperCase() + entity.entityType.slice(1);
+  const status: TaskStatus =
+    entity.status === 'running' || entity.status === 'paused'
+      ? 'running'
+      : entity.status === 'error'
+        ? 'failed'
+        : 'done';
+
+  const preview = artifactPreviewFromEntityData(entity.data);
+  let title: string;
+  if (status === 'running') {
+    title = `${entity.entityName} — in progress`;
+  } else if (status === 'failed') {
+    title = `${entity.entityName} — failed`;
+  } else {
+    title = preview ?? `${entity.entityName} — complete`;
+  }
+
+  return {
+    id: `entity-${entity.entityId}`,
+    source: 'session',
+    status,
+    entityId: entity.entityId,
+    title,
+    subtitle: preview && status === 'done' ? `${typeLabel} · deliverable` : `${typeLabel} run`,
+    preview: status === 'done' ? preview : undefined,
+    createdAt: entity.updatedAt,
+  };
+}
+
+const RECENT_ENTITY_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function buildUnifiedTaskFeed(input: {
+  actions: QueuedAction[];
+  entities: EntityState[];
+  now?: number;
+}): { tasks: TaskItem[]; needsYou: number } {
+  const now = input.now ?? Date.now();
+  const queueTasks = input.actions.map(queueActionToTask);
+
+  const entityTasks = input.entities
+    .filter(entity => {
+      if (entity.status === 'running' || entity.status === 'paused') return true;
+      return now - new Date(entity.updatedAt).getTime() <= RECENT_ENTITY_MS;
+    })
+    .map(entityStateToTask);
+
+  const tasks = sortTaskItems([...queueTasks, ...entityTasks]);
+  return { tasks, needsYou: countNeedsYou(tasks) };
+}
+
+export function taskToChatPrompt(
+  task: TaskItem,
+  question = 'Why did you draft this?',
+): string {
+  const lines = [question, '', `Work item: ${task.title}`];
+  if (task.subtitle) lines.push(task.subtitle);
+  if (task.action?.detail) {
+    lines.push('', task.action.detail);
+  } else if (task.action) {
+    const typeLabel = ACTION_TYPE_LABELS[task.action.type] ?? task.action.type;
+    lines.push('', `${typeLabel} from ${task.action.agentRole}`);
+  }
+  return lines.join('\n');
 }
 
 export function formatTaskTime(iso: string): string {

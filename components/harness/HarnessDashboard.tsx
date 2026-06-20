@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useHarnessSession } from '@/hooks/useHarnessSession';
 import { ChatProvider } from '@/hooks/useChatConversations';
 import AppSidebar, { type MainView } from './AppSidebar';
@@ -19,7 +19,24 @@ export default function HarnessDashboard() {
   const [view, setView] = useState<MainView>('home');
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [taskRefreshKey, setTaskRefreshKey] = useState(0);
+  const [workPendingCount, setWorkPendingCount] = useState(0);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+
+  const refreshWorkCount = useCallback(() => {
+    fetch('/api/tasks')
+      .then(r => r.ok ? r.json() : { needsYou: 0 })
+      .then(d => setWorkPendingCount(typeof d.needsYou === 'number' ? d.needsYou : 0))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshWorkCount();
+  }, [refreshWorkCount, taskRefreshKey]);
+
+  useEffect(() => {
+    const id = setInterval(refreshWorkCount, 15000);
+    return () => clearInterval(id);
+  }, [refreshWorkCount]);
 
   useEffect(() => {
     fetch('/api/onboarding')
@@ -65,6 +82,7 @@ export default function HarnessDashboard() {
           onNavigate={navigate}
           agentsRunning={agentsRunning}
           onOpenStudio={() => setView('studio')}
+          workPendingCount={workPendingCount}
         />
 
         <ConversationDrawer
@@ -78,9 +96,11 @@ export default function HarnessDashboard() {
               session={{
                 status: state.status,
                 entityType: state.entityType,
+                entityId: state.entityId,
                 activeAgents,
               }}
               onOpenStudio={() => setView('studio')}
+              onOpenSettings={() => setView('settings')}
               onOpenChats={() => setChatDrawerOpen(true)}
               taskRefreshKey={taskRefreshKey}
               onTaskRefresh={() => setTaskRefreshKey(k => k + 1)}
@@ -113,6 +133,7 @@ export default function HarnessDashboard() {
           view={view}
           onNavigate={navigate}
           agentsRunning={agentsRunning}
+          workPendingCount={workPendingCount}
         />
       </div>
     </ChatProvider>

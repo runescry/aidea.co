@@ -1,50 +1,7 @@
 'use client';
 import { useState } from 'react';
 import MorningBriefRenderer from './MorningBriefRenderer';
-
-const ARTIFACT_KEYS = [
-  'company_identity', 'ceo_directive', 'ceo_directive_cycle2',
-  'cpo_output', 'cmo_output', 'cto_output', 'cfo_output',
-  'copywriter_artifact', 'outreach_artifact', 'pricing_artifact', 'research_artifact',
-  'life_context', 'life_ceo_output', 'values_output', 'mental_health_output',
-  'growth_output', 'health_output', 'finance_output', 'relationships_output', 'systems_output',
-  'morning_brief', 'inbox_triage', 'calendar_brief', 'health_brief', 'news_brief', 'work_prep',
-  'dispatch_response', 'relationship_monitor',
-  'research_output', 'plan_output',
-];
-
-const ARTIFACT_LABELS: Record<string, string> = {
-  company_identity: 'Company Identity',
-  ceo_directive: 'CEO Directive (Cycle 1)',
-  ceo_directive_cycle2: 'CEO Directive (Cycle 2)',
-  cpo_output: 'CPO — Product Plan',
-  cmo_output: 'CMO — Marketing Plan',
-  cto_output: 'CTO — Engineering Plan',
-  cfo_output: 'CFO — Financial Plan',
-  copywriter_artifact: 'Copywriter — Content',
-  outreach_artifact: 'Outreach — Messages',
-  pricing_artifact: 'Pricing — Model & Page',
-  research_artifact: 'Research — Discovery',
-  life_context: 'Life Context',
-  life_ceo_output: 'Life CEO — Quarterly Plan',
-  values_output: 'Values — Constitution',
-  mental_health_output: 'Mental Health — Protocol',
-  growth_output: 'Growth Director — Skills & Career',
-  health_output: 'Health Director — Protocol',
-  finance_output: 'Finance Director — Plan',
-  relationships_output: 'Relationships Director — Social',
-  systems_output: 'Systems Director — Productivity',
-  morning_brief: 'Morning Brief',
-  inbox_triage: 'Inbox Triage',
-  calendar_brief: 'Calendar Brief',
-  health_brief: 'Health Brief',
-  news_brief: 'News Headlines',
-  work_prep: 'Work Prep',
-  dispatch_response: 'Dispatch Response',
-  relationship_monitor: 'Relationship Monitor',
-  research_output: 'Research — Output',
-  plan_output: 'Planner — Schedule',
-};
+import { getArtifactLabel, getKnownArtifactKeys, sortArtifactKeys } from '@/lib/agents/artifact-labels';
 
 const RICH_RENDERERS: Record<string, boolean> = {
   morning_brief: true,
@@ -149,9 +106,10 @@ interface Props {
 export default function ArtifactBrowser({ entityState }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
 
-  const available = ARTIFACT_KEYS.filter(k => k in entityState);
-  const extra = Object.keys(entityState).filter(k => !ARTIFACT_KEYS.includes(k));
-  const all = [...available, ...extra];
+  const knownKeys = getKnownArtifactKeys();
+  const available = knownKeys.filter(k => k in entityState);
+  const extra = Object.keys(entityState).filter(k => !knownKeys.includes(k));
+  const all = sortArtifactKeys([...available, ...extra]);
 
   if (all.length === 0) {
     return (
@@ -177,7 +135,7 @@ export default function ArtifactBrowser({ entityState }: Props) {
             }`}
             onClick={() => setSelected(k)}
           >
-            {ARTIFACT_LABELS[k] ?? k}
+            {getArtifactLabel(k)}
           </button>
         ))}
       </div>
@@ -187,7 +145,7 @@ export default function ArtifactBrowser({ entityState }: Props) {
         {activeKey && entityState[activeKey] !== undefined && (
           <>
             <div className="text-warning font-semibold mb-3">
-              {ARTIFACT_LABELS[activeKey] ?? activeKey}
+              {getArtifactLabel(activeKey)}
             </div>
             {typeof entityState[activeKey] === 'object' && entityState[activeKey] !== null
               ? <ArtifactDetail stateKey={activeKey} value={entityState[activeKey]} />

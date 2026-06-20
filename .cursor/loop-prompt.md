@@ -1,16 +1,34 @@
 # Loop prompt — copy into chat with `/loop`
 
-## Fixed interval (recommended: 45m)
+## Progress updates (required)
+
+The user wants to hear from you **as you go**, not only at the end of a batch.
+
+After **each** ROADMAP item (pass or blocked):
+
+1. **Reply in chat** with a short update (2–4 lines): what finished, gates result, what's next.
+2. **Update `ROADMAP.md` → `## Current status`** (one paragraph, latest state).
+3. **Append `## Loop log`** (one line per item).
+
+On **wake** (loop tick or user message): start with a one-line status ("Resuming P1 — next: …") before coding.
+
+Do **not** silently chain many items and summarize once at the end.
+
+---
+
+## Fixed interval (recommended: 5m idle fallback)
+
+Use a **short interval as a safety net**, not as the pace between items. In each agent turn, chain ROADMAP items back-to-back until done or blocked. The loop only matters when a turn ends idle (context limit, you closed chat, agent stopped early).
 
 ```
-/loop 45m Execute one aidea roadmap item:
+/loop 5m Proceed with all build tasks — continue ALL unchecked ROADMAP items (P0 first) until done or blocked; do NOT stop after one item per wake.
 
 1. Read ROADMAP.md — pick the highest-priority unchecked item (P0 before P1, etc.).
 2. Read AGENTS.md and .cursor/rules/ — use shared helpers; do not duplicate SSE, queue, labels, or save UX.
-3. Implement ONLY that single item. Do not start the next checkbox.
+3. Implement every unchecked item in priority order until done or blocked — not just one checkbox per wake unless using the one-shot prompt below.
 4. Run: npm run typecheck && npm test && npm run test:contract && npm run build
-5. If all pass: mark [x] in ROADMAP.md and append one line to "## Loop log" (date, item, files).
-6. If blocked: leave unchecked; add "BLOCKED: reason" under Loop log; do not expand scope.
+5. If all pass: mark [x] in ROADMAP.md, update ## Current status, append ## Loop log, **then message the user** before starting the next item.
+6. If blocked: leave unchecked; add "BLOCKED: reason" under Loop log; **message the user** with the blocker; do not expand scope.
 
 Constraints:
 - Minimal diff; match existing patterns — no unnecessary code or refactors
@@ -19,14 +37,12 @@ Constraints:
 - If user asked to push: only after CI is green on the branch (same gates as AGENTS.md)
 - Do not restore legacy Dashboard/orchestrator/ActionQueue patterns
 
-Stop after one item. Report: done | blocked | next item name.
+Stop when all targeted items are done or blocked. Report: progress | blocked | next section.
 ```
 
 ## Dynamic pacing (agent chooses delay)
 
-```
-/loop Execute one aidea roadmap item (same steps as above). After each item, sleep 30–60m before the next wake unless the user interrupts. P0 only until all P0 boxes are checked.
-```
+Same steps as above. After finishing a batch, arm a **5m** heartbeat (not 45m) so idle sessions resume quickly. Chain items within the turn; heartbeat only if the turn ended.
 
 ## One-shot (no loop)
 

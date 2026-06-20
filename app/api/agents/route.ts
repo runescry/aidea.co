@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AGENT_LIBRARY } from '@/lib/agents/library';
+import { AGENT_GROUP_DEFS } from '@/lib/agents/groups';
 import { ARCHETYPES } from '@/lib/agents/library/archetypes';
 import { HARNESS_TOOLS } from '@/lib/harness/tools';
 import {
@@ -15,44 +16,6 @@ import type { AgentOverridesMap } from '@/types/agent-overrides';
 import type { AgentDefinition } from '@/lib/harness/types';
 
 export const runtime = 'nodejs';
-
-const GROUPS: Array<{ id: string; label: string; agentIds: string[] }> = [
-  {
-    id: 'command',
-    label: 'Command',
-    agentIds: ['dispatcher'],
-  },
-  {
-    id: 'daily',
-    label: 'Daily operations',
-    agentIds: [
-      'daily-orchestrator', 'inbox-triage', 'calendar-reader',
-      'health-briefer', 'news-curator', 'work-prep',
-    ],
-  },
-  {
-    id: 'personal',
-    label: 'Personal OS',
-    agentIds: [
-      'life-ceo', 'values-director', 'mental-health-director',
-      'growth-director', 'health-director', 'finance-director',
-      'relationships-director', 'systems-director', 'relationship-monitor',
-    ],
-  },
-  {
-    id: 'company',
-    label: 'Company',
-    agentIds: [
-      'ceo', 'cpo', 'cmo', 'cto', 'cfo',
-      'copywriter', 'outreach', 'pricing', 'research',
-    ],
-  },
-  {
-    id: 'shared',
-    label: 'Shared',
-    agentIds: ['shared-researcher', 'shared-planner'],
-  },
-];
 
 function toolsEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
@@ -94,7 +57,7 @@ export async function GET() {
     ]),
   );
 
-  const groups = GROUPS.map(group => ({
+  const groups = AGENT_GROUP_DEFS.map(group => ({
     ...group,
     agents: group.agentIds
       .filter(id => AGENT_LIBRARY[id])
@@ -102,7 +65,7 @@ export async function GET() {
   }));
 
   const ungrouped = Object.keys(AGENT_LIBRARY).filter(
-    id => !GROUPS.some(g => g.agentIds.includes(id)),
+    id => !AGENT_GROUP_DEFS.some(g => g.agentIds.includes(id)),
   );
 
   if (ungrouped.length > 0) {

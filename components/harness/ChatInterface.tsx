@@ -97,15 +97,41 @@ function ChatMessageRow({ msg, variant }: { msg: ChatMessage; variant: 'default'
 interface Props {
   variant?: 'default' | 'home';
   onMessageComplete?: () => void;
+  prefill?: string | null;
+  onPrefillApplied?: () => void;
 }
 
-export default function ChatInterface({ variant = 'default', onMessageComplete }: Props) {
-  const { activeConversation, streaming, sendMessage } = useChatConversations();
+export default function ChatInterface({
+  variant = 'default',
+  onMessageComplete,
+  prefill,
+  onPrefillApplied,
+}: Props) {
+  const { activeConversation, streaming, sendMessage, syncReady } = useChatConversations();
   const messages = activeConversation.messages;
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const wasStreamingRef = useRef(false);
   const isHome = variant === 'home';
+
+  useEffect(() => {
+    if (!prefill?.trim()) return;
+    setInput(prefill);
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 160)}px`;
+      inputRef.current.focus();
+    }
+    onPrefillApplied?.();
+  }, [prefill, onPrefillApplied]);
+
+  useEffect(() => {
+    if (wasStreamingRef.current && !streaming) {
+      onMessageComplete?.();
+    }
+    wasStreamingRef.current = streaming;
+  }, [streaming, onMessageComplete]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -121,8 +147,7 @@ export default function ChatInterface({ variant = 'default', onMessageComplete }
     setInput('');
     if (inputRef.current) inputRef.current.style.height = 'auto';
     await sendMessage(command);
-    onMessageComplete?.();
-  }, [input, streaming, sendMessage, onMessageComplete]);
+  }, [input, streaming, sendMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -221,6 +246,9 @@ export default function ChatInterface({ variant = 'default', onMessageComplete }
         <div ref={bottomRef} />
       </div>
 
+      {isHome && !syncReady && (
+        <p className="text-[10px] text-foreground-subtle mb-2">Restoring conversation…</p>
+      )}
       {composer}
     </div>
   );

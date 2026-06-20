@@ -7,6 +7,7 @@ import { WORKOUT_DAYS, TIMEZONES, PRONOUNS, COMPANY_STAGES } from '@/types/knowl
 import { Label, TextField, TextArea, TextArrayInput, SelectField } from '../forms';
 import PersonListEditor from './PersonListEditor';
 import ProjectsEditor from '../ProjectsEditor';
+import { GoalsSection, RoutinesSection, PreferencesSection } from '../profile/ProfileSections';
 
 const STEPS = [
   { id: 'welcome', title: 'Welcome', subtitle: 'Build your chief of staff' },
@@ -430,26 +431,7 @@ export default function OnboardingWizard({ onComplete }: Props) {
           {current.id === 'goals' && (
             <>
               <StepIntro text="Agents trade off your priorities — not generic productivity advice." />
-              <div>
-                <Label>Life priorities (ranked, one per line)</Label>
-                <TextArrayInput value={data.goals?.lifePriorities ?? []} onChange={v => u('goals', { lifePriorities: v })}
-                  placeholder="Family time&#10;Health&#10;Building the company&#10;Financial security&#10;Friendships" />
-              </div>
-              <div>
-                <Label>Short-term goals (next 3 months)</Label>
-                <TextArrayInput value={data.goals?.shortTerm ?? []} onChange={v => u('goals', { shortTerm: v })}
-                  placeholder="Close seed round&#10;Ship v2&#10;Run half marathon&#10;Hire 2 engineers" />
-              </div>
-              <div>
-                <Label>Long-term goals (1–5 years)</Label>
-                <TextArrayInput value={data.goals?.longTerm ?? []} onChange={v => u('goals', { longTerm: v })}
-                  placeholder="$10M ARR&#10;Move to countryside&#10;Write a book&#10;Kids through primary school" />
-              </div>
-              <div>
-                <Label>Non-negotiables</Label>
-                <TextArrayInput value={data.goals?.nonNegotiables ?? []} onChange={v => u('goals', { nonNegotiables: v })}
-                  placeholder="Kids' bedtime 7:30pm&#10;No work Sundays&#10;Weekly date night&#10;Gym 4x/week" />
-              </div>
+              <GoalsSection data={data} u={u} wrapSection={false} />
               <div>
                 <Label>Anti-goals — what you&apos;re actively avoiding</Label>
                 <TextArrayInput value={data.goals?.antiGoals ?? []} onChange={v => u('goals', { antiGoals: v })}
@@ -616,16 +598,7 @@ export default function OnboardingWizard({ onComplete }: Props) {
           {current.id === 'routines' && (
             <>
               <StepIntro text="Morning and evening routines help agents time briefs and protect your rituals." />
-              <div>
-                <Label>Morning routine</Label>
-                <TextArea value={data.routines?.morningRoutine ?? ''} onChange={v => u('routines', { morningRoutine: v })} rows={3}
-                  placeholder="6:30 wake. Coffee + journal 15min. Review brief before kids wake. No email before 8am." />
-              </div>
-              <div>
-                <Label>Evening routine</Label>
-                <TextArea value={data.routines?.eveningRoutine ?? ''} onChange={v => u('routines', { eveningRoutine: v })} rows={3}
-                  placeholder="Kids bedtime 7:30. Light reading. Phone away 9pm. Bed by 10:30." />
-              </div>
+              <RoutinesSection data={data} u={u} wrapSection={false} />
               <div>
                 <Label>Weekly rituals</Label>
                 <TextArrayInput value={data.routines?.weeklyRituals ?? []} onChange={v => u('routines', { weeklyRituals: v })}
@@ -662,26 +635,7 @@ export default function OnboardingWizard({ onComplete }: Props) {
           {current.id === 'preferences' && (
             <>
               <StepIntro text="Fine-tune how aidea delivers briefs and drafts on your behalf." />
-              <div>
-                <Label>News topics to follow</Label>
-                <TextArrayInput value={data.preferences?.newsTopics ?? []} onChange={v => u('preferences', { newsTopics: v })}
-                  placeholder="AI / machine learning&#10;UK startup funding&#10;Climate tech&#10;Your industry news" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Morning brief delivery time</Label>
-                  <TextField value={data.preferences?.briefingTime ?? ''} onChange={v => u('preferences', { briefingTime: v })} placeholder="06:30" />
-                </div>
-                <div>
-                  <Label>Focus / deep work hours</Label>
-                  <TextField value={data.preferences?.focusHours ?? ''} onChange={v => u('preferences', { focusHours: v })} placeholder="9am–12pm, 2–5pm" />
-                </div>
-              </div>
-              <div>
-                <Label>Writing tone for drafts</Label>
-                <TextArea value={data.preferences?.writingTone ?? ''} onChange={v => u('preferences', { writingTone: v })} rows={2}
-                  placeholder="Warm but professional. No corporate jargon. Short sentences. British English." />
-              </div>
+              <PreferencesSection data={data} u={u} wrapSection={false} />
               <div>
                 <Label>Decision speed preference</Label>
                 <TextField value={data.preferences?.decisionSpeed ?? ''} onChange={v => u('preferences', { decisionSpeed: v })} placeholder="Fast on small calls, sleep on big ones" />
@@ -690,11 +644,6 @@ export default function OnboardingWizard({ onComplete }: Props) {
                 <Label>Notification preferences</Label>
                 <TextArea value={data.preferences?.notificationPreferences ?? ''} onChange={v => u('preferences', { notificationPreferences: v })} rows={2}
                   placeholder="Only interrupt for urgent inbox. Batch everything else into morning brief." />
-              </div>
-              <div>
-                <Label>Default autonomy level</Label>
-                <SelectField value={data.preferences?.defaultAutonomyLevel ?? 'semi-autonomous'} onChange={v => u('preferences', { defaultAutonomyLevel: v as NonNullable<KnowledgeBase['preferences']>['defaultAutonomyLevel'] })} options={['supervised', 'semi-autonomous', 'autonomous']} />
-                <p className="text-[11px] text-foreground-subtle mt-1">Supervised: approve every action. Semi-autonomous: queue drafts. Autonomous: act within guardrails.</p>
               </div>
             </>
           )}

@@ -34,9 +34,10 @@ interface Props {
   onNavigate: (view: MainView) => void;
   agentsRunning?: boolean;
   onOpenStudio?: () => void;
+  workPendingCount?: number;
 }
 
-export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStudio }: Props) {
+export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStudio, workPendingCount = 0 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const { createConversation, streaming } = useChatConversations();
 
@@ -107,6 +108,15 @@ export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStud
             >
               <Icon className="w-5 h-5 shrink-0" />
               {expanded && <span className="text-[13px] truncate">{label}</span>}
+              {id === 'home' && workPendingCount > 0 && (
+                <span
+                  className={`absolute flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-[10px] font-semibold text-surface tabular-nums ${
+                    expanded ? 'right-2 top-1/2 -translate-y-1/2' : 'top-1 right-1'
+                  }`}
+                >
+                  {workPendingCount > 9 ? '9+' : workPendingCount}
+                </span>
+              )}
               {!expanded && id === 'studio' && agentsRunning && (
                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-accent animate-pulse" />
               )}

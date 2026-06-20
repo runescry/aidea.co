@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { ActionStatus } from '@/lib/harness/queue';
 import { ACTION_TYPE_LABELS } from '@/lib/harness/action-labels';
 import type { TaskItem, TaskStatus } from '@/lib/harness/tasks';
-import { formatTaskTime, sessionToTask } from '@/lib/harness/tasks';
+import { formatTaskTime, sessionToTask, sortTaskItems, taskToChatPrompt } from '@/lib/harness/tasks';
 import { patchQueueAction } from '@/lib/client/queue';
 import { usePollingFetch } from '@/hooks/usePollingFetch';
 
@@ -34,6 +34,7 @@ const DOT_STYLE: Record<TaskStatus, string> = {
 interface SessionInfo {
   status: 'idle' | 'running' | 'paused' | 'complete' | 'error';
   entityType?: string;
+  entityId?: string;
   activeAgents: number;
 }
 
@@ -41,6 +42,8 @@ interface Props {
   session?: SessionInfo;
   onOpenStudio?: () => void;
   refreshKey?: number;
+  onDiscussInChat?: (prompt: string) => void;
+  onTasksChanged?: () => void;
 }
 
 function TaskRow({
@@ -87,10 +90,12 @@ function TaskDetail({
   task,
   onStatusChange,
   onOpenStudio,
+  onDiscussInChat,
 }: {
   task: TaskItem;
   onStatusChange: (id: string, status: ActionStatus) => void;
   onOpenStudio?: () => void;
+  onDiscussInChat?: (prompt: string) => void;
 }) {
   const action = task.action;
 
@@ -126,6 +131,12 @@ function TaskDetail({
           </div>
         )}
 
+        {task.source === 'session' && task.preview && task.status === 'done' && (
+          <div className="rounded-lg bg-surface-subtle/80 p-3 text-sm text-foreground leading-relaxed whitespace-pre-wrap border border-border/50">
+            {task.preview}
+          </div>
+        )}
+
         {action?.type === 'kb_update' && action.payload?.patch != null && (
           <pre className="text-xs text-foreground-muted bg-surface-subtle rounded-lg p-3 overflow-auto max-h-48 whitespace-pre-wrap border border-border/50">
             {JSON.stringify(action.payload.patch, null, 2)}
@@ -136,6 +147,16 @@ function TaskDetail({
           <p className="text-xs text-foreground-subtle">
             {ACTION_TYPE_LABELS[action.type] ?? action.type} queued by {action.agentRole}
           </p>
+        )}
+
+        {onDiscussInChat && (
+          <button
+            type="button"
+            onClick={() => onDiscussInChat(taskToChatPrompt(task))}
+            className="text-sm font-medium text-accent hover:text-accent/80 transition-colors"
+          >
+            Discuss in chat →
+          </button>
         )}
       </div>
 
@@ -161,9 +182,10 @@ function TaskDetail({
   );
 }
 
-export default function TaskFeed({ session, onOpenStudio, refreshKey = 0 }: Props) {
+export default function TaskFeed({ session, onOpenStudio, refreshKey = 0, onDiscussInChat, onTasksChanged }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'ok' | 'err'; message: string } | null>(null);
 
   const { data, loading, refresh } = usePollingFetch(
     async () => {
@@ -175,27 +197,31 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0 }: Prop
     [refreshKey],
   );
 
+  useEffect(() => {
+    if (refreshKey > 0) refresh();
+  }, [refreshKey, refresh]);
+
   const tasks = data?.tasks ?? [];
   const needsYouCount = data?.needsYou ?? 0;
 
-  const sessionTask = useMemo(() => {
-    if (!session || session.status === 'idle') return null;
-    return sessionToTask({
+  const allTasks = useMemo(() => {
+    if (!session || session.status === 'idle') return tasks;
+
+    const live = sessionToTask({
       entityType: session.entityType,
+      entityId: session.entityId,
       activeAgents: session.activeAgents,
       status: session.status,
     });
-  }, [session]);
+    if (!live) return tasks;
 
-  const allTasks = useMemo(() => {
-    const merged = sessionTask ? [sessionTask, ...tasks] : tasks;
-    return merged.sort((a, b) => {
-      const order: Record<TaskStatus, number> = { needs_you: 0, running: 1, failed: 2, done: 3 };
-      const diff = order[a.status] - order[b.status];
-      if (diff !== 0) return diff;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-  }, [tasks, sessionTask]);
+    const duplicate = live.entityId
+      ? tasks.some(t => t.entityId === live.entityId)
+      : tasks.some(t => t.source === 'session' && t.status === 'running');
+
+    if (duplicate) return tasks;
+    return sortTaskItems([live, ...tasks]);
+  }, [tasks, session]);
 
   const filtered = useMemo(() => {
     if (filter === 'needs_you') return allTasks.filter(t => t.status === 'needs_you');
@@ -206,14 +232,24 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0 }: Prop
   const selected = filtered.find(t => t.id === selectedId) ?? allTasks.find(t => t.id === selectedId) ?? null;
 
   const handleStatusChange = async (id: string, status: ActionStatus) => {
-    await patchQueueAction(id, status);
-    setSelectedId(null);
-    refresh();
+    const result = await patchQueueAction(id, status);
+    if (result.ok) {
+      setActionFeedback({
+        type: 'ok',
+        message: status === 'approved' ? 'Approved' : 'Rejected',
+      });
+      setSelectedId(null);
+      refresh();
+      onTasksChanged?.();
+      setTimeout(() => setActionFeedback(null), 2500);
+    } else {
+      setActionFeedback({ type: 'err', message: result.error });
+    }
   };
 
   const filters: Array<{ id: Filter; label: string; count?: number }> = [
     { id: 'all', label: 'All' },
-    { id: 'needs_you', label: 'Needs you', count: needsYouCount + (sessionTask?.status === 'running' ? 0 : 0) },
+    { id: 'needs_you', label: 'Needs you', count: needsYouCount },
     { id: 'done', label: 'Done' },
   ];
 
@@ -250,6 +286,17 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0 }: Prop
       </div>
 
       <div className="flex-1 flex flex-col min-h-0">
+        {actionFeedback && (
+          <div
+            className={`shrink-0 px-4 py-2 text-[12px] font-medium border-b ${
+              actionFeedback.type === 'ok'
+                ? 'bg-accent/10 text-accent border-accent/20'
+                : 'bg-danger/10 text-danger border-danger/20'
+            }`}
+          >
+            {actionFeedback.message}
+          </div>
+        )}
         {loading ? (
           <div className="flex-1 flex items-center justify-center text-xs text-foreground-subtle">
             Loading…
@@ -267,6 +314,7 @@ export default function TaskFeed({ session, onOpenStudio, refreshKey = 0 }: Prop
               task={selected}
               onStatusChange={handleStatusChange}
               onOpenStudio={onOpenStudio}
+              onDiscussInChat={onDiscussInChat}
             />
           </>
         ) : filtered.length === 0 ? (

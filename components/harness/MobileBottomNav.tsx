@@ -25,9 +25,10 @@ interface Props {
   view: MainView;
   onNavigate: (view: MainView) => void;
   agentsRunning?: boolean;
+  workPendingCount?: number;
 }
 
-export default function MobileBottomNav({ view, onNavigate, agentsRunning }: Props) {
+export default function MobileBottomNav({ view, onNavigate, agentsRunning, workPendingCount = 0 }: Props) {
   return (
     <nav
       className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-surface/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom)]"
@@ -48,6 +49,11 @@ export default function MobileBottomNav({ view, onNavigate, agentsRunning }: Pro
             >
               <Icon className="w-5 h-5 shrink-0" />
               <span className="text-[10px] font-medium truncate max-w-full">{label}</span>
+              {id === 'home' && workPendingCount > 0 && (
+                <span className="absolute top-1.5 right-[calc(50%-20px)] flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-accent text-[9px] font-semibold text-surface tabular-nums">
+                  {workPendingCount > 9 ? '9+' : workPendingCount}
+                </span>
+              )}
               {id === 'studio' && agentsRunning && (
                 <span className="absolute top-2 right-[calc(50%-18px)] w-2 h-2 rounded-full bg-accent animate-pulse" />
               )}
