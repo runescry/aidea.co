@@ -1,4 +1,4 @@
-import { streamText, type CoreMessage } from 'ai';
+import { generateText, type CoreMessage } from 'ai';
 import type { HarnessAgent, HarnessContext, ToolInput } from './types';
 import { setAgentStatus, patchAgent } from './registry';
 import { getStateKeys } from './state';
@@ -18,6 +18,9 @@ function buildAgentPrompt(agent: HarnessAgent, ctx: HarnessContext): string {
   return [
     hasContext
       ? `ENTITY STATE (your context):\n${JSON.stringify(stateContext, null, 2)}`
+      : '',
+    ctx.state.data.dailyKickstartComplete && agent.role === 'daily-orchestrator'
+      ? 'STATUS: kb_read and spawn_agent (5 parallel sub-agents) are already complete. Do NOT repeat them. Call wait_for_agents with roles ["inbox-triage","calendar-reader","health-briefer","news-curator","work-prep"], then read their state keys and write morning_brief.'
       : '',
     history?.length
       ? `CONVERSATION HISTORY (use for references like "the second one", "that email", "reply to #2"):\n${formatConversationHistory(history)}`
@@ -127,6 +130,7 @@ export async function runAgentLoop(
   const systemPrompt = agent.systemPrompt;
   const userPrompt = buildAgentPrompt(agent, ctx);
   const aiTools = buildAiSdkTools(agent.allowedTools);
+  const hasTools = Object.keys(aiTools).length > 0;
 
   const messages: CoreMessage[] = [{ role: 'user', content: userPrompt }];
   const recentToolCalls: ToolCallRecord[] = [];
@@ -146,15 +150,19 @@ export async function runAgentLoop(
         throw new Error('Token budget exceeded mid-loop');
       }
 
-      const streamResult = streamText({
+      const kickstarted = agent.role === 'daily-orchestrator' && ctx.state.data.dailyKickstartComplete;
+
+      const result = await generateText({
         model: getModel(agent.model),
         system: systemPrompt,
         messages,
-        tools: Object.keys(aiTools).length > 0 ? aiTools : undefined,
+        tools: hasTools ? aiTools : undefined,
         toolChoice:
-          iterations === 1 && agent.authority === 'directive' && Object.keys(aiTools).length > 0
-            ? 'required'
-            : 'auto',
+          kickstarted && iterations === 1
+            ? { type: 'tool', toolName: 'wait_for_agents' }
+            : iterations === 1 && agent.authority === 'directive' && hasTools
+              ? 'required'
+              : 'auto',
         maxTokens: agent.maxTokens ?? 4096,
         ...(agent.useThinking
           ? {
@@ -167,35 +175,27 @@ export async function runAgentLoop(
           : {}),
       });
 
-      for await (const delta of streamResult.textStream) {
-        if (!delta) continue;
+      if (result.text) {
         ctx.send({
           type: 'agent_text_delta',
           sessionId: ctx.sessionId,
           entityId: ctx.entityId,
           agentId: agent.id,
           agentRole: agent.role,
-          data: { delta },
+          data: { delta: result.text },
           timestamp: new Date().toISOString(),
         });
       }
 
-      const [usage, toolCalls, finishReason, text] = await Promise.all([
-        streamResult.usage,
-        streamResult.toolCalls,
-        streamResult.finishReason,
-        streamResult.text,
-      ]);
-
       ctx.cost.recordUsage(
-        usage?.promptTokens ?? 0,
-        usage?.completionTokens ?? 0,
+        result.usage?.promptTokens ?? 0,
+        result.usage?.completionTokens ?? 0,
         0,
-        0
+        0,
       );
 
       patchAgent(ctx.registry, agent.id, {
-        tokensUsed: (ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0) + (usage?.completionTokens ?? 0),
+        tokensUsed: (ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0) + (result.usage?.completionTokens ?? 0),
       });
 
       if (ctx.cost.isNearBudget()) {
@@ -207,6 +207,8 @@ export async function runAgentLoop(
           timestamp: new Date().toISOString(),
         });
       }
+
+      const toolCalls = result.toolCalls;
 
       if (toolCalls.length > 0) {
         for (const tc of toolCalls) {
@@ -245,7 +247,7 @@ export async function runAgentLoop(
             entityId: ctx.entityId,
             agentId: agent.id,
             agentRole: agent.role,
-            data: { tool: tc.toolName, input: tc.args },
+            data: { tool: tc.toolName, input: tc.args as Record<string, unknown> },
             timestamp: new Date().toISOString(),
           });
 
@@ -298,11 +300,11 @@ export async function runAgentLoop(
         continue;
       }
 
-      if (finishReason === 'length') {
+      if (result.finishReason === 'length') {
         throw new Error(`Agent ${agent.role} hit max_tokens limit`);
       }
 
-      completeAgent(agent, ctx, text ?? '');
+      completeAgent(agent, ctx, result.text ?? '');
       return;
     }
 

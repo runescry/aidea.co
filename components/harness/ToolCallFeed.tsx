@@ -17,9 +17,9 @@ const TOOL_COLOR: Record<string, string> = {
 function summariseInput(tool: string, input: Record<string, unknown>): string {
   switch (tool) {
     case 'spawn_agent':
-      return `${input.agentId} — "${String(input.mission ?? '').slice(0, 60)}"`;
+      return `${input.role ?? input.agentId ?? '?'} — "${String(input.mission ?? '').slice(0, 60)}"`;
     case 'wait_for_agents':
-      return `[${(input.agentIds as string[] ?? []).join(', ')}]`;
+      return `[${(input.roles as string[] ?? input.ids as string[] ?? []).join(', ')}]`;
     case 'write_state':
       return `key="${input.key}"`;
     case 'read_state':

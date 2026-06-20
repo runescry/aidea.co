@@ -4,10 +4,11 @@ import { createRegistry, registerAgent } from './registry';
 import { createEntityState, persistEntityState } from './state';
 import { createMessageBus } from './bus';
 import { createCostTracker } from './cost';
-import { buildHarnessAgent } from './spawn';
+import { buildHarnessAgent, spawnChildAgent } from './spawn';
 import { runAgentLoop } from './executor';
 import { loadAgentOverrides, resolveLibraryAgent } from '@/lib/agents/resolve';
 import { hasNangoConnections } from '@/lib/nango/connections';
+import { kickstartDailyOrchestrator } from './daily-kickstart';
 
 export async function bootstrapEntity(
   config: EntityConfig,
@@ -95,6 +96,21 @@ export async function bootstrapEntity(
 
   if (config.deferStatePersist) {
     await persistEntityState(state);
+  }
+
+  const spawnFn = (
+    role: string,
+    domain: string,
+    mission: string,
+    authority: string,
+    parentAgent: import('./types').HarnessAgent,
+  ) => {
+    const child = spawnChildAgent(role, domain, mission, authority, parentAgent, ctx, runAgentLoop);
+    return Promise.resolve({ agentId: child.id });
+  };
+
+  if (config.rootAgentId === 'daily-orchestrator') {
+    await kickstartDailyOrchestrator(rootAgent, ctx, spawnFn);
   }
 
   try {
