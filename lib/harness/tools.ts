@@ -19,6 +19,7 @@ import {
   normalizeKbPatchInput,
   type KbPatchInput,
 } from './kb-updates';
+import { emitChatAgentResponse } from './chat-events';
 
 // ── Tool Catalog ──────────────────────────────────────────────────────────────
 
@@ -498,6 +499,7 @@ export async function executeHarnessTool(
       await setStateKey(ctx.state, key, value, {
         persist: !ctx.config.deferStatePersist,
       });
+      emitChatAgentResponse(ctx, callerAgent, key, value);
       ctx.send({
         type: 'state_updated',
         sessionId: ctx.sessionId,

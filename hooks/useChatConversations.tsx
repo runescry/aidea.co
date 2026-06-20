@@ -16,6 +16,29 @@ import { buildHistoryFromMessages } from '@/lib/chat/history';
 import { mergeChatStores, normalizeChatStore } from '@/lib/chat/store-utils';
 import type { ChatConversation, ChatMessage, ChatStore } from '@/types/chat';
 
+const CHAT_AGENT_ROLES = new Set(['dispatcher']);
+
+const TOOL_STATUS: Record<string, string> = {
+  gmail_read: 'Checking your inbox…',
+  calendar_read: 'Checking your calendar…',
+  web_search: 'Searching the web…',
+  news_search: 'Fetching news…',
+  kb_read: 'Reading your profile…',
+  update_kb: 'Updating your profile…',
+  queue_action: 'Queuing action…',
+  spawn_agent: 'Delegating to a specialist…',
+};
+
+const TOOL_STATUS_VALUES = new Set(Object.values(TOOL_STATUS));
+
+function isChatAgentEvent(event: HarnessEvent): boolean {
+  return CHAT_AGENT_ROLES.has(event.agentRole ?? '');
+}
+
+function stripToolStatus(content: string): string {
+  return TOOL_STATUS_VALUES.has(content.trim()) ? '' : content;
+}
+
 const STORAGE_KEY = 'aidea-chat-v1';
 const SYNC_DEBOUNCE_MS = 800;
 
@@ -218,38 +241,57 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     setStreaming(true);
 
-    const patchAssistant = (patch: Partial<ChatMessage>) => {
+    const patchAssistant = (
+      patch: Partial<ChatMessage> | ((msg: ChatMessage) => Partial<ChatMessage>),
+    ) => {
       updateConversation(conversationId, c => ({
         ...c,
-        messages: c.messages.map(m =>
-          m.id === assistantMsgId ? { ...m, ...patch } : m,
-        ),
+        messages: c.messages.map(m => {
+          if (m.id !== assistantMsgId) return m;
+          const next = typeof patch === 'function' ? patch(m) : patch;
+          return { ...m, ...next };
+        }),
         updatedAt: new Date().toISOString(),
       }));
     };
 
     const handleEvent = (event: HarnessEvent) => {
       if (event.type === 'tool_called') {
+        const tool = event.data.tool as string;
         const inputSummary = Object.entries(event.data.input as Record<string, unknown>)
           .slice(0, 2)
           .map(([k, v]) => `${k}: ${String(v).slice(0, 30)}`)
           .join(', ');
         updateConversation(conversationId, c => ({
           ...c,
-          messages: c.messages.map(m =>
-            m.id === assistantMsgId
-              ? {
-                  ...m,
-                  toolCalls: [...(m.toolCalls ?? []), {
-                    tool: event.data.tool as string,
-                    summary: inputSummary,
-                  }],
-                }
-              : m,
-          ),
+          messages: c.messages.map(m => {
+            if (m.id !== assistantMsgId) return m;
+            const status = TOOL_STATUS[tool];
+            return {
+              ...m,
+              toolCalls: [...(m.toolCalls ?? []), { tool, summary: inputSummary }],
+              ...(!m.content.trim() && status ? { content: status } : {}),
+            };
+          }),
         }));
       }
-      if (event.type === 'agent_complete') {
+      if (event.type === 'agent_text_delta' && isChatAgentEvent(event)) {
+        const delta = event.data.delta as string;
+        if (delta) {
+          patchAssistant(m => ({
+            content: stripToolStatus(m.content) + delta,
+          }));
+        }
+      }
+      if (event.type === 'agent_response' && isChatAgentEvent(event)) {
+        const summary = event.data.summary as string | undefined;
+        const structured = event.data.structured;
+        patchAssistant({
+          ...(summary ? { content: summary } : {}),
+          ...(structured !== undefined ? { structured } : {}),
+        });
+      }
+      if (event.type === 'agent_complete' && isChatAgentEvent(event)) {
         const summary = event.data.summary as string | undefined;
         const structured = event.data.structured;
         patchAssistant({

@@ -1,4 +1,4 @@
-import { generateText, type CoreMessage } from 'ai';
+import { streamText, type CoreMessage } from 'ai';
 import type { HarnessAgent, HarnessContext, ToolInput } from './types';
 import { setAgentStatus, patchAgent } from './registry';
 import { getStateKeys } from './state';
@@ -146,7 +146,7 @@ export async function runAgentLoop(
         throw new Error('Token budget exceeded mid-loop');
       }
 
-      const result = await generateText({
+      const streamResult = streamText({
         model: getModel(agent.model),
         system: systemPrompt,
         messages,
@@ -163,15 +163,35 @@ export async function runAgentLoop(
           : {}),
       });
 
+      for await (const delta of streamResult.textStream) {
+        if (!delta) continue;
+        ctx.send({
+          type: 'agent_text_delta',
+          sessionId: ctx.sessionId,
+          entityId: ctx.entityId,
+          agentId: agent.id,
+          agentRole: agent.role,
+          data: { delta },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const [usage, toolCalls, finishReason, text] = await Promise.all([
+        streamResult.usage,
+        streamResult.toolCalls,
+        streamResult.finishReason,
+        streamResult.text,
+      ]);
+
       ctx.cost.recordUsage(
-        result.usage?.promptTokens ?? 0,
-        result.usage?.completionTokens ?? 0,
+        usage?.promptTokens ?? 0,
+        usage?.completionTokens ?? 0,
         0,
         0
       );
 
       patchAgent(ctx.registry, agent.id, {
-        tokensUsed: (ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0) + (result.usage?.completionTokens ?? 0),
+        tokensUsed: (ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0) + (usage?.completionTokens ?? 0),
       });
 
       if (ctx.cost.isNearBudget()) {
@@ -184,8 +204,8 @@ export async function runAgentLoop(
         });
       }
 
-      if (result.toolCalls.length > 0) {
-        for (const tc of result.toolCalls) {
+      if (toolCalls.length > 0) {
+        for (const tc of toolCalls) {
           const call: ToolCallRecord = { name: tc.toolName, inputHash: hashInput(tc.args as ToolInput) };
           const duplicate = recentToolCalls.some(
             c => c.name === call.name && c.inputHash === call.inputHash
@@ -199,7 +219,7 @@ export async function runAgentLoop(
 
         messages.push({
           role: 'assistant',
-          content: result.toolCalls.map(tc => ({
+          content: toolCalls.map(tc => ({
             type: 'tool-call' as const,
             toolCallId: tc.toolCallId,
             toolName: tc.toolName,
@@ -214,7 +234,7 @@ export async function runAgentLoop(
           result: unknown;
         }> = [];
 
-        for (const tc of result.toolCalls) {
+        for (const tc of toolCalls) {
           ctx.send({
             type: 'tool_called',
             sessionId: ctx.sessionId,
@@ -274,11 +294,11 @@ export async function runAgentLoop(
         continue;
       }
 
-      if (result.finishReason === 'length') {
+      if (finishReason === 'length') {
         throw new Error(`Agent ${agent.role} hit max_tokens limit`);
       }
 
-      completeAgent(agent, ctx, result.text ?? '');
+      completeAgent(agent, ctx, text ?? '');
       return;
     }
 

@@ -252,6 +252,7 @@ export interface HarnessContext {
 export type HarnessEventType =
   | 'entity_started'    | 'entity_complete'    | 'entity_paused'   | 'entity_error'
   | 'agent_spawned'     | 'agent_started'      | 'agent_complete'  | 'agent_error'
+  | 'agent_text_delta'  | 'agent_response'
   | 'tool_called'       | 'tool_result'
   | 'message_sent'
   | 'state_updated'
