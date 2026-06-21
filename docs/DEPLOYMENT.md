@@ -157,6 +157,19 @@ Keep a single dev server running. Client code must import queue types from `lib/
 
 **Nango local setup:** Copy `NANGO_SECRET_KEY` from [app.nango.dev](https://app.nango.dev) → Environment Settings into `.env.local`. Restart dev server. `vercel env pull` may return empty strings for encrypted vars — paste the key manually if needed.
 
+### Live inbox approve E2E
+
+Opt-in integration test (`npm run test:integration:e2e` / `test:e2e`) — not CI. Requires:
+
+| Variable / setup | Purpose |
+|------------------|---------|
+| `AI_GATEWAY_API_KEY` or `ANTHROPIC_API_KEY` | Inbox triage LLM run |
+| `NANGO_SECRET_KEY` | Gmail send/read; calendar create when connected |
+| Gmail connected in Settings | Self-send test mail to connected address |
+| Google Calendar connected (optional) | Calendar approve step; skipped with warning if missing |
+
+Test mail subjects use prefix `aidea-e2e-`. The suite sends to yourself, triages, approves an `email_reply`, then approves seeded calendar and KB queue items.
+
 ---
 
 - **Settings panel writes are disabled on Vercel** (`isProductionDeploy()`). API keys must be set as Vercel environment variables, not via the in-app Settings form. **Activity reset** (`POST /api/reset`) works on production once deployed.

@@ -297,6 +297,36 @@ INTEGRATION_GMAIL=1 npm run test:inbox-triage:run
 
 Validation logic: `lib/harness/inbox-triage-validate.ts`. Runner: `lib/harness/inbox-triage-harness.ts`.
 
+### Inbox approve E2E (live Gmail + queue execute)
+
+Opt-in only — **not** part of default CI or `npm test`. Full path: **send real mail to self → inbox triage harness → approve `email_reply` (Gmail send)** → approve **seeded** `calendar_event` (Google Calendar when connected) and **seeded** `kb_update` (profile merge).
+
+```bash
+# Handler mode — calls route handlers directly (no dev server)
+npm run test:integration:e2e
+
+# alias
+npm run test:e2e
+
+# HTTP mode — against a running app
+npm run dev   # separate terminal
+TEST_BASE_URL=http://localhost:3000 npm run test:integration:e2e
+```
+
+| Env / setup | Purpose |
+|-------------|---------|
+| `RUN_INTEGRATION=1` | Set by npm script — enables integration suite |
+| `INTEGRATION_E2E=1` | Set by npm script — runs inbox-approve E2E only |
+| `INTEGRATION_GMAIL=1` | Set by npm script — live Gmail in triage harness |
+| `AI_GATEWAY_API_KEY` or `ANTHROPIC_API_KEY` in `.env.local` | LLM for inbox triage (placeholder keys skipped) |
+| `NANGO_SECRET_KEY` in `.env.local` | Gmail send/read; calendar create when connected |
+| Gmail connected (Settings → Connect Google) | Self-send test mail to connected address |
+| Google Calendar connected (optional) | Calendar approve step; skipped with warning if missing |
+
+**Limitations:** The `email_reply` queue item comes from a **real triage run** (LLM + Gmail read) — subject must match `aidea-e2e-{timestamp}`; triage may miss or draft differently across runs. Calendar and KB steps use **directly seeded** queue items (`enqueueAction`), not agent-generated proposals.
+
+Helpers: `tests/integration/e2e-gmail.ts` (`sendE2eTestEmail`, `waitForE2eEmail`, `triageMissionForSubject`). Test: `tests/integration/inbox-approve-e2e.test.ts`.
+
 Client bundles must not import server-only modules (`lib/storage`, `lib/harness/queue` value exports). Use `queue-types.ts`, `action-labels.ts`, and `lib/client/*` instead.
 
 **Dev server 500 / Internal Server Error:** Often corrupted `.next` cache or client importing server code. Fix:
