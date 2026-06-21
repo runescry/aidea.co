@@ -18,10 +18,14 @@ describe('shouldUseFastChat', () => {
 
   it('requires full path for news and current-events queries', () => {
     expect(shouldUseFastChat("what's happening in the news")).toBe(false);
+    expect(shouldUseFastChat('whats happening with the strait of hormuz at the moment')).toBe(false);
     expect(shouldUseFastChat("What's in the news today?")).toBe(false);
     expect(shouldUseFastChat('Give me the headlines')).toBe(false);
     expect(shouldUseFastChat('Any current events I should know about?')).toBe(false);
     expect(shouldUseFastChat('Breaking news about AI')).toBe(false);
+    expect(shouldUseFastChat('Any breaking developments in Gaza?')).toBe(false);
+    expect(shouldUseFastChat('Latest on the Ukraine conflict')).toBe(false);
+    expect(shouldUseFastChat('Give me an update on Iran sanctions')).toBe(false);
   });
 
   it('requires full path for follow-ups on prior tool results', () => {
