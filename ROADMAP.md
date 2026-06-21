@@ -10,12 +10,14 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
-**Phase:** P7.4 complete — timeline, conflicts, domain trust, context lenses  
-**Next up:** Deferred multi-connector / Daily OS (see PLAN non-goals)  
-**Recent:** P7.3–P7.4 contact graph, health sync, yesterday timeline, trust dashboard
+**Phase:** P7 complete — prod parity + daily Home loop shipped  
+**Next up:** [P8.0 — Complete P7 partials](./docs/PLAN.md#p80--complete-p7-partials)  
+**Recent:** P7.3–P7.4 contact graph, health sync spikes, yesterday timeline, trust dashboard  
+**Git:** `main` synced with `origin/main`
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
-**Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
+**Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)  
+**Post-gap work:** [PLAN P8](./docs/PLAN.md#p8--harden--extend)
 
 ---
 
@@ -118,6 +120,22 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 
 ---
 
+## P8 — Harden & extend (see [docs/PLAN.md](./docs/PLAN.md#p8--harden--extend))
+
+Build / test / deploy: reuse [PLAN.md § Build workflow](./docs/PLAN.md#build-workflow) · [Test strategy](./docs/PLAN.md#test-strategy) · [Deployment workflow](./docs/PLAN.md#deployment-workflow)
+
+Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkbox-backlog). Summary checkboxes:
+
+- [ ] **P8.0 P7 partials** — Wire contact graph persist; per-domain autonomy on queue; prod smoke doc
+- [ ] **Live health connector** — One wearable OAuth + sync (Strava, Apple Health, or Whoop)
+- [ ] **Rich contact graph** — Last touch from Gmail/Calendar; relationship-monitor writes graph
+- [ ] **Finance spike** — Plaid read-only or minimal subscription alerts
+- [ ] **Finance → Inbox** — Actionable finance nudges as approval/suggestion cards
+- [ ] **Auth / multi-user** — Session middleware; per-user profile/KB
+- [ ] **Mobile secondary surfaces** — Agents, Context, Settings polish on small screens
+
+---
+
 ## Done
 
 - [x] Home: chat left + Work feed right
@@ -150,3 +168,4 @@ Full backlog by layer (data, workforce, UX) and P7.0–P7.4 phasing lives in [do
 - 2026-06-21 — P7.2 request_human_input on Home — `lib/client/human-input`, chat SSE overlay wiring
 - 2026-06-21 — P7.3 contact graph + health sync spikes — `lib/contacts/interaction-graph`, `lib/health/sync`, harness read tools
 - 2026-06-21 — P7.4 timeline + governance — `timeline`, `conflicts`, domain autonomy, Context/Settings lenses
+- 2026-06-21 — P7 complete — prod daily loop shipped; docs synced for P8 (PLAN, ROADMAP, VISION, AGENTS)

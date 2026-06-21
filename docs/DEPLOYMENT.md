@@ -4,7 +4,7 @@ aidea runs locally with JSON files under `data/`. For production (especially mul
 
 ## Local development (default)
 
-Day-to-day work happens on **localhost** — not production. Per-slice build, test gates, and deploy cadence: [PLAN.md § Build workflow](./PLAN.md#build-workflow) · [Test strategy](./PLAN.md#test-strategy) · [Deployment workflow](./PLAN.md#deployment-workflow).
+Day-to-day work happens on **localhost** — not production. Per-slice build, test gates, and deploy cadence: [PLAN.md § Build workflow](./PLAN.md#build-workflow) · [Test strategy](./PLAN.md#test-strategy) · [Deployment workflow](./PLAN.md#deployment-workflow). **P7** is complete on prod; active backlog is **[PLAN P8](./PLAN.md#p8--harden--extend)**.
 
 ```bash
 npm run dev          # http://localhost:3000
@@ -27,6 +27,20 @@ See [AGENTS.md](../AGENTS.md) for agent git/deploy rules.
 2. Create a Postgres database (Neon, Supabase, Vercel Postgres, or RDS).
 3. Set environment variables in Vercel (Project → Settings → Environment Variables).
 4. Redeploy so migrations run on first request.
+
+## Post-deploy smoke ([aidea-co.vercel.app](https://aidea-co.vercel.app))
+
+Run after each prod deploy (extends [PLAN P7.0](./PLAN.md#p70--ship--stabilize); full checklist tracked in [PLAN P8.0](./PLAN.md#p80--complete-p7-partials)):
+
+| Surface | Check |
+|---------|-------|
+| Home | Chat streams; fast path responds; **Yesterday** tab shows cross-domain timeline |
+| Inbox | Tabs; email edit; calendar/KB cards; approve / save / reject; dismiss/snooze suggestions |
+| Mobile | Inbox overlay; bottom nav |
+| Settings | Integration status; **per-domain autonomy**; queue activity audit; activity reset |
+| Context | KB editor; contact/health lenses load without console errors |
+| Docs | `/docs/plan`, `/docs/vision` render without console errors |
+| Crons | `/api/monitor` reachable with `CRON_SECRET` |
 
 ## Required environment variables
 
@@ -176,7 +190,7 @@ Queue approve/reject/execute/fail events append to `action_audit` (Postgres) or 
 ## Performance & runtime
 
 - **Chat:** Simple messages use fast-path Haiku (`lib/harness/fast-chat.ts`). Inbox/calendar/drafts/research use full harness dispatch — expect multi-second latency.
-- **Daily OS / Studio runs:** Multi-agent workflows; CEO agents use Sonnet. Daily brief spawns five parallel sub-agents — the main remaining slow path.
+- **Daily OS / Studio runs:** Multi-agent workflows; CEO agents use Sonnet. Lite brief is default on Home; full five parallel sub-agents remain the slow cron/Studio path.
 - **Work feed:** Client uses a single `WorkFeedProvider` poll — not duplicate `/api/tasks` fetchers.
 - **Dev vs prod:** Use `npm run build && npm start` locally when testing perceived UI speed; `next dev` is slower.
 - **Cold starts:** First request after idle on Vercel may add latency; Postgres + AI Gateway should be in the same region where possible.

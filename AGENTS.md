@@ -6,7 +6,7 @@ Personal AI chief-of-staff platform — unified context across mail, calendar, h
 
 **Product vision & domain maturity:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)
 
-**Gap closure plan (P7+):** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
+**Gap closure plan (P7+P8):** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
 
 **Do not recreate the removed legacy stack** (Dashboard, orchestrator, `useAgentSession`, `lib/prompts/*`, imperative leads/working-groups). Agent runs go through `lib/harness/bootstrap.ts`, except **fast-path chat** (see below).
 
@@ -17,7 +17,7 @@ Personal AI chief-of-staff platform — unified context across mail, calendar, h
 | Doc | Read when |
 |-----|-----------|
 | [ROADMAP.md](./ROADMAP.md) | Picking the next checkbox; loop iterations |
-| [docs/PLAN.md](./docs/PLAN.md) | P7+ strategic slices; layer context after P6 |
+| [docs/PLAN.md](./docs/PLAN.md) | P7 complete; **P8** strategic slices (harden + extend) |
 | [docs/VISION.md](./docs/VISION.md) | Domain scope, scores, non-goals |
 | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Env, Nango, Vercel, Postgres |
 | [.cursor/loop-prompt.md](./.cursor/loop-prompt.md) | `/loop` automation |
@@ -219,8 +219,9 @@ Agent definitions live in `lib/agents/library/`. User overrides persist at `prof
 - **Onboarding** = 3-step `QuickStartOnboarding` on first launch; full `OnboardingWizard` from Context → Re-run onboarding
 - **Studio** = `RunStudio` (harness debug + entity runs); Reset session = in-memory only
 - **Agents** = `AgentLibrary` (view/customize workforce); Reset = agent overrides only
-- **Context** = `KnowledgeBaseEditor`
-- **Settings** = API keys, Google connect/disconnect, **Danger zone** (activity reset)
+- **Context** = `KnowledgeBaseEditor` (+ contact/health lenses from P7.4)
+- **Settings** = API keys, Google connect/disconnect, per-domain autonomy (P7.4), queue activity audit, **Danger zone** (activity reset)
+- **Home Yesterday tab** = cross-domain timeline (`HomeScreen.tsx`)
 - Reuse `components/harness/forms.tsx` for inputs (`Label`, `TextField`, `TextArea`, `Section`, etc.)
 
 ---
@@ -317,7 +318,7 @@ Run only **one** `next dev` process at a time.
 |------|-----------|
 | **Simple chat** | Fast path — Haiku, no harness bootstrap (~1–3s) |
 | **Tool chat** | Full dispatcher — multi-round tools + external APIs |
-| **Daily OS** | Six agents (orchestrator + 5 specialists) — slow by design; lite mode is backlog (ROADMAP P6) |
+| **Daily OS** | Lite brief on Home (default); full six-agent run remains Studio/cron — slow by design |
 | **Studio CEOs** | Sonnet (Company/Learning/Creator) |
 | **Local dev** | `npm run dev` (Turbopack) — primary workflow; optional `npm run build && npm start` for prod-like UI speed |
 | **Production** | Deploy **only when explicitly requested**; co-locate Vercel region with Postgres; set `AI_GATEWAY_API_KEY` on **aidea-co** (team key `aidea-co-prod` — see [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md#aidea-co-production-aidea-covercelapp)) |
@@ -326,4 +327,4 @@ Run only **one** `next dev` process at a time.
 
 ## Roadmap & loops
 
-Prioritized work lives in [ROADMAP.md](./ROADMAP.md). P7+ gap closure (data, workforce, UX layers) is detailed in [docs/PLAN.md](./docs/PLAN.md). For recurring agent execution, use the prompt in [.cursor/loop-prompt.md](./.cursor/loop-prompt.md) with Cursor `/loop`.
+Prioritized work lives in [ROADMAP.md](./ROADMAP.md). **P7** (complete) and **P8** (next) gap closure — data, workforce, UX, platform — is detailed in [docs/PLAN.md](./docs/PLAN.md). For recurring agent execution, use the prompt in [.cursor/loop-prompt.md](./.cursor/loop-prompt.md) with Cursor `/loop`.

@@ -34,8 +34,8 @@ Vision: one chief-of-staff reasons over **all** relevant personal data. Implemen
 | **Knowledge base** | Core | Live | Context editor, onboarding, `kb_read` / `update_kb` |
 | **Mail** | Core | Live | Nango Gmail — triage, drafts, send |
 | **Calendar** | Core | Live | Nango Google Calendar — schedule, logistics |
-| **Contacts & social graph** | Core | Partial | KB `relationships`; `contacts_read` (Google People); relationship-monitor cron |
-| **Health & fitness** | Core | Partial | KB `health` (workouts, goals); Daily OS `health-briefer`; no wearable/API sync yet |
+| **Contacts & social graph** | Core | Partial | KB `relationships`; Google People; interaction graph spike; relationship-monitor → Inbox |
+| **Health & fitness** | Core | Partial | KB `health`; health-briefer → Inbox; sync spike (`lib/health/sync`); no live wearable OAuth yet |
 | **Work & projects** | Core | Live | KB projects/job apps; proactive Inbox suggestions |
 | **News & web** | Supporting | Live | Brave search, news curator in Daily OS |
 | **Finance** | Future | Stub | Phase 3 Plaid placeholders only |
@@ -182,9 +182,9 @@ flowchart TB
 | **Stub** | 20–39 | Config/prompts exist; not a felt product loop |
 | **Missing** | 0–19 | Not implemented |
 
-**Last scored:** 2026-06-20 · **Overall:** ~78/100
+**Last scored:** 2026-06-21 · **Overall:** ~85/100
 
-**Prod vs local:** Post-P6 polish (Inbox edit, Gmail drafts, streaming, reset button, mobile overlay, chat hard-delete) is in the working tree and may not yet be on [aidea-co.vercel.app](https://aidea-co.vercel.app). Treat prod as ~10–15 points lower on D1, D2, D10, D12 until deployed.
+**Prod vs local:** P7 gap closure shipped to [aidea-co.vercel.app](https://aidea-co.vercel.app) (2026-06-21). Home/Inbox daily loop, morning brief, audit viewer, timeline, and trust dashboard are on prod. **P8 partials** (contact graph persist, per-domain queue apply) remain code spikes not yet fully wired.
 
 ---
 
@@ -193,21 +193,21 @@ flowchart TB
 | Domain | Score | Level | Top gaps |
 |--------|------:|-------|----------|
 | D1 Home chat | 85 | Production-ready | Full tool path slow; no `/api/message` contract test |
-| D2 Inbox | 88 | Production-ready | Audit not in UI; no dismiss for suggestions |
-| D3 Daily OS | 68 | Functional | Brief not on Home; Daily lite brief backlog |
+| D2 Inbox | 93 | Production-ready | Per-domain queue apply not wired (P8.0) |
+| D3 Daily OS | 78 | Functional | Full six-agent run still slow; lite brief is default on Home |
 | D4 Integrations | 78 | Functional | Manual Nango `gmail.compose`; env ops fragile |
-| D5 KB & onboarding | 82 | Production-ready | No import/export UI |
+| D5 KB & onboarding | 85 | Production-ready | Contact/health lenses; no import/export UI |
 | D6 Agent library | 85 | Production-ready | No override history/diff |
 | D7 Studio | 83 | Functional (dev) | Debug-first, not end-user product |
 | D8 Entity modes | 80 | Functional | Personal/Daily absent from Home launcher |
-| D9 Proactive & governance | 68 | Functional | Audit write-only; suggestions are KB-heuristic |
-| D10 Chat persistence | 82 | Production-ready (local) | Dual localStorage sync; no chat contract tests |
-| D11 Production platform | 62 | Functional | No auth; single `DEFAULT_USER_ID` |
-| D12 Mobile | 78 | Functional | Secondary views desktop-first |
+| D9 Proactive & governance | 85 | Production-ready | Per-domain autonomy UI; queue gating partial (P8.0) |
+| D10 Chat persistence | 85 | Production-ready | Dual localStorage sync; no chat contract tests |
+| D11 Production platform | 72 | Functional | No auth; single `DEFAULT_USER_ID`; prod smoke doc pending (P8.0) |
+| D12 Mobile | 82 | Functional | Secondary views (Agents, Context, Settings) desktop-first |
 
-**Strength:** chat → Inbox → Gmail approval loop.
+**Strength:** chat → Inbox → Gmail approval loop; morning brief and cron outcomes on Home.
 
-**Weakness:** Daily brief as daily ritual, governance UI, multi-user product.
+**Weakness:** Live connector OAuth (health, finance), contact graph persist, multi-user auth.
 
 ---
 
@@ -221,21 +221,21 @@ flowchart TB
 
 **Next enrichment:** Daily lite routing; `/api/message` contract test.
 
-### D2 Inbox — 88
+### D2 Inbox — 93
 
-**Works:** Unified feed (queue + running sessions + artifacts); tabs All / Awaiting approval / Suggestions / Running / Done; live edit To/Cc/subject/body; Approve & send, Save to drafts, Reject; bulk actions; Discuss in chat; nav badge = approvals only.
+**Works:** Unified feed; tabs All / Awaiting approval / Suggestions / Running / Done; live email edit; calendar/KB approval cards; dismiss/snooze suggestions; audit trail in Settings; cron outcomes (health-briefer, relationship-monitor); `request_human_input` on Home.
 
-**Partial:** Audit API exists but no viewer; suggestions cannot be dismissed.
+**Partial:** Per-domain autonomy UI exists; queue auto-run gating not fully wired ([PLAN P8.0](./PLAN.md#p80--complete-p7-partials)).
 
-**Next enrichment:** Audit trail UI; suggestion dismiss/snooze.
+**Next enrichment:** Wire `autonomyForAction` on queue PATCH/execute.
 
-### D3 Daily OS — 68
+### D3 Daily OS — 78
 
-**Works:** Deterministic kickstart (five parallel sub-agents); cron at 6:30; brief assembly and `latest_briefs` storage; `MorningBriefRenderer` in Studio.
+**Works:** Lite brief on Home (default); cron at 6:30; brief → Inbox row or chat card; `MorningBriefRenderer`; full six-agent path in Studio/cron.
 
-**Partial:** Brief not on Home; six-agent run is slow/expensive.
+**Partial:** Full six-agent run is slow/expensive; not default morning path.
 
-**Next enrichment:** Daily lite brief on Home; brief card in Inbox or chat after cron.
+**Next enrichment:** Live health sync ([PLAN P8.1](./PLAN.md#p81--live-health-connector)); keep lite as default.
 
 ### D4 Integrations — 78
 
@@ -245,13 +245,13 @@ flowchart TB
 
 **Next enrichment:** Document connector roadmap by domain; first new OAuth beyond Google when prioritized (Notion, Slack, health APIs).
 
-### D5 KB & onboarding — 82
+### D5 KB & onboarding — 85
 
-**Works:** Full KB editor (Context); 3-step quick start + 18-step wizard; `writeManyKB` / `mergeProfile`; agents read KB on every run.
+**Works:** Full KB editor (Context); contact-centric and health-centric lenses (P7.4); 3-step quick start + 18-step wizard; `writeManyKB` / `mergeProfile`.
 
-**Partial:** No user-facing import/export (dev JSON only).
+**Partial:** No user-facing import/export (dev JSON only); contact graph persist not wired (P8.0).
 
-**Next enrichment:** Profile import/export from Context.
+**Next enrichment:** Wire interaction recording; profile import/export from Context.
 
 ### D6 Agent library — 85
 
@@ -277,63 +277,66 @@ flowchart TB
 
 **Next enrichment:** Optional “Run daily brief” on Home; lite mode.
 
-### D9 Proactive & governance — 68
+### D9 Proactive & governance — 85
 
-**Works:** Proactive suggestions from KB (jobs, builds, relationships); autonomy level in feed; audit log on approve/reject/save.
+**Works:** Proactive suggestions; dismiss/snooze; per-domain autonomy dashboard (Settings); audit log + Settings viewer; Yesterday timeline tab.
 
-**Partial:** Suggestions are heuristics not agent outreach; audit not browsable in UI.
+**Partial:** Suggestions remain KB-heuristic; per-domain autonomy does not yet gate queue auto-run (P8.0).
 
-**Next enrichment:** Audit viewer; dismiss/snooze for suggestions.
+**Next enrichment:** `autonomyForAction` on queue execute; richer contact graph (P8.2).
 
-### D10 Chat persistence — 82
+### D10 Chat persistence — 85
 
-**Works:** Server-side conversations (Postgres or `data/chat/`); hard delete; sidebar + mobile drawer; sync to server; cleared on activity reset.
+**Works:** Server-side conversations (Postgres or `data/chat/`); hard delete; sidebar + mobile drawer; sync to server; cleared on activity reset; on prod since P7.0.
 
 **Partial:** `localStorage` (`aidea-chat-v1`) + server dual sync; no contract tests.
 
 **Next enrichment:** Chat API contract tests; simplify sync edge cases.
 
-### D11 Production platform — 62
+### D11 Production platform — 72
 
-**Works:** Postgres schema and migrate; Vercel deploy docs; crons with `CRON_SECRET`; activity reset (API + Settings + CLI); AI Gateway path.
+**Works:** Postgres schema and migrate; Vercel deploy; crons with `CRON_SECRET`; activity reset; AI Gateway path; P7 shipped to prod.
 
-**Partial:** No auth middleware; single tenant; Settings keys read-only on Vercel.
+**Partial:** No auth middleware; single tenant; post-deploy smoke checklist pending ([PLAN P8.0](./PLAN.md#p80--complete-p7-partials)).
 
-**Next enrichment:** Auth + per-user `DEFAULT_USER_ID`; ship post-P6 to prod.
+**Next enrichment:** Document prod smoke in [DEPLOYMENT.md](./DEPLOYMENT.md); auth + per-user `DEFAULT_USER_ID` ([PLAN P8.4](./PLAN.md#p84--platform)).
 
-### D12 Mobile — 78
+### D12 Mobile — 82
 
-**Works:** Bottom nav; full-height chat; Inbox full-screen overlay; conversation drawer; safe-area padding.
+**Works:** Bottom nav; full-height chat; Inbox full-screen overlay; Yesterday tab; conversation drawer; safe-area padding; Home loop on prod.
 
-**Partial:** Agents, Studio, Context usable but not mobile-optimized; desktop sidebar hidden below `md`.
+**Partial:** Agents, Studio, Context usable but not mobile-optimized ([PLAN P8.4](./PLAN.md#p84--platform)).
 
-**Next enrichment:** Mobile polish on secondary views after Home loop is stable on prod.
+**Next enrichment:** Mobile polish on secondary views.
 
 ---
 
 ## Strategic priorities
 
-Ordered by vision impact vs current gaps. Detailed slices and checkboxes: [docs/PLAN.md](./PLAN.md).
+**P7 closed prod parity and the daily loop** (morning brief on Home, Inbox hygiene, cron outcomes, timeline, trust dashboard). Post-gap work is **[P8 — Harden & extend](./PLAN.md#p8--harden--extend)** — see [ROADMAP P8](../ROADMAP.md#p8--harden--extend-see-docsplanmd) for summary checkboxes.
 
-1. **Ship post-P6 to production** — [PLAN P7.0](./PLAN.md#p70--ship--stabilize); close local/prod delta (Inbox edit, drafts, streaming, reset, mobile overlay, chat persistence).
-2. **Daily lite brief on Home** — [PLAN P7.1](./PLAN.md#p71--ux-on-existing-data) · [ROADMAP P6 backlog](../ROADMAP.md#p6-backlog-not-started); one agent, fast morning ritual.
-3. **Morning brief surfacing** — [PLAN P7.1](./PLAN.md#p71--ux-on-existing-data); cron output → Inbox row or chat card, not Studio-only.
-4. **Inbox hygiene** — [PLAN P7.1](./PLAN.md#p71--ux-on-existing-data); dismiss/snooze suggestions; audit trail viewer.
-5. **Ops reliability** — single dev server discipline; client import boundary (`queue-types.ts`); Nango env documented.
-6. **Auth / multi-user** — [PLAN deferred](./PLAN.md#deferred-not-p7); when productizing beyond personal deploy.
+Ordered by vision impact vs current gaps. Detailed slices: [docs/PLAN.md § P8](./PLAN.md#p8--checkbox-backlog).
+
+1. **Complete P7 partials** — [PLAN P8.0](./PLAN.md#p80--complete-p7-partials); contact graph persist, per-domain queue apply, prod smoke doc.
+2. **Live health connector** — [PLAN P8.1](./PLAN.md#p81--live-health-connector); one wearable OAuth + sync.
+3. **Rich contact graph** — [PLAN P8.2](./PLAN.md#p82--rich-contact-graph); mail/calendar last touch; relationship-monitor writes.
+4. **Finance spike** — [PLAN P8.3](./PLAN.md#p83--finance-spike); minimal Plaid or subscription alerts.
+5. **Platform** — [PLAN P8.4](./PLAN.md#p84--platform); auth/multi-user; mobile secondary surfaces.
+6. **Deferred post-P8** — [PLAN deferred](./PLAN.md#deferred-post-p8); full 6-agent Daily OS default, all Phase 3 connectors, autonomous send.
 
 ---
 
 ## Explicitly deferred
 
-Connectors listed in [`.env.local.example`](../.env.local.example) Phase 3 — **in vision, not yet built**:
+Connectors listed in [`.env.local.example`](../.env.local.example) Phase 3 — **in vision, scheduled in [PLAN P8](./PLAN.md#p8--harden--extend) or deferred post-P8**:
 
-- Finance (Plaid)
-- Slack, Notion, Twilio/WhatsApp
-- Wearables / Apple Health / Strava-style health sync
-- Multi-user auth and billing
-- Autonomous send without approval (supervised mode)
-- Daily full orchestrator as default morning path (prefer lite on Home)
+- Finance (Plaid) — [PLAN P8.3](./PLAN.md#p83--finance-spike)
+- Wearables / Apple Health / Strava-style health sync — [PLAN P8.1](./PLAN.md#p81--live-health-connector)
+- Multi-user auth — [PLAN P8.4](./PLAN.md#p84--platform)
+- Slack, Notion, Twilio/WhatsApp — post-P8
+- Autonomous send without approval (supervised mode) — post-P8
+- Daily full orchestrator as default morning path (prefer lite on Home) — post-P8
+- Billing and team SaaS — post-P8
 
 Mail and calendar are **live**, not deferred — they are the first connectors, not the full scope.
 
@@ -347,6 +350,6 @@ When a domain changes materially:
 2. Update **Top gaps** and **Next enrichment** for that domain.
 3. Bump **Last scored** date.
 4. Note deploy status if prod caught up to local.
-5. Check off the matching item in [docs/PLAN.md](./PLAN.md) and [ROADMAP P7](../ROADMAP.md#p7--gap-closure-see-docsplanmd) when a strategic priority closes.
+5. Check off the matching item in [docs/PLAN.md](./PLAN.md) and [ROADMAP P7](../ROADMAP.md#p7--gap-closure-see-docsplanmd) or [ROADMAP P8](../ROADMAP.md#p8--harden--extend-see-docsplanmd) when a strategic priority closes.
 
 Loop agents may append one line to [ROADMAP.md](../ROADMAP.md) **Loop log** when a priority item closes a gap listed here.

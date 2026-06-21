@@ -10,7 +10,7 @@ export const DOC_CATALOG: DocEntry[] = [
   {
     slug: 'plan',
     title: 'Gap closure plan',
-    description: 'P7 backlog by layer — data, workforce, UX',
+    description: 'P7 complete; P8 harden & extend — data, workforce, UX, platform',
     file: 'docs/PLAN.md',
   },
   {

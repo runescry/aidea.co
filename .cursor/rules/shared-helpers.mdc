@@ -27,4 +27,4 @@ Legacy Dashboard, `useAgentSession`, `lib/orchestrator`, `lib/prompts/*`, impera
 ## Reference
 
 Full examples: `/AGENTS.md`  
-Product layers & P7 slices: `docs/PLAN.md` · Domain scores: `docs/VISION.md`
+Product layers & P7+P8 slices: `docs/PLAN.md` · Domain scores: `docs/VISION.md`

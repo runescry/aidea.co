@@ -23,13 +23,13 @@ Use a **short interval as a safety net**, not as the pace between items. In each
 ```
 /loop 5m Proceed with all build tasks — continue ALL unchecked ROADMAP items (P0 first) until done or blocked; do NOT stop after one item per wake.
 
-1. Read ROADMAP.md — pick the highest-priority unchecked item (P6 backlog / P7 / post-P6 polish).
-2. Read docs/PLAN.md when working P7+ or choosing between layer slices.
+1. Read ROADMAP.md — pick the highest-priority unchecked item (**P8** first; P7 is complete).
+2. Read docs/PLAN.md — P7+P8 gap closure; layer context and checkboxes for active phase.
 3. Read AGENTS.md and .cursor/rules/ — use shared helpers; do not duplicate SSE, queue, labels, or save UX.
 4. Skim docs/VISION.md if the item touches domain scope or connectors.
 5. Implement every unchecked item in priority order until done or blocked — not just one checkbox per wake unless using the one-shot prompt below.
 6. Run: npm run typecheck && npm test && npm run test:contract && npm run build
-7. If all pass: mark [x] in ROADMAP.md (and docs/PLAN.md for P7 items), update ## Current status, append ## Loop log, **then message the user** before starting the next item.
+7. If all pass: mark [x] in ROADMAP.md (and docs/PLAN.md for P7/P8 items), update ## Current status, append ## Loop log, **then message the user** before starting the next item.
 8. If blocked: leave unchecked; add "BLOCKED: reason" under Loop log; **message the user** with the blocker; do not expand scope.
 
 Constraints:
@@ -51,5 +51,5 @@ Same steps as above. After finishing a batch, arm a **5m** heartbeat (not 45m) s
 ## One-shot (no loop)
 
 ```
-Read ROADMAP.md, docs/PLAN.md (if P7+), and AGENTS.md. Implement exactly the next unchecked item. npm run typecheck && npm test && npm run test:contract && npm run build. Update ROADMAP.md and docs/PLAN.md when applicable. Do not commit unless asked. Summarize in 3 bullets.
+Read ROADMAP.md, docs/PLAN.md (P7+P8), and AGENTS.md. Implement exactly the next unchecked item. npm run typecheck && npm test && npm run test:contract && npm run build. Update ROADMAP.md and docs/PLAN.md when applicable. Do not commit unless asked. Summarize in 3 bullets.
 ```

@@ -35,4 +35,4 @@ alwaysApply: true
 
 ## When in doubt
 
-Read `AGENTS.md`, `ROADMAP.md`, and `docs/PLAN.md` (P7+). Skim `docs/VISION.md` for domain scope. Ask before large architectural changes.
+Read `AGENTS.md`, `ROADMAP.md`, and `docs/PLAN.md` (P7+P8). Skim `docs/VISION.md` for domain scope. Ask before large architectural changes.

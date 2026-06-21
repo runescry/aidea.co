@@ -1,6 +1,8 @@
-# aidea — P7 gap closure plan
+# aidea — gap closure plan (P7 + P8)
 
-Structured backlog to close the gap between **vision** ([VISION.md](./VISION.md)) and **what ships today**. Read after [ROADMAP.md](../ROADMAP.md) **Current status**; pick **one slice** per loop iteration; mark checkboxes in this file and the matching [ROADMAP P7](../ROADMAP.md#p7--gap-closure-see-docsplanmd) item when gates pass.
+Structured backlog to close the gap between **vision** ([VISION.md](./VISION.md)) and **what ships today**. Read after [ROADMAP.md](../ROADMAP.md) **Current status**; pick **one slice** per loop iteration; mark checkboxes in this file and the matching [ROADMAP P7](../ROADMAP.md#p7--gap-closure-see-docsplanmd) or [ROADMAP P8](../ROADMAP.md#p8--harden--extend-see-docsplanmd) item when gates pass.
+
+**P7** (complete) closed prod parity and the daily Home loop. **P8** hardens P7 spikes and extends live connectors + platform.
 
 **Related:** [Roadmap](/docs/roadmap) · [Vision](/docs/vision) · [Agent instructions](/docs/agents) · [Deployment](/docs/deployment)
 
@@ -11,10 +13,10 @@ Structured backlog to close the gap between **vision** ([VISION.md](./VISION.md)
 ## Purpose & how to use
 
 1. Check [ROADMAP.md](../ROADMAP.md) **Current status** for phase and prod/local delta.
-2. Work **P7.0** first if post-P6 polish is not on production.
-3. Pick the highest-priority unchecked item in the phase table below (or ROADMAP P7 summary).
+2. **P7** is complete — start **P8.0** (P7 partials) unless blocked on external deps.
+3. Pick the highest-priority unchecked item in the [P8 phasing](#p8--recommended-phasing) table (or ROADMAP P8 summary).
 4. One logical slice per iteration — minimal diff, shared helpers in [AGENTS.md](../AGENTS.md).
-5. When a slice ships: mark `[x]` here, matching ROADMAP P7 item, and append **Loop log**; update VISION domain score if material.
+5. When a slice ships: mark `[x]` here, matching ROADMAP item, and append **Loop log**; update VISION domain score if material.
 
 ```mermaid
 flowchart TB
@@ -33,15 +35,15 @@ flowchart TB
 
 ## Build workflow
 
-How to implement each P7 slice. Feature backlog stays in [Checkbox backlog](#checkbox-backlog) below.
+How to implement each P8 slice (same gates for any PLAN checkbox). Feature backlog stays in [Checkbox backlog](#checkbox-backlog) below.
 
 ### Per-slice loop
 
-1. Read [ROADMAP.md](../ROADMAP.md) **Current status** and pick the highest-priority unchecked PLAN item.
+1. Read [ROADMAP.md](../ROADMAP.md) **Current status** and pick the highest-priority unchecked **P8** item (or remaining P7 if any).
 2. Start a **single** dev server: `npm run dev` → `http://localhost:3000`
 3. Implement a minimal diff — shared helpers in [AGENTS.md](../AGENTS.md) (SSE, queue, Work feed, save UX).
 4. Run the [four test gates](#mandatory-gates-every-slice) before marking `[x]`.
-5. Do **not** start P7.1+ until [P7.0](#p70--ship--stabilize) prod parity is done.
+5. **P7** is complete — do not reopen closed P7 checkboxes unless fixing a regression.
 
 ```mermaid
 flowchart LR
@@ -95,6 +97,11 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null; pkill -f "next dev" 2>/dev/null; slee
 | P7.2 human input | `lib/harness/tools.ts` (`request_human_input`), Home/Inbox UI |
 | P7.3 connectors | New integration module + KB section + agent tool — one connector per slice |
 | P7.4 timeline / autonomy | `HomeScreen.tsx`, `SettingsPanel.tsx`, `proactive-tasks.ts` |
+| P8.0 P7 partials | `interaction-graph-persist.ts`, `domain-autonomy.ts`, `execute-queued-action.ts`, [DEPLOYMENT.md](./DEPLOYMENT.md) |
+| P8.1 health connector | `lib/health/`, Settings integrations, Nango or provider OAuth |
+| P8.2 contact graph | `interaction-graph.ts`, relationship-monitor cron, Gmail/Calendar signals |
+| P8.3 finance spike | new `lib/finance/` or Plaid module, KB `finance` section |
+| P8.4 platform | auth middleware, `DEFAULT_USER_ID`, mobile secondary views |
 
 ---
 
@@ -142,6 +149,11 @@ GitHub Actions runs the same sequence on push/PR to `main` ([`.github/workflows/
 | **P7.2** | Contract for non-email queue PATCH; manual calendar/KB approval cards |
 | **P7.3** | Connector spike tests isolated; no live external API in unit/contract CI |
 | **P7.4** | Autonomy and timeline logic unit tests |
+| **P8.0** | Unit tests for `autonomyForAction` queue gating; contact persist wiring |
+| **P8.1** | Connector spike tests isolated; no live wearable API in unit/contract CI |
+| **P8.2** | Contact graph merge tests; manual cron smoke |
+| **P8.3** | Finance spike tests isolated; no live Plaid in CI |
+| **P8.4** | Auth contract tests when middleware lands; mobile manual smoke |
 
 ---
 
@@ -201,11 +213,9 @@ Mark [P7.0](#p70--ship--stabilize) here and **P7.0 Ship post-P6** in [ROADMAP P7
 
 ---
 
-## Prerequisite: ship post-P6 (P7.0)
+## Prerequisite: ship post-P6 (P7.0) — complete
 
-**Blocked by:** local working tree not committed/deployed to [aidea-co.vercel.app](https://aidea-co.vercel.app).
-
-Post-P6 polish (Inbox edit, Gmail drafts, streaming chat, chat persistence, activity reset, mobile Inbox overlay, `queue-types` client boundary) must reach production before P7.1 UX work is meaningful on the daily product surface.
+P7.0 shipped post-P6 polish to [aidea-co.vercel.app](https://aidea-co.vercel.app) (`e9b6d55`, 2026-06-21). P7.1–P7.4 built on that prod baseline; **P8** continues from the same deploy cadence.
 
 ---
 
@@ -345,12 +355,62 @@ Mark `[x]` only when `npm run typecheck`, `npm test`, `npm run test:contract`, a
 - [x] **Contact-centric view** — “Everything about [person]” from KB + mail + calendar signals
 - [x] **Health-centric view** — “This week’s training” from KB + sync when available
 
-### Deferred (not P7)
+---
 
-- Multi-user auth and billing ([VISION deferred](./VISION.md#explicitly-deferred))
-- Full 6-agent Daily OS as default Home morning path
-- All Phase 3 connectors at once (Plaid, Slack, Notion, WhatsApp)
+## P8 — Harden & extend
+
+P7 delivered the daily loop on production: morning brief, Inbox hygiene, cron outcomes, timeline, and trust dashboard. P8 **finishes partial v1 work** (contact graph persist, per-domain autonomy on queue, documented prod smoke) and **extends live data** (one wearable, richer contacts, finance spike) before platform auth.
+
+Use the same [Build workflow](#build-workflow), [Test strategy](#test-strategy), and [Deployment workflow](#deployment-workflow) — no duplicate gates.
+
+### P8 — Recommended phasing
+
+Ordered by leverage. Do not start a later phase until prerequisites pass gates.
+
+| Phase | Focus | Rationale |
+|-------|--------|-----------|
+| **P8.0** | Complete P7 partials | Wire spikes agents already read; autonomy UI must affect queue |
+| **P8.1** | Live health connector | One wearable OAuth + sync → KB `health.sync` |
+| **P8.2** | Rich contact graph | Last touch from Gmail/Calendar; relationship-monitor writes graph |
+| **P8.3** | Finance spike | Minimal Plaid read-only or subscription alerts |
+| **P8.4** | Platform | Auth/multi-user; mobile polish on secondary surfaces |
+
+### P8 — Checkbox backlog
+
+Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
+
+#### P8.0 — Complete P7 partials
+
+- [ ] **Contact interaction recording** — Wire `recordContactInteraction` from harness tools and approve/send paths (`lib/contacts/interaction-graph-persist.ts`, `tools.ts`)
+- [ ] **Per-domain queue apply** — `autonomyForAction` gates auto-run vs needs-you on queue PATCH/execute (`domain-autonomy.ts`, `execute-queued-action.ts`)
+- [ ] **Prod smoke checklist** — Document post-deploy verification in [DEPLOYMENT.md](./DEPLOYMENT.md) (extends P7.0 smoke table)
+
+#### P8.1 — Live health connector
+
+- [ ] **Wearable OAuth** — One provider: Strava **or** Apple Health **or** Whoop — connect/disconnect in Settings
+- [ ] **Health sync job** — Pull recent activities → KB `health.sync`; `health_read` tool reflects live data (`lib/health/`)
+
+#### P8.2 — Rich contact graph
+
+- [ ] **Last touch from mail/calendar** — Derive interaction signals from Gmail/Calendar into graph (`interaction-graph.ts`, Nango)
+- [ ] **Relationship-monitor → graph** — Cron writes cooling-contact and outreach outcomes via `recordContactInteraction`
+
+#### P8.3 — Finance spike
+
+- [ ] **Finance connector (minimal)** — Plaid read-only balances/transactions **or** subscription alert heuristics from KB/mail — pick one per slice
+- [ ] **Finance in Inbox** — Actionable finance nudges as suggestion or approval cards when spike warrants queue
+
+#### P8.4 — Platform
+
+- [ ] **Auth / multi-user** — Replace single `DEFAULT_USER_ID`; session middleware; per-user profile/KB ([VISION D11](./VISION.md#d11-production-platform--62))
+- [ ] **Mobile secondary surfaces** — Agents, Context, Settings usable on small screens (Home loop already mobile-first)
+
+### Deferred (post-P8)
+
+- Full 6-agent Daily OS as default Home morning path (lite brief remains default)
+- All Phase 3 connectors at once (Slack, Notion, WhatsApp, Twilio)
 - Autonomous send without approval in supervised mode
+- Billing and team SaaS packaging
 
 ---
 
@@ -365,10 +425,21 @@ Align with [VISION.md — Explicitly deferred](./VISION.md#explicitly-deferred):
 
 ---
 
+## Explicit non-goals for P8
+
+Align with [VISION.md — Explicitly deferred](./VISION.md#explicitly-deferred):
+
+- Not building every Phase 3 connector in one release
+- Not autonomous finance actions without approval
+- Not replacing native health/finance apps as primary UI
+- Not full Daily OS orchestrator as default morning path
+
+---
+
 ## Updating this document
 
 When a checkbox closes:
 
-1. Mark `[x]` here and the matching [ROADMAP P7](../ROADMAP.md#p7--gap-closure-see-docsplanmd) item.
+1. Mark `[x]` here and the matching [ROADMAP P7](../ROADMAP.md#p7--gap-closure-see-docsplanmd) or [ROADMAP P8](../ROADMAP.md#p8--harden--extend-see-docsplanmd) item.
 2. Update [VISION.md](./VISION.md) domain score and **Next enrichment** if the domain changed materially.
 3. Append one line to [ROADMAP Loop log](../ROADMAP.md#loop-log).
