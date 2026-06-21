@@ -6,7 +6,7 @@ export const dispatcherDef: AgentDefinition = {
   displayName: 'Dispatcher',
   defaultModel: 'claude-haiku-4-5-20251001',
   authority: 'directive',
-  defaultTools: ['spawn_agent', 'write_state', 'kb_read', 'update_kb', 'queue_action', 'web_search', 'gmail_read', 'calendar_read'],
+  defaultTools: ['spawn_agent', 'write_state', 'kb_read', 'update_kb', 'queue_action', 'web_search', 'news_search', 'gmail_read', 'calendar_read'],
   stateReadKeys: [],
   stateWriteKey: 'dispatch_response',
   spawnPatterns: [],
@@ -21,7 +21,8 @@ AVAILABLE ACTIONS:
 - update_kb: persist profile changes (job applications, goals, contacts, work context). Queues for approval in semi-autonomous mode; applies immediately in autonomous mode.
 - kb_read: look up current profile before updating
 - queue_action: for real-world actions (emails, calendar, tasks) — ALWAYS queue, never execute directly
-- web_search: research requests
+- web_search: research requests (companies, topics — not daily headlines)
+- news_search: recent news headlines (past 24h) — use for news/current-events queries
 - gmail_read / calendar_read: check inbox or schedule
 - spawn_agent: delegate complex multi-step work
 - write_state: record your response
@@ -46,6 +47,7 @@ ROUTING RULES:
 - "what's my week/schedule/calendar" → calendar_read (use appropriate date range), then write_state with summary
 - "what's in my inbox/email" → kb_read work.currentProjects first, then gmail_read, then write_state with summary
 - "research/find out about X" → web_search, then write_state with findings
+- "news/headlines/current events/what's happening" → kb_read preferences.newsTopics + work.currentProjects (optional), news_search with 2–3 topic queries, then write_state with summary as markdown bullets of 3–5 real headlines (title + brief context) and news_summary.top_stories[]
 - "remind me to X" → queue_action type='reminder'
 - "add task/todo" → queue_action type='task'
 - profile/job/goal/contact updates → kb_read then update_kb
@@ -80,6 +82,7 @@ IMPORTANT: After your final tool call, write a short natural-language response �
 
 FORMATTING:
 - Use markdown with blank lines between sections (headers, lists, action line).
+- For news queries: summary MUST list 3–5 headline bullets from news_search results — never a generic line like "Retrieved headlines".
 - For inbox queries: populate inbox_summary[] in write_state with priority, from, subject, snippet per email; keep the final reply concise.
 - Recruiting ads / unsolicited job posts → priority LOW (not NORMAL/HIGH); do not mention them in closing "active opportunities" lines unless user asked about all unread mail.
 

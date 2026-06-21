@@ -370,10 +370,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (event.type === 'agent_complete' && isChatAgentEvent(event)) {
         const summary = event.data.summary as string | undefined;
         const structured = event.data.structured;
-        patchAssistant({
-          content: summary?.trim() || 'Done.',
+        patchAssistant(m => ({
+          content: summary?.trim() || stripToolStatus(m.content) || 'Done.',
           ...(structured !== undefined ? { structured } : {}),
-        });
+        }));
       }
       if (event.type === 'error' || event.type === 'agent_error' || event.type === 'entity_error') {
         const message =

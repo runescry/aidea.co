@@ -1,4 +1,5 @@
 import type { HarnessAgent, HarnessContext } from './types';
+import { formatDispatchChatSummary } from './dispatch-summary';
 
 /** Push chat-visible content as soon as an agent writes its output state. */
 export function emitChatAgentResponse(
@@ -9,13 +10,7 @@ export function emitChatAgentResponse(
 ): void {
   if (key !== agent.stateWriteKey) return;
 
-  let summary = '';
-  if (value && typeof value === 'object' && value !== null && 'summary' in value) {
-    const s = (value as { summary?: unknown }).summary;
-    if (typeof s === 'string') summary = s.trim();
-  } else if (typeof value === 'string') {
-    summary = value.trim();
-  }
+  const summary = formatDispatchChatSummary(value);
 
   if (!summary && value == null) return;
 

@@ -8,6 +8,7 @@ import { getModel, formatLlmError } from '@/lib/ai/provider';
 import { buildAiSdkTools } from '@/lib/ai/tools';
 import { formatConversationHistory } from '@/lib/chat/history';
 import type { ChatHistoryEntry } from '@/types/chat';
+import { formatDispatchChatSummary } from './dispatch-summary';
 
 function buildAgentPrompt(agent: HarnessAgent, ctx: HarnessContext): string {
   const stateContext = getStateKeys(ctx.state, agent.stateReadKeys);
@@ -42,11 +43,8 @@ function buildAgentSummary(
   if (fromText) return fromText;
 
   const stateVal = agent.stateWriteKey ? ctx.state.data[agent.stateWriteKey] : null;
-  if (stateVal && typeof stateVal === 'object' && stateVal !== null && 'summary' in stateVal) {
-    const s = (stateVal as { summary?: unknown }).summary;
-    if (typeof s === 'string' && s.trim()) return s.trim();
-  }
-  if (typeof stateVal === 'string' && stateVal.trim()) return stateVal.trim();
+  const fromState = formatDispatchChatSummary(stateVal);
+  if (fromState) return fromState;
 
   return 'Done.';
 }
