@@ -2,7 +2,7 @@
 
 One item per agent loop iteration unless the loop prompt says to continue through all unchecked items. Mark `[x]` only when `npm run typecheck`, `npm test`, `npm run test:contract`, and `npm run build` all pass (or note if blocked on external deps).
 
-**Guides:** [AGENTS.md](./AGENTS.md) · [docs/VISION.md](./docs/VISION.md) · [docs/PLAN.md](./docs/PLAN.md) · [Interactive docs](/docs/vision) · [/docs/plan](/docs/plan) · `.cursor/rules/`
+**Guides:** [AGENTS.md](./AGENTS.md) · [docs/VISION.md](./docs/VISION.md) · [docs/PLAN.md](./docs/PLAN.md) · [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) · [Interactive docs](/docs/vision) · [/docs/plan](/docs/plan) · `.cursor/rules/`
 
 ---
 

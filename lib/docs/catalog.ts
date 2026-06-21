@@ -20,6 +20,12 @@ export const DOC_CATALOG: DocEntry[] = [
     file: 'docs/VISION.md',
   },
   {
+    slug: 'architecture',
+    title: 'Infrastructure & data architecture',
+    description: 'Deployment, storage, integrations, harness flow, API map',
+    file: 'docs/ARCHITECTURE.md',
+  },
+  {
     slug: 'roadmap',
     title: 'Roadmap',
     description: 'Priorities, phases, loop log',
@@ -46,6 +52,7 @@ export function getDocBySlug(slug: string): DocEntry | undefined {
 const BASENAME_TO_SLUG: Record<string, string> = {
   plan: 'plan',
   vision: 'vision',
+  architecture: 'architecture',
   roadmap: 'roadmap',
   agents: 'agents',
   deployment: 'deployment',

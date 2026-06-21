@@ -8,6 +8,8 @@ Personal AI chief-of-staff platform — unified context across mail, calendar, h
 
 **Gap closure plan (P7+P8):** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)
 
+**Infrastructure & data:** [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) · [Interactive reader](/docs/architecture)
+
 **Do not recreate the removed legacy stack** (Dashboard, orchestrator, `useAgentSession`, `lib/prompts/*`, imperative leads/working-groups). Agent runs go through `lib/harness/bootstrap.ts`, except **fast-path chat** (see below).
 
 **Deploy:** [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)
@@ -19,6 +21,7 @@ Personal AI chief-of-staff platform — unified context across mail, calendar, h
 | [ROADMAP.md](./ROADMAP.md) | Picking the next checkbox; loop iterations |
 | [docs/PLAN.md](./docs/PLAN.md) | P7 complete; **P8** strategic slices (harden + extend) |
 | [docs/VISION.md](./docs/VISION.md) | Domain scope, scores, non-goals |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Infrastructure, storage, integrations, harness flow |
 | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Env, Nango, Vercel, Postgres |
 | [.cursor/loop-prompt.md](./.cursor/loop-prompt.md) | `/loop` automation |
 | [.cursor/rules/](./.cursor/rules/) | Scoped constraints (always-on + globs) |

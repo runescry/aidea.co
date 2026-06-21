@@ -19,7 +19,7 @@ npm run typecheck && npm test && npm run test:contract && npm run build   # befo
 
 See [AGENTS.md](../AGENTS.md) for agent git/deploy rules.
 
-**Interactive docs:** Markdown files with Mermaid diagrams are best read in the app at [/docs/vision](/docs/vision), [/docs/plan](/docs/plan), and [/docs/roadmap](/docs/roadmap) (light reading mode, rendered diagrams, table of contents).
+**Interactive docs:** Markdown files with Mermaid diagrams are best read in the app at [/docs/vision](/docs/vision), [/docs/plan](/docs/plan), [/docs/architecture](/docs/architecture), and [/docs/roadmap](/docs/roadmap) (light reading mode, rendered diagrams, table of contents).
 
 ## Quick checklist (production deploy — explicit request only)
 
