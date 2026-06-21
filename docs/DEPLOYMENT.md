@@ -170,6 +170,8 @@ Opt-in integration test (`npm run test:integration:e2e` / `test:e2e`) — not CI
 
 Test mail subjects use prefix `aidea-e2e-`. The suite sends to yourself, triages, approves an `email_reply`, then approves seeded calendar and KB queue items.
 
+Calendar step creates an event on your **primary** Google Calendar (~90 minutes ahead, title prefix `aidea-e2e-cal`). Search Google Calendar for `aidea-e2e-cal` or check the time slot about 90 minutes from the test run. aidea does not show a live calendar grid — executed events appear only as Inbox → **Done** queue rows (and in Settings audit), not in Home schedule unless a morning brief run included them.
+
 ---
 
 - **Settings panel writes are disabled on Vercel** (`isProductionDeploy()`). API keys must be set as Vercel environment variables, not via the in-app Settings form. **Activity reset** (`POST /api/reset`) works on production once deployed.

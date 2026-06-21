@@ -106,8 +106,8 @@ describe.skipIf(!RUN || !hasValidLlmKey() || !nangoConfigured())('inbox approve 
     }
 
     const calTitle = `aidea-e2e-cal-${Date.now()}`;
-    const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    start.setMinutes(0, 0, 0);
+    const start = new Date(Date.now() + 90 * 60 * 1000);
+    start.setSeconds(0, 0);
 
     const seeded = await enqueueAction({
       type: 'calendar_event',
@@ -131,7 +131,7 @@ describe.skipIf(!RUN || !hasValidLlmKey() || !nangoConfigured())('inbox approve 
     expect(body.action.status).toBe('executed');
 
     const dateYmd = start.toISOString().slice(0, 10);
-    const calendar = await readCalendarEvents({ date: dateYmd, daysAhead: 2, maxResults: 50 });
+    const calendar = await readCalendarEvents({ date: dateYmd, daysAhead: 1, maxResults: 50 });
     expect(calendar.events.some(e => e.title === calTitle)).toBe(true);
   }, 120_000);
 
