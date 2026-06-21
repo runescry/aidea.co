@@ -213,15 +213,13 @@ function DashboardChrome({
         )}
 
         {view === 'context' && (
-          <div className="flex-1 overflow-y-auto p-4 md:p-6">
-            <KnowledgeBaseEditor
-              refreshKey={taskRefreshKey}
-              onRestartOnboarding={() => {
-                setOnboardingMode('full');
-                setShowOnboarding(true);
-              }}
-            />
-          </div>
+          <KnowledgeBaseEditor
+            refreshKey={taskRefreshKey}
+            onRestartOnboarding={() => {
+              setOnboardingMode('full');
+              setShowOnboarding(true);
+            }}
+          />
         )}
 
         {view === 'settings' && (
