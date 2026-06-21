@@ -36,6 +36,7 @@ import {
   syncContactSignalsFromEmails,
 } from '@/lib/contacts/sync-signals';
 import { readHealthSyncSnapshot, weekTrainingSummary } from '@/lib/health/sync';
+import { readPlaidStub } from '@/lib/finance/plaid-stub';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
 // ── Tool Catalog ──────────────────────────────────────────────────────────────
@@ -454,6 +455,19 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
     key: 'health_sync_read',
     name: 'health_sync_read',
     description: "Read health sync snapshot and this week's training summary from the KB (wearable/manual sync data).",
+    requiresApproval: false,
+    realWorld: false,
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+
+  finance_read: {
+    key: 'finance_read',
+    name: 'finance_read',
+    description: 'Read finance subscriptions from KB and Plaid connector status (read-only stub when env not set).',
     requiresApproval: false,
     realWorld: false,
     inputSchema: {
@@ -999,6 +1013,15 @@ export async function executeHarnessTool(
       return {
         snapshot: readHealthSyncSnapshot(kb),
         week: weekTrainingSummary(kb),
+      };
+    }
+
+    case 'finance_read': {
+      const kb = await readAllKB() as KnowledgeBase;
+      return {
+        subscriptions: kb.finance?.subscriptions ?? [],
+        monthlyBudgetNotes: kb.finance?.monthlyBudgetNotes,
+        plaid: readPlaidStub(),
       };
     }
 

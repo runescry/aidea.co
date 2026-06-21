@@ -10,9 +10,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
-**Phase:** P8 — harden & extend (P8.0 complete)  
-**Next up:** [P8.3 — Finance spike](./docs/PLAN.md#p83--finance-spike)  
-**Recent:** P8.2 Gmail/Calendar contact signals + relationship-monitor graph writes  
+**Phase:** P8 — harden & extend (P8.0–P8.3 complete; P8.4 blocked)  
+**Next up:** [P8.4 — Platform](./docs/PLAN.md#p84--platform) — auth/multi-user blocked pending provider choice  
+**Recent:** P8.3 finance subscription nudges + Plaid env stub  
 **Git:** `main` ahead of `origin/main` (docs + P8.0)
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
@@ -129,10 +129,10 @@ Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkb
 - [x] **P8.0 P7 partials** — Wire contact graph persist; per-domain autonomy on queue; prod smoke doc
 - [x] **Live health connector** — One wearable OAuth + sync (Strava, Apple Health, or Whoop)
 - [x] **Rich contact graph** — Last touch from Gmail/Calendar; relationship-monitor writes graph
-- [ ] **Finance spike** — Plaid read-only or minimal subscription alerts
-- [ ] **Finance → Inbox** — Actionable finance nudges as approval/suggestion cards
-- [ ] **Auth / multi-user** — Session middleware; per-user profile/KB
-- [ ] **Mobile secondary surfaces** — Agents, Context, Settings polish on small screens
+- [x] **Finance spike** — Plaid read-only or minimal subscription alerts
+- [x] **Finance → Inbox** — Actionable finance nudges as approval/suggestion cards
+- [ ] **Auth / multi-user** — Session middleware; per-user profile/KB — **BLOCKED** (needs auth provider + storage migration)
+- [ ] **Mobile secondary surfaces** — Agents, Context, Settings polish on small screens — deferred with P8.4
 
 ---
 
@@ -172,3 +172,5 @@ Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkb
 - 2026-06-21 — P8.0 P7 partials — contact interaction recording, per-domain queue autonomy, prod smoke doc
 - 2026-06-21 — P8.1 Strava health connector — OAuth, sync job, Settings connect/disconnect
 - 2026-06-21 — P8.2 rich contact graph — mail/calendar signal sync, relationship-monitor persist
+- 2026-06-21 — P8.3 finance spike — KB subscription nudges in Inbox, Plaid env stub, finance_read tool
+- 2026-06-21 — P8.4 platform — **BLOCKED** auth/multi-user (no session middleware path chosen); mobile secondary surfaces deferred

@@ -1,6 +1,7 @@
 import type { KnowledgeBase, JobApplication, PersonalBuild, CurrentProjects } from '@/types/knowledge-base';
 import type { EntityState } from './types';
 import type { TaskItem } from './tasks';
+import { financeSubscriptionNudges } from '@/lib/finance/subscription-nudges';
 
 export interface ProactiveHygiene {
   dismissed: string[];
@@ -183,6 +184,7 @@ export function buildProactiveTasks(input: {
 }): TaskItem[] {
   const tasks = [
     ...relationshipNudges(input.entities),
+    ...financeSubscriptionNudges(input.kb),
     ...staleProjectTasks(input.kb.work?.currentProjects),
   ];
 

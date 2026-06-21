@@ -34,6 +34,12 @@ export interface TaskItem {
     lastContact?: string;
     weeksSince?: number;
   };
+  finance?: {
+    name: string;
+    renewsOn?: string;
+    amount?: number;
+    cadence?: string;
+  };
 }
 
 const TASK_STATUS_ORDER: Record<TaskStatus, number> = {

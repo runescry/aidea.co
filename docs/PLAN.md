@@ -397,8 +397,8 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 
 #### P8.3 — Finance spike
 
-- [ ] **Finance connector (minimal)** — Plaid read-only balances/transactions **or** subscription alert heuristics from KB/mail — pick one per slice
-- [ ] **Finance in Inbox** — Actionable finance nudges as suggestion or approval cards when spike warrants queue
+- [x] **Finance connector (minimal)** — Plaid read-only balances/transactions **or** subscription alert heuristics from KB/mail — pick one per slice
+- [x] **Finance in Inbox** — Actionable finance nudges as suggestion or approval cards when spike warrants queue
 
 #### P8.4 — Platform
 

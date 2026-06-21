@@ -168,6 +168,16 @@ export interface KnowledgeBase {
     currentlyLearning?: string[];
     readingList?: string[];
   };
+  finance?: {
+    subscriptions?: Array<{
+      name: string;
+      amount?: number;
+      cadence?: 'monthly' | 'yearly' | 'weekly';
+      renewsOn?: string;
+      notes?: string;
+    }>;
+    monthlyBudgetNotes?: string;
+  };
   preferences?: {
     newsTopics?: string[];
     briefingTime?: string;

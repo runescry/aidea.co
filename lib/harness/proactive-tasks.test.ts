@@ -26,6 +26,16 @@ describe('buildProactiveTasks', () => {
     expect(tasks[0].source).toBe('proactive');
   });
 
+  it('surfaces finance subscription renewals', () => {
+    const kb: KnowledgeBase = {
+      finance: {
+        subscriptions: [{ name: 'Netflix', renewsOn: '2026-06-23', amount: 15, cadence: 'monthly' }],
+      },
+    };
+    const tasks = buildProactiveTasks({ kb, entities: [] });
+    expect(tasks.some(t => t.id === 'proactive-finance-renew-netflix')).toBe(true);
+  });
+
   it('surfaces cooling relationships without queued drafts', () => {
     const entities: EntityState[] = [{
       entityId: 'e1',
