@@ -100,4 +100,18 @@ describe('normalizeCalendarQueueAction', () => {
     expect(norm.payload.title).toBe('Team sync');
     expect(norm.tool).toBe('calendar_create');
   });
+
+  it('applies to edits as attendees for calendar drafts', () => {
+    const edited = applyQueueEdits(calBase, { to: 'alex@example.com, pat@example.com' });
+    expect(edited.payload.attendees).toEqual(['alex@example.com', 'pat@example.com']);
+  });
+
+  it('clears attendees when to edit is empty', () => {
+    const withAttendees = {
+      ...calBase,
+      payload: { ...calBase.payload, attendees: ['old@example.com'] },
+    };
+    const edited = applyQueueEdits(withAttendees, { to: '' });
+    expect(edited.payload.attendees).toBeUndefined();
+  });
 });

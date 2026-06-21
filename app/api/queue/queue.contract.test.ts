@@ -44,7 +44,7 @@ describe('PATCH /api/queue', () => {
       body: JSON.stringify({
         id: 'cal-1',
         intent: 'approve',
-        edits: { title: 'Updated sync', durationMinutes: 45 },
+        edits: { title: 'Updated sync', durationMinutes: 45, to: 'guest@example.com' },
       }),
     });
     const res = await PATCH(req as import('next/server').NextRequest);
@@ -54,6 +54,7 @@ describe('PATCH /api/queue', () => {
     expect(mockResolve).toHaveBeenCalledWith('cal-1', 'approve', {
       title: 'Updated sync',
       durationMinutes: 45,
+      to: 'guest@example.com',
     });
   });
 

@@ -20,12 +20,20 @@ export function calendarPayloadFromAction(
     ? payload.durationMinutes
     : Number(payload.durationMinutes) || 60;
   const description = typeof payload.description === 'string' ? payload.description : undefined;
-  const attendees = Array.isArray(payload.attendees)
-    ? payload.attendees.filter((a): a is string => typeof a === 'string')
-    : typeof payload.attendees === 'string'
-      ? payload.attendees.split(',').map(s => s.trim()).filter(Boolean)
-      : undefined;
+  const attendees = parseAttendeeEmails(payload.attendees) ?? parseAttendeeEmails(payload.to);
   return { title, start, durationMinutes, description, attendees };
+}
+
+function parseAttendeeEmails(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    const list = value.filter((a): a is string => typeof a === 'string' && a.trim().length > 0);
+    return list.length > 0 ? list : undefined;
+  }
+  if (typeof value === 'string') {
+    const list = value.split(',').map(s => s.trim()).filter(Boolean);
+    return list.length > 0 ? list : undefined;
+  }
+  return undefined;
 }
 
 export function formatCalendarStart(iso: string): string {

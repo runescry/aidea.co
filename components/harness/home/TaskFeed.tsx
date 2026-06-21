@@ -196,7 +196,7 @@ function buildCalendarEdits(
   if (draftStart !== initialStart) edits.start = draftStart;
   if (draftDuration !== initialDuration) edits.durationMinutes = draftDuration;
   if (draftDescription !== initialDescription) edits.description = draftDescription;
-  if (draftAttendees !== initialAttendees) edits.attendees = draftAttendees;
+  if (draftAttendees !== initialAttendees) edits.to = draftAttendees;
   return Object.keys(edits).length > 0 ? edits : undefined;
 }
 
@@ -506,12 +506,12 @@ function TaskDetail({
               )}
             </div>
             <div>
-              <Label>Attendees</Label>
+              <Label>To</Label>
               <TextField
                 value={draftAttendees}
                 onChange={setDraftAttendees}
                 disabled={actionPending}
-                placeholder="Optional — comma-separated emails"
+                placeholder="recipient@example.com — comma-separated for multiple"
               />
             </div>
             <div>

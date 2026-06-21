@@ -112,10 +112,12 @@ export function applyQueueEdits(
       next.payload.description = edits.description;
       next.detail = edits.description;
     }
-    if (typeof edits.attendees === 'string') {
-      const list = edits.attendees.split(',').map(s => s.trim()).filter(Boolean);
+    const recipientEdit = typeof edits.to === 'string' ? edits.to : edits.attendees;
+    if (typeof recipientEdit === 'string') {
+      const list = recipientEdit.split(',').map(s => s.trim()).filter(Boolean);
       if (list.length > 0) next.payload.attendees = list;
       else delete next.payload.attendees;
+      delete next.payload.to;
     }
     return next;
   }
