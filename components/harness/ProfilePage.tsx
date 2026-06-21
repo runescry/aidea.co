@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { KnowledgeBase } from '@/types/knowledge-base';
+import type { JobApplication, KnowledgeBase } from '@/types/knowledge-base';
 import { useSaveFeedback } from '@/hooks/useSaveFeedback';
 import type { ProfileDomain } from '@/lib/profile/summary';
+import { findJobApplicationIndex } from '@/lib/profile/summary';
 import type { ProfileUpdater } from './profile/ProfileSections';
 import ProfileSummaryView from './profile/ProfileSummaryView';
 import ProfileDomainSheet from './profile/ProfileDomainSheet';
@@ -43,21 +44,6 @@ export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKe
     });
   }, [runSave]);
 
-  const handleSaveAll = () => {
-    save({
-      identity: data.identity ?? {},
-      work: data.work ?? {},
-      relationships: data.relationships ?? {},
-      family: data.family ?? {},
-      health: data.health ?? {},
-      routines: data.routines ?? {},
-      goals: data.goals ?? {},
-      learning: data.learning ?? {},
-      preferences: data.preferences ?? {},
-      finance: data.finance ?? {},
-    });
-  };
-
   const u: ProfileUpdater = (section, updates) => {
     setData(d => ({ ...d, [section]: { ...(d[section] as object ?? {}), ...updates } as KnowledgeBase[typeof section] }));
   };
@@ -66,6 +52,49 @@ export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKe
     const goals = { ...(data.goals ?? {}), currentChapter: chapter };
     u('goals', { currentChapter: chapter });
     await save({ goals });
+  };
+
+  const updateJob = async (job: JobApplication, patch: Partial<JobApplication>) => {
+    const projects = data.work?.currentProjects;
+    if (!projects || Array.isArray(projects)) return;
+    const idx = findJobApplicationIndex(data, job);
+    if (idx < 0) return;
+    const jobs = [...(projects.jobApplications ?? [])];
+    jobs[idx] = { ...jobs[idx], ...patch };
+    const currentProjects = { ...projects, jobApplications: jobs };
+    const work = { ...(data.work ?? {}), currentProjects };
+    u('work', { currentProjects });
+    await save({ work });
+  };
+
+  const saveDomain = () => {
+    if (!openDomain) return;
+    switch (openDomain) {
+      case 'identity':
+        save({
+          identity: data.identity ?? {},
+          goals: data.goals ?? {},
+          family: data.family ?? {},
+          routines: data.routines ?? {},
+          learning: data.learning ?? {},
+        });
+        break;
+      case 'work':
+        save({ work: data.work ?? {} });
+        break;
+      case 'contacts':
+        save({ relationships: data.relationships ?? {}, work: data.work ?? {} });
+        break;
+      case 'health':
+        save({ health: data.health ?? {} });
+        break;
+      case 'preferences':
+        save({ preferences: data.preferences ?? {} });
+        break;
+      case 'finance':
+        save({ finance: data.finance ?? {} });
+        break;
+    }
   };
 
   if (loading) {
@@ -82,7 +111,7 @@ export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKe
         <div className="min-w-0">
           <h1 className="text-title text-foreground">Profile</h1>
           <p className="text-xs text-foreground-subtle mt-0.5">
-            Your control center — agents read this to personalise drafts, briefs, and suggestions.
+            Read-first control center — tap to tweak priorities; chat for everything else.
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -98,6 +127,7 @@ export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKe
         <ProfileSummaryView
           data={data}
           onEditChapter={chapter => { void saveChapter(chapter); }}
+          onUpdateJob={(job, patch) => { void updateJob(job, patch); }}
           onOpenDomain={setOpenDomain}
           onOpenChat={draft => onOpenChat?.(draft)}
         />
@@ -110,7 +140,8 @@ export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKe
         saving={saving}
         saved={saved}
         onClose={() => setOpenDomain(null)}
-        onSave={handleSaveAll}
+        onSave={saveDomain}
+        onOpenChat={draft => onOpenChat?.(draft)}
       />
     </div>
   );

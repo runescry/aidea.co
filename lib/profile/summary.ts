@@ -74,30 +74,41 @@ export function profileSubtitle(kb: KnowledgeBase): string {
 }
 
 export function getCurrentChapter(kb: KnowledgeBase): string {
-  const explicit = kb.goals?.currentChapter?.trim();
-  if (explicit) return explicit;
-  const focus = kb.work?.careerFocus?.trim();
-  if (focus) return focus;
-  const aspirations = kb.identity?.aspirations?.trim();
-  if (aspirations) {
-    return aspirations.length > 280 ? `${aspirations.slice(0, 277)}…` : aspirations;
-  }
-  return '';
+  return kb.goals?.currentChapter?.trim() ?? '';
 }
 
 export function getPrioritizedJobs(kb: KnowledgeBase, limit = 5): JobApplication[] {
   const projects = kb.work?.currentProjects;
   if (!projects || Array.isArray(projects)) return [];
   return [...(projects.jobApplications ?? [])]
+    .filter(job => !isNoiseJobApplication(job))
+    .filter(job => (job.priority ?? 99) <= 5)
     .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
     .slice(0, limit);
+}
+
+export function findJobApplicationIndex(
+  kb: KnowledgeBase,
+  job: Pick<JobApplication, 'company' | 'role'>,
+): number {
+  const projects = kb.work?.currentProjects;
+  if (!projects || Array.isArray(projects)) return -1;
+  const jobs = projects.jobApplications ?? [];
+  return jobs.findIndex(j => j.company === job.company && j.role === job.role);
+}
+
+export function isNoiseJobApplication(job: JobApplication): boolean {
+  const company = job.company?.trim() ?? '';
+  if (/^aidea-?e2e-/i.test(company)) return true;
+  if (/e2e verify/i.test(job.nextAction ?? '')) return true;
+  return false;
 }
 
 export function getCoolingContacts(kb: KnowledgeBase): ContactGraphEntry[] {
   const reviewDays = kb.relationships?.reviewFrequency ?? 21;
   const thresholdMs = Date.now() - reviewDays * 24 * 60 * 60 * 1000;
   return buildContactGraph(kb).filter(entry => {
-    if (!entry.lastTouch) return true;
+    if (!entry.lastTouch) return false;
     const touch = new Date(entry.lastTouch).getTime();
     return !Number.isNaN(touch) && touch < thresholdMs;
   });
