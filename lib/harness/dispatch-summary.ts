@@ -1,31 +1,42 @@
-type NewsStory = { headline?: string; title?: string; category?: string; topic?: string; source?: string; context?: string };
-type Headline = { title?: string; topic?: string; whyRelevant?: string };
+type NewsStory = {
+  headline?: string;
+  title?: string;
+  category?: string;
+  topic?: string;
+  source?: string;
+  context?: string;
+  url?: string;
+  whyRelevant?: string;
+};
+
+function formatTitle(title: string, url?: string): string {
+  const trimmedUrl = url?.trim();
+  return trimmedUrl ? `[**${title}**](${trimmedUrl})` : `**${title}**`;
+}
+
+function formatStoryLine(s: NewsStory): string | null {
+  const title = (s.headline ?? s.title)?.trim();
+  if (!title) return null;
+  const titlePart = formatTitle(title, s.url);
+  const meta = [s.category ?? s.topic, s.source].filter(Boolean).join(' · ');
+  const context = (s.context ?? s.whyRelevant)?.trim();
+  if (context) return `- ${titlePart} — ${context}`;
+  return meta ? `- ${titlePart} _(${meta})_` : `- ${titlePart}`;
+}
 
 function formatHeadlinesFromStructured(obj: Record<string, unknown>): string | null {
   const newsSummary = obj.news_summary as { top_stories?: NewsStory[] } | undefined;
   if (newsSummary?.top_stories?.length) {
     const lines = newsSummary.top_stories
-      .map(s => {
-        const title = (s.headline ?? s.title)?.trim();
-        if (!title) return null;
-        const meta = [s.category ?? s.topic, s.source].filter(Boolean).join(' · ');
-        const context = s.context?.trim();
-        if (context) return `- **${title}** — ${context}`;
-        return meta ? `- **${title}** _(${meta})_` : `- **${title}**`;
-      })
+      .map(formatStoryLine)
       .filter((line): line is string => Boolean(line));
     if (lines.length > 0) return lines.join('\n');
   }
 
-  const headlines = obj.headlines as Headline[] | undefined;
+  const headlines = obj.headlines as NewsStory[] | undefined;
   if (headlines?.length) {
     const lines = headlines
-      .map(h => {
-        const title = h.title?.trim();
-        if (!title) return null;
-        const why = h.whyRelevant?.trim();
-        return why ? `- **${title}** — ${why}` : `- **${title}**`;
-      })
+      .map(formatStoryLine)
       .filter((line): line is string => Boolean(line));
     if (lines.length > 0) return lines.join('\n');
   }

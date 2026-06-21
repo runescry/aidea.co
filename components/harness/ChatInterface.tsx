@@ -4,6 +4,7 @@ import { useChatConversations } from '@/hooks/useChatConversations';
 import type { ChatMessage } from '@/types/chat';
 import ChatMarkdown from './ChatMarkdown';
 import InboxSummaryCard, { isInboxStructured, type DispatchInboxStructured } from './chat/InboxSummaryCard';
+import NewsHeadlinesCard, { isNewsStructured, type DispatchNewsStructured } from './chat/NewsHeadlinesCard';
 
 const HOME_SUGGESTIONS = [
   "What's still open from this week?",
@@ -50,6 +51,12 @@ function AssistantContent({ msg, variant }: { msg: ChatMessage; variant: 'defaul
         data={msg.structured as DispatchInboxStructured}
         fallbackMarkdown={msg.content}
       />
+    );
+  }
+
+  if (isNewsStructured(msg.structured)) {
+    return (
+      <NewsHeadlinesCard data={msg.structured as DispatchNewsStructured} />
     );
   }
 

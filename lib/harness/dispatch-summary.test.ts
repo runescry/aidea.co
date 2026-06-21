@@ -42,6 +42,44 @@ describe('formatDispatchChatSummary', () => {
     expect(text).not.toContain('Retrieved latest headlines');
   });
 
+  it('formats top_stories with markdown links when url is present', () => {
+    const text = formatDispatchChatSummary({
+      news_summary: {
+        top_stories: [
+          {
+            headline: 'OpenAI secures $2B funding',
+            url: 'https://example.com/openai-funding',
+            topic: 'AI',
+            context: 'Competitor pricing moves',
+          },
+          {
+            title: 'UK election called',
+            url: 'https://example.com/uk-election',
+            source: 'BBC',
+          },
+        ],
+      },
+    });
+    expect(text).toContain('[**OpenAI secures $2B funding**](https://example.com/openai-funding)');
+    expect(text).toContain('Competitor pricing moves');
+    expect(text).toContain('[**UK election called**](https://example.com/uk-election)');
+    expect(text).toContain('_(BBC)_');
+  });
+
+  it('formats headlines array with urls from news-curator shape', () => {
+    const text = formatDispatchChatSummary({
+      headlines: [
+        {
+          title: 'Stripe raises Series I',
+          url: 'https://example.com/stripe',
+          whyRelevant: 'Payments stack for your side project',
+        },
+      ],
+    });
+    expect(text).toContain('[**Stripe raises Series I**](https://example.com/stripe)');
+    expect(text).toContain('Payments stack for your side project');
+  });
+
   it('falls back to summary string', () => {
     expect(formatDispatchChatSummary({ summary: 'Queued a reply to Natalie.' }))
       .toBe('Queued a reply to Natalie.');
