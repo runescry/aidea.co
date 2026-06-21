@@ -2,9 +2,10 @@ import { hasApiKey } from '@/lib/ai/provider';
 import { getSettingsStatus } from '@/lib/settings';
 import { nangoConfigured } from '@/lib/nango/client';
 import { listNangoConnectionsLite } from '@/lib/nango/connections';
+import { stravaConnectionStatus } from '@/lib/health/strava-sync';
 
 export interface IntegrationItem {
-  id: 'llm' | 'brave' | 'google';
+  id: 'llm' | 'brave' | 'google' | 'strava';
   label: string;
   configured: boolean;
   detail?: string;
@@ -32,6 +33,8 @@ export async function getIntegrationStatus(): Promise<IntegrationStatus> {
     }
   }
 
+  const strava = await stravaConnectionStatus();
+
   const integrations: IntegrationItem[] = [
     {
       id: 'llm',
@@ -48,6 +51,14 @@ export async function getIntegrationStatus(): Promise<IntegrationStatus> {
       id: 'brave',
       label: 'Brave Search',
       configured: settings.braveSearchApiKey.configured,
+    },
+    {
+      id: 'strava',
+      label: 'Strava',
+      configured: strava.connected,
+      detail: strava.connected
+        ? [strava.athleteName, strava.lastSyncedAt ? `synced ${strava.lastSyncedAt.slice(0, 10)}` : undefined].filter(Boolean).join(' · ')
+        : strava.configured ? undefined : 'Set STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET',
     },
   ];
 

@@ -79,6 +79,20 @@ export default function SettingsPanel() {
   const [connections, setConnections] = useState<NangoConnection[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [strava, setStrava] = useState<{
+    configured: boolean;
+    connected: boolean;
+    athleteName?: string;
+    lastSyncedAt?: string;
+  } | null>(null);
+  const [stravaBusy, setStravaBusy] = useState(false);
+  const [stravaMessage, setStravaMessage] = useState<string | null>(null);
+
+  const loadStrava = useCallback(async () => {
+    const res = await fetch('/api/integrations/strava');
+    if (!res.ok) return;
+    setStrava(await res.json() as typeof strava);
+  }, []);
 
   const loadConnections = useCallback(async () => {
     const res = await fetch('/api/nango/connections');
@@ -96,7 +110,16 @@ export default function SettingsPanel() {
       setReadOnly(Boolean(data.readOnly));
     }
     await loadConnections();
-  }, [loadConnections]);
+    await loadStrava();
+  }, [loadConnections, loadStrava]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('settings') !== 'strava') return;
+    if (params.get('connected') === '1') setStravaMessage('Strava connected — activities synced to your health profile.');
+    const err = params.get('error');
+    if (err) setStravaMessage(`Strava connect failed: ${err.replace(/_/g, ' ')}`);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -153,6 +176,33 @@ export default function SettingsPanel() {
       { method: 'DELETE' },
     );
     await loadConnections();
+  };
+
+  const handleConnectStrava = () => {
+    window.location.href = '/api/integrations/strava/authorize';
+  };
+
+  const handleDisconnectStrava = async () => {
+    if (!confirm('Disconnect Strava?')) return;
+    setStravaBusy(true);
+    setStravaMessage(null);
+    await fetch('/api/integrations/strava', { method: 'DELETE' });
+    await loadStrava();
+    setStravaBusy(false);
+  };
+
+  const handleSyncStrava = async () => {
+    setStravaBusy(true);
+    setStravaMessage(null);
+    const res = await fetch('/api/integrations/strava', { method: 'POST' });
+    setStravaBusy(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { error?: string };
+      setStravaMessage(err.error ?? 'Sync failed');
+      return;
+    }
+    setStravaMessage('Activities synced to health profile.');
+    await loadStrava();
   };
 
   const handleResetActivity = async () => {
@@ -303,6 +353,56 @@ export default function SettingsPanel() {
           </ul>
         ) : nangoConfigured ? (
           <p className="text-xs text-foreground-muted">No Google accounts connected yet.</p>
+        ) : null}
+      </div>
+
+      <div className="card p-4 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Strava (health sync)</h3>
+            <p className="text-xs text-foreground-muted mt-1">
+              Connect Strava to pull recent activities into your health profile for agents and Context.
+            </p>
+          </div>
+          {!strava?.connected && (
+            <button
+              onClick={handleConnectStrava}
+              disabled={stravaBusy || strava?.configured === false}
+              className="btn-primary text-xs py-1.5 shrink-0"
+            >
+              Connect Strava
+            </button>
+          )}
+        </div>
+
+        {strava?.configured === false && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET are missing — add them to .env.local (dev) or Vercel env vars.
+          </p>
+        )}
+
+        {stravaMessage && (
+          <p className="text-xs text-foreground-muted whitespace-pre-wrap">{stravaMessage}</p>
+        )}
+
+        {strava?.connected ? (
+          <div className="flex items-center gap-3 px-3 py-2 text-sm rounded-md border border-border">
+            <StatusDot configured />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium truncate">{strava.athleteName ?? 'Strava athlete'}</div>
+              <div className="text-[11px] text-foreground-subtle">
+                {strava.lastSyncedAt ? `Last sync ${strava.lastSyncedAt.slice(0, 16).replace('T', ' ')} UTC` : 'Not synced yet'}
+              </div>
+            </div>
+            <button onClick={handleSyncStrava} disabled={stravaBusy} className="text-xs text-accent hover:underline">
+              {stravaBusy ? 'Syncing…' : 'Sync now'}
+            </button>
+            <button onClick={handleDisconnectStrava} disabled={stravaBusy} className="text-xs text-foreground-muted hover:text-red-500">
+              Disconnect
+            </button>
+          </div>
+        ) : strava?.configured ? (
+          <p className="text-xs text-foreground-muted">No Strava account connected yet.</p>
         ) : null}
       </div>
 

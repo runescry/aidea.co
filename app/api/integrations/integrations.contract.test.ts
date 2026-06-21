@@ -11,7 +11,7 @@ describe('GET /api/integrations', () => {
       missingCount: number;
     };
     expect(Array.isArray(body.integrations)).toBe(true);
-    expect(body.integrations.length).toBe(3);
+    expect(body.integrations.length).toBe(4);
     expect(typeof body.missingCount).toBe('number');
   });
 });

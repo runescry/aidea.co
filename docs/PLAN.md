@@ -387,8 +387,8 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 
 #### P8.1 — Live health connector
 
-- [ ] **Wearable OAuth** — One provider: Strava **or** Apple Health **or** Whoop — connect/disconnect in Settings
-- [ ] **Health sync job** — Pull recent activities → KB `health.sync`; `health_read` tool reflects live data (`lib/health/`)
+- [x] **Wearable OAuth** — One provider: Strava **or** Apple Health **or** Whoop — connect/disconnect in Settings
+- [x] **Health sync job** — Pull recent activities → KB `health.sync`; `health_read` tool reflects live data (`lib/health/`)
 
 #### P8.2 — Rich contact graph
 
