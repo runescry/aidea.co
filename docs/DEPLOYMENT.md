@@ -55,8 +55,12 @@ Run after each prod deploy (extends [PLAN P7.0](./PLAN.md#p70--ship--stabilize);
 | Variable | Purpose |
 |----------|---------|
 | `ANTHROPIC_API_KEY` | Direct Anthropic (local dev fallback when gateway key is unset) |
+| `CRON_SECRET` | Authorize Vercel Cron hits to `/api/monitor` (`Authorization: Bearer …`); schedules in [`vercel.json`](../vercel.json) |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN` | Optional [Vercel KV](https://vercel.com/docs/storage/vercel-kv) — human-input answers across serverless instances; omit for local dev |
 | `BRAVE_SEARCH_API_KEY` | Web search tool |
 | `NANGO_SECRET_KEY` | Gmail & Calendar OAuth via [Nango](https://app.nango.dev) — copy from **Environment Settings → Secret key** |
+
+Vercel services **not** used: Auth, Analytics, Blob. See [ARCHITECTURE.md § Vercel platform services](./ARCHITECTURE.md#vercel-platform-services).
 
 Copy from [`.env.local.example`](../.env.local.example) for local development. For Gmail/Calendar in Settings, set `NANGO_SECRET_KEY` in `.env.local` (dev) or Vercel env vars (production), then restart the dev server.
 

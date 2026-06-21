@@ -98,8 +98,23 @@ flowchart TB
 - Postgres client: `max: 1` connection per instance (serverless-safe).
 - Schema auto-applied on first DB access via `lib/db/migrate.ts`.
 - **Settings panel writes are blocked on Vercel** (`isProductionDeploy()`); API keys must be Vercel env vars, not in-app form saves.
-- **Crons:** `GET /api/monitor?name=daily|inbox|calendar|relationships` — authorized via `Authorization: Bearer CRON_SECRET` (open in non-prod if secret unset).
+- **Crons:** `GET /api/monitor?name=…` — scheduled jobs in [`vercel.json`](../vercel.json) (`daily`, `inbox`, `relationships`); `calendar` is supported in code but not scheduled. Authorized via `Authorization: Bearer CRON_SECRET` (open in non-prod if secret unset).
 - **Human-in-the-loop across instances:** optional Vercel KV (`KV_REST_*`) for `request_human_input`; otherwise in-memory Map (single dev server only).
+
+### Vercel platform services
+
+What aidea uses on Vercel vs what it does not. Postgres (Neon, Supabase, etc.) is **external** — not Vercel Postgres unless you choose that provider for `DATABASE_URL`.
+
+| Service | Used? | Role |
+|---------|-------|------|
+| **Hosting** (Next.js serverless) | Yes | Prod at [aidea-co.vercel.app](https://aidea-co.vercel.app); App Router, `runtime = 'nodejs'`, `maxDuration = 1800` on `/api/message`, `/api/run`, `/api/monitor` ([`vercel.json`](../vercel.json)) |
+| **AI Gateway** | Yes (prod) | All LLM traffic via `https://ai-gateway.vercel.sh/v1` — chat, agents, crons. Key setup: [DEPLOYMENT.md § aidea-co production](./DEPLOYMENT.md#aidea-co-production-aidea-covercelapp) |
+| **Cron Jobs** | Yes | [`vercel.json`](../vercel.json) → `/api/monitor`: daily 6:30 UTC, inbox every 15m (7–22), relationships Mon 8:00. Requires `CRON_SECRET` in prod |
+| **KV** | Optional | `@vercel/kv` for `request_human_input` when `KV_REST_*` env vars set; without KV, human-input answers use an in-memory Map (single instance / local dev only) |
+| **OIDC** (`VERCEL_OIDC_TOKEN`) | Fallback | Third LLM auth path when gateway key and direct Anthropic key are unset ([`lib/ai/provider.ts`](../lib/ai/provider.ts)). On Vercel deploys, OIDC-only often returns **403** on multi-agent Studio runs — set `AI_GATEWAY_API_KEY` |
+| **Auth** | No | No Vercel Auth; single tenant via `DEFAULT_USER_ID` (P8.4 backlog) |
+| **Analytics** | No | Not integrated |
+| **Blob** | No | Profile, queue, chat, and briefs live in Postgres or local `data/` — not Vercel Blob |
 
 **Activity reset** (`POST /api/reset`, Settings danger zone, `npm run reset:activity`) clears queue, audit, harness runs, chat, latest brief — **preserves** profile/KB, app settings, Nango/Strava connections.
 
