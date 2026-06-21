@@ -37,6 +37,14 @@ export function autonomyForAction(kb: KnowledgeBase, actionType: ActionType): Au
   return readDomainAutonomy(kb)[domain];
 }
 
+export function shouldAutoExecuteAction(
+  autonomy: AutonomyLevel,
+  requireApproval?: boolean,
+): boolean {
+  if (requireApproval) return false;
+  return autonomy === 'autonomous';
+}
+
 export function domainAutonomyLabel(level: AutonomyLevel): string {
   if (level === 'supervised') return 'Supervised';
   if (level === 'autonomous') return 'Autonomous';

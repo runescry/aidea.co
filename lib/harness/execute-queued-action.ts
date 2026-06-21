@@ -1,4 +1,5 @@
 import type { QueuedAction } from './queue-types';
+import { recordCalendarCreated, recordEmailSent } from '@/lib/contacts/record-from-action';
 import { sendGmailMessage, createGmailDraft } from '@/lib/nango/gmail';
 import { createCalendarEvent } from '@/lib/nango/calendar';
 import {
@@ -19,7 +20,9 @@ export async function executeQueuedAction(action: QueuedAction): Promise<unknown
         to: string; cc?: string; subject: string; body: string; connectionId?: string;
       };
       if (!to || !subject || !body) throw new Error('Email action missing to, subject, or body');
-      return sendGmailMessage({ to, cc, subject, body, connectionId });
+      const result = await sendGmailMessage({ to, cc, subject, body, connectionId });
+      await recordEmailSent({ to, cc, subject }).catch(() => undefined);
+      return result;
     }
     case 'calendar_create': {
       const { title, start, durationMinutes, description, attendees, connectionId } = payload as {
@@ -29,7 +32,9 @@ export async function executeQueuedAction(action: QueuedAction): Promise<unknown
       if (!title || !start || !durationMinutes) {
         throw new Error('Calendar action missing title, start, or durationMinutes');
       }
-      return createCalendarEvent({ title, start, durationMinutes, description, attendees, connectionId });
+      const result = await createCalendarEvent({ title, start, durationMinutes, description, attendees, connectionId });
+      await recordCalendarCreated({ title, attendees }).catch(() => undefined);
+      return result;
     }
     default:
       throw new Error(`No executor for tool: ${normalized.tool}`);

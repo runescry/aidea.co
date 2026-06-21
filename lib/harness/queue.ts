@@ -25,6 +25,11 @@ import {
   saveQueuedEmailDraft,
 } from './execute-queued-action';
 import { invalidateDevTasksCache } from './tasks-cache';
+import { readAllKB } from './knowledge-base';
+import { autonomyForAction, shouldAutoExecuteAction } from './domain-autonomy';
+import type { KnowledgeBase } from '@/types/knowledge-base';
+
+const AUTO_EXECUTABLE_TYPES = new Set<ActionType>(['email_reply', 'email_send', 'calendar_event']);
 
 export async function listActions(filter?: { status?: ActionStatus; type?: ActionType }): Promise<QueuedAction[]> {
   return listQueuedActions(filter);
@@ -46,6 +51,46 @@ export async function enqueueAction(
   };
   await commitQueueAction(created);
   return created;
+}
+
+export async function enqueueActionWithAutonomy(
+  action: Omit<QueuedAction, 'id' | 'status' | 'createdAt'>,
+  options?: { requireApproval?: boolean },
+): Promise<QueuedAction> {
+  const kb = await readAllKB() as KnowledgeBase;
+  const autoExecute = shouldAutoExecuteAction(
+    autonomyForAction(kb, action.type),
+    options?.requireApproval,
+  ) && AUTO_EXECUTABLE_TYPES.has(action.type);
+
+  const created = await enqueueAction(action);
+  if (!autoExecute) return created;
+
+  try {
+    const result = await approveQueuedAction(created);
+    const updated = {
+      ...created,
+      ...result,
+      resolvedAt: new Date().toISOString(),
+      payload: result.payload ?? created.payload,
+    };
+    await commitQueueAction(updated);
+    await recordQueueAudit(updated);
+    return updated;
+  } catch (err) {
+    const failed: QueuedAction = {
+      ...created,
+      status: 'failed',
+      resolvedAt: new Date().toISOString(),
+      payload: {
+        ...created.payload,
+        executionError: err instanceof Error ? err.message : String(err),
+      },
+    };
+    await commitQueueAction(failed);
+    await recordQueueAudit(failed);
+    return failed;
+  }
 }
 
 function applyQueueNormalization(action: QueuedAction): QueuedAction {

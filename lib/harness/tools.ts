@@ -2,7 +2,7 @@ import type { HarnessTool, HarnessAgent, HarnessContext, ToolInput } from './typ
 import { getAgentByRole } from './registry';
 import { setStateKey, getStateKeys } from './state';
 import { readKB, readAllKB, writeKB } from './knowledge-base';
-import { enqueueAction } from './queue';
+import { enqueueAction, enqueueActionWithAutonomy } from './queue';
 import { runConsensus } from './consensus';
 import { awaitHumanInput, markPendingInput } from './pending-inputs';
 import { getSetting } from '@/lib/settings';
@@ -13,13 +13,13 @@ import { listGmailConnections } from '@/lib/nango/connections';
 import {
   buildKbPatch,
   applyKbPatch,
-  getKbAutonomy,
   shouldAutoApplyKb,
   formatKbPatchSummary,
   normalizeKbPatchInput,
   sanitizeQueueSummary,
   type KbPatchInput,
 } from './kb-updates';
+import { autonomyForAction } from './domain-autonomy';
 import { emitChatAgentResponse } from './chat-events';
 import { addCalendarDays } from '@/lib/calendar/dates';
 import {
@@ -30,6 +30,7 @@ import {
   type CachedGmail,
 } from './inbox-sanitize';
 import { buildContactGraph, findContactEntry } from '@/lib/contacts/interaction-graph';
+import { recordCalendarCreated, recordEmailSent } from '@/lib/contacts/record-from-action';
 import { readHealthSyncSnapshot, weekTrainingSummary } from '@/lib/health/sync';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
@@ -648,7 +649,8 @@ export async function executeHarnessTool(
           error: 'No profile fields to update — pass jobApplication, updates, or key/value',
         };
       }
-      const autonomy = await getKbAutonomy();
+      const kb = await readAllKB() as KnowledgeBase;
+      const autonomy = autonomyForAction(kb, 'kb_update') ?? 'semi-autonomous';
       const autoApply = shouldAutoApplyKb(autonomy, patchInput.requireApproval);
 
       if (autoApply) {
@@ -727,7 +729,7 @@ export async function executeHarnessTool(
 
       const tool = raw.tool
         ?? (raw.type === 'email_reply' || raw.type === 'email_send' ? 'gmail_send' : 'generic');
-      const action = await enqueueAction({
+      const action = await enqueueActionWithAutonomy({
         type: raw.type,
         summary: raw.type === 'kb_update'
           ? sanitizeQueueSummary(raw.summary)
@@ -851,7 +853,7 @@ export async function executeHarnessTool(
       const { to, subject, body, replyToMessageId, connectionId } = input as {
         to: string; subject: string; body: string; replyToMessageId?: string; connectionId?: string;
       };
-      const action = await enqueueAction({
+      const action = await enqueueActionWithAutonomy({
         type: 'email_reply',
         summary: `Email to ${to}: ${subject}`,
         detail: body,
@@ -878,7 +880,9 @@ export async function executeHarnessTool(
         to: string; subject: string; body: string; connectionId?: string;
       };
       try {
-        return await sendGmailMessage({ to, subject, body, connectionId });
+        const result = await sendGmailMessage({ to, subject, body, connectionId });
+        await recordEmailSent({ to, subject }).catch(() => undefined);
+        return result;
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) };
       }
@@ -901,7 +905,7 @@ export async function executeHarnessTool(
       const { title, start, durationMinutes, description, attendees } = input as {
         title: string; start: string; durationMinutes: number; description?: string; attendees?: string[];
       };
-      const action = await enqueueAction({
+      const action = await enqueueActionWithAutonomy({
         type: 'calendar_event',
         summary: `Calendar: ${title} at ${start}`,
         detail: description,
@@ -919,7 +923,9 @@ export async function executeHarnessTool(
         title: string; start: string; durationMinutes: number; description?: string; attendees?: string[];
       };
       try {
-        return await createCalendarEvent({ title, start, durationMinutes, description, attendees });
+        const result = await createCalendarEvent({ title, start, durationMinutes, description, attendees });
+        await recordCalendarCreated({ title, attendees }).catch(() => undefined);
+        return result;
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) };
       }

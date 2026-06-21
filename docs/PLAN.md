@@ -381,9 +381,9 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 
 #### P8.0 — Complete P7 partials
 
-- [ ] **Contact interaction recording** — Wire `recordContactInteraction` from harness tools and approve/send paths (`lib/contacts/interaction-graph-persist.ts`, `tools.ts`)
-- [ ] **Per-domain queue apply** — `autonomyForAction` gates auto-run vs needs-you on queue PATCH/execute (`domain-autonomy.ts`, `execute-queued-action.ts`)
-- [ ] **Prod smoke checklist** — Document post-deploy verification in [DEPLOYMENT.md](./DEPLOYMENT.md) (extends P7.0 smoke table)
+- [x] **Contact interaction recording** — Wire `recordContactInteraction` from harness tools and approve/send paths (`lib/contacts/interaction-graph-persist.ts`, `tools.ts`)
+- [x] **Per-domain queue apply** — `autonomyForAction` gates auto-run vs needs-you on queue PATCH/execute (`domain-autonomy.ts`, `execute-queued-action.ts`)
+- [x] **Prod smoke checklist** — Document post-deploy verification in [DEPLOYMENT.md](./DEPLOYMENT.md) (extends P7.0 smoke table)
 
 #### P8.1 — Live health connector
 

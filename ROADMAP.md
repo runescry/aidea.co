@@ -10,10 +10,10 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
-**Phase:** P7 complete — prod parity + daily Home loop shipped  
-**Next up:** [P8.0 — Complete P7 partials](./docs/PLAN.md#p80--complete-p7-partials)  
-**Recent:** P7.3–P7.4 contact graph, health sync spikes, yesterday timeline, trust dashboard  
-**Git:** `main` synced with `origin/main`
+**Phase:** P8 — harden & extend (P8.0 complete)  
+**Next up:** [P8.1 — Live health connector](./docs/PLAN.md#p81--live-health-connector)  
+**Recent:** P8.0 contact graph persist wiring, per-domain queue autonomy, prod smoke doc  
+**Git:** `main` ahead of `origin/main` (docs + P8.0)
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
 **Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)  
@@ -126,7 +126,7 @@ Build / test / deploy: reuse [PLAN.md § Build workflow](./docs/PLAN.md#build-wo
 
 Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkbox-backlog). Summary checkboxes:
 
-- [ ] **P8.0 P7 partials** — Wire contact graph persist; per-domain autonomy on queue; prod smoke doc
+- [x] **P8.0 P7 partials** — Wire contact graph persist; per-domain autonomy on queue; prod smoke doc
 - [ ] **Live health connector** — One wearable OAuth + sync (Strava, Apple Health, or Whoop)
 - [ ] **Rich contact graph** — Last touch from Gmail/Calendar; relationship-monitor writes graph
 - [ ] **Finance spike** — Plaid read-only or minimal subscription alerts
@@ -169,3 +169,4 @@ Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkb
 - 2026-06-21 — P7.3 contact graph + health sync spikes — `lib/contacts/interaction-graph`, `lib/health/sync`, harness read tools
 - 2026-06-21 — P7.4 timeline + governance — `timeline`, `conflicts`, domain autonomy, Context/Settings lenses
 - 2026-06-21 — P7 complete — prod daily loop shipped; docs synced for P8 (PLAN, ROADMAP, VISION, AGENTS)
+- 2026-06-21 — P8.0 P7 partials — contact interaction recording, per-domain queue autonomy, prod smoke doc
