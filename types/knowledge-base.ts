@@ -148,7 +148,7 @@ export interface KnowledgeBase {
       lastSyncedAt?: string;
       recentActivities?: Array<{ type: string; at: string; durationMins?: number; notes?: string }>;
     };
-    
+  };
   routines?: {
     morningRoutine?: string;
     eveningRoutine?: string;
