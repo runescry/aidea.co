@@ -93,6 +93,7 @@ function DashboardBody({
   return (
     <WorkFeedProvider
       homeActive={view === 'home'}
+      profileActive={view === 'profile'}
       agentsRunning={agentsRunning}
       chatStreaming={chatStreaming}
       refreshKey={taskRefreshKey}

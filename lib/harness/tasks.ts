@@ -7,6 +7,7 @@ import { buildProactiveTasks, type UserAutonomyPreference, type ProactiveHygiene
 import { buildYesterdayTimeline, timelineToTaskItems, type TimelineEntry } from './timeline';
 import { detectScheduleConflicts, conflictsToTaskItems, type ScheduleConflict } from './conflicts';
 import type { QueueAuditEntry } from './queue-audit';
+import { isUserLocalSameDay, resolveUserTimezone, userDateYmd } from '@/lib/calendar/user-time';
 
 export type TaskStatus = 'needs_you' | 'suggestion' | 'running' | 'done' | 'failed';
 
@@ -62,13 +63,23 @@ function isSameCalendarDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString();
 }
 
-export function isTodayBrief(brief: Record<string, unknown>, now = new Date()): boolean {
+export function isTodayBrief(
+  brief: Record<string, unknown>,
+  now = new Date(),
+  timeZone?: string,
+): boolean {
+  const tz = timeZone ?? resolveUserTimezone(null);
+  const date = brief.date;
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return isUserLocalSameDay(date, now, tz);
+  }
   const generatedAt = brief.generatedAt;
   if (typeof generatedAt === 'string') {
     const parsed = new Date(generatedAt);
-    if (!Number.isNaN(parsed.getTime())) return isSameCalendarDay(parsed, now);
+    if (!Number.isNaN(parsed.getTime())) {
+      return isUserLocalSameDay(generatedAt, now, tz);
+    }
   }
-  const date = brief.date;
   if (typeof date === 'string') {
     const parsed = new Date(date);
     if (!Number.isNaN(parsed.getTime())) return isSameCalendarDay(parsed, now);
@@ -79,8 +90,10 @@ export function isTodayBrief(brief: Record<string, unknown>, now = new Date()): 
 export function latestBriefToTask(
   brief: Record<string, unknown> | null | undefined,
   now = new Date(),
+  timeZone?: string,
 ): TaskItem | null {
-  if (!brief || typeof brief !== 'object' || !isTodayBrief(brief, now)) return null;
+  const tz = timeZone ?? resolveUserTimezone(null);
+  if (!brief || typeof brief !== 'object' || !isTodayBrief(brief, now, tz)) return null;
 
   const mustDo = Array.isArray(brief.mustDo) ? brief.mustDo : [];
   const priorityCount = mustDo.length;
@@ -90,7 +103,16 @@ export function latestBriefToTask(
       : now.toISOString();
 
   let title = 'Morning brief';
-  if (typeof brief.date === 'string') {
+  if (typeof brief.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(brief.date)) {
+    const [y, m, d] = brief.date.split('-').map(Number);
+    const anchor = new Date(Date.UTC(y, m - 1, d, 12));
+    title = `Morning brief · ${anchor.toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      timeZone: 'UTC',
+    })}`;
+  } else if (typeof brief.date === 'string') {
     const parsed = new Date(brief.date);
     if (!Number.isNaN(parsed.getTime())) {
       title = `Morning brief · ${parsed.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`;
@@ -328,6 +350,7 @@ export function buildUnifiedTaskFeed(input: {
   audit?: QueueAuditEntry[];
   proactiveHygiene?: ProactiveHygiene;
   now?: number;
+  timeZone?: string;
 }): {
   tasks: TaskItem[];
   needsYou: number;
@@ -337,6 +360,7 @@ export function buildUnifiedTaskFeed(input: {
 } {
   const nowMs = input.now ?? Date.now();
   const nowDate = new Date(nowMs);
+  const timeZone = input.timeZone ?? resolveUserTimezone(input.kb ?? null);
   const queueTasks = input.actions.map(queueActionToTask);
 
   const entityTasks = input.entities
@@ -371,7 +395,7 @@ export function buildUnifiedTaskFeed(input: {
     now: nowDate,
   }));
 
-  const briefTask = latestBriefToTask(input.brief, nowDate);
+  const briefTask = latestBriefToTask(input.brief, nowDate, timeZone);
   const healthTask = latestHealthBriefToTask(input.entities, nowDate);
   const tasks = insertHealthTask(
     insertBriefTask(

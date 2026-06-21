@@ -16,9 +16,10 @@ export const workPrepDef: AgentDefinition = {
 WORKFLOW:
 
 STEP 1: Load work context.
-Call kb_read with keys: ["work.keyContacts", "work.currentProjects", "identity.role", "identity.company"]
+Call kb_read with keys: ["relationships.people", "work.currentProjects", "identity.role", "identity.company"]
 Call read_state with keys: ["calendar_brief"]
 The calendar_brief contains today's schedule — use firstMeeting to identify who you're preparing for.
+Use relationships.people for key external contacts and their context.
 
 STEP 2: Research the first external meeting.
 Using calendar_brief.firstMeeting:

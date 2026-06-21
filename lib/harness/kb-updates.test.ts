@@ -41,6 +41,13 @@ describe('kbPatchInputFromPayload', () => {
     });
     expect(input?.jobApplication?.company).toBe('Vercel');
   });
+
+  it('round-trips person patch from queue payload', () => {
+    const input = kbPatchInputFromPayload({
+      input: { person: { name: 'Sarah', email: 's@x.com', status: 'removed' } },
+    });
+    expect(input?.person).toMatchObject({ name: 'Sarah', email: 's@x.com', status: 'removed' });
+  });
 });
 
 describe('describeKbUpdate', () => {
@@ -70,5 +77,11 @@ describe('formatKbPatchSummary', () => {
     expect(formatKbPatchSummary({
       jobApplication: { company: 'Vercel', status: 'Offer received' },
     })).toBe('Vercel → Offer received');
+  });
+
+  it('formats person removal patches', () => {
+    expect(formatKbPatchSummary({
+      person: { name: 'Sarah', status: 'removed' },
+    })).toBe('Sarah → removed');
   });
 });

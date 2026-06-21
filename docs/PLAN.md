@@ -102,6 +102,7 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null; pkill -f "next dev" 2>/dev/null; slee
 | P8.2 contact graph | `interaction-graph.ts`, relationship-monitor cron, Gmail/Calendar signals |
 | P8.3 finance spike | new `lib/finance/` or Plaid module, KB `finance` section |
 | P8.4 platform | auth middleware, `DEFAULT_USER_ID`, mobile secondary views |
+| P9 profile memory | `lib/profile/people.ts`, `ProfilePeopleSection`, `memory-hygiene.ts`, graph blocklist |
 
 ---
 
@@ -129,13 +130,17 @@ GitHub Actions runs the same sequence on push/PR to `main` ([`.github/workflows/
 | UI-only (no testable logic) | Manual smoke on Home, Inbox, `/docs/plan` |
 | Queue / tasks / feed behavior | Extend `lib/harness/tasks.test.ts` or `app/api/tasks/tasks.contract.test.ts` |
 
-**Existing contract coverage:** `tasks`, `agents`, `integrations`, `reset` — extend when adding routes (e.g. dismiss/snooze API, audit viewer).
+**Existing contract coverage:** `tasks`, `agents`, `integrations`, `reset`, `kb`, `queue` — extend when adding routes.
 
 ### Optional gates (not CI)
 
 | Command | When | Requires |
 |---------|------|----------|
-| `npm run test:integration` | Pre-P7.0 deploy; after queue/chat changes | LLM key in `.env.local` |
+| `npm run test:integration` | Pre-deploy; after queue/chat changes | LLM key in `.env.local` |
+| `npm run test:e2e` | Profile people + platform API scenarios | `RUN_INTEGRATION=1` (set by script); local profile or Postgres |
+| `npm run test:e2e:profile` | After P9 people/memory changes | Same — no Gmail/LLM |
+| `npm run test:e2e:inbox` | Before trusting prod Gmail/calendar execute | Nango + Gmail + LLM + Calendar optional |
+| `npm run test:e2e:all` | Full opt-in stack | Profile + platform + live inbox |
 | `npm run test:inbox-triage` | After inbox-triage / Gmail changes | LLM key |
 | `INTEGRATION_GMAIL=1 npm run test:inbox-triage:live` | Before trusting prod Gmail | Nango + Gmail connected |
 | `npm run build && npm start` | Prod-like UI speed check | Stop dev first |
@@ -153,6 +158,8 @@ GitHub Actions runs the same sequence on push/PR to `main` ([`.github/workflows/
 | **P8.1** | Connector spike tests isolated; no live wearable API in unit/contract CI |
 | **P8.2** | Contact graph merge tests; manual cron smoke |
 | **P8.3** | Finance spike tests isolated; no live Plaid in CI |
+| **P9.3** | People + kb-updates unit tests; proactive skip removed; memory-hygiene tests |
+| **P9 E2E** | `npm run test:e2e:profile` — people store, queue person patch, reject feedback (no Gmail) |
 | **P8.4** | Auth contract tests when middleware lands; mobile manual smoke |
 
 ---
@@ -404,6 +411,66 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 
 - [ ] **Auth / multi-user** — Replace single `DEFAULT_USER_ID`; session middleware; per-user profile/KB ([VISION D11](./VISION.md#d11-production-platform--62))
 - [ ] **Mobile secondary surfaces** — Agents, Context, Settings usable on small screens (Home loop already mobile-first)
+
+---
+
+## P9 — Profile memory & people graph
+
+Profile is the semantic hub agents read before Gmail, Calendar, or crons. P7–P8 built interaction graph inputs; P9 adds the **user-facing control plane** to correct, retract, and curate what the workforce remembers.
+
+Parallel-safe with P8.4 auth — `people[]` and `removedKeys` live in per-user `profiles.data` with no schema change when auth lands.
+
+### P9 — Recommended phasing
+
+| Phase | Focus | Rationale |
+|-------|--------|-----------|
+| **P9.1** | Data model + graph | Canonical `relationships.people[]`, tombstones, sync blocklist |
+| **P9.2** | People UI | Unified list + person sheet on Profile summary |
+| **P9.3** | Agent KB writes | `person` patch; dispatcher/inbox-triage remove instructions |
+| **P9.4** | Memory hygiene | Pulse dismiss; job remove; kb_update reject feedback |
+| **P9.5** | Docs | ROADMAP, PLAN, VISION D5, ARCHITECTURE |
+
+### P9 — Checkbox backlog
+
+Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
+
+#### P9.1 — Data model + graph
+
+- [x] **`ProfilePerson` types** — `relationships.people[]`, `removedKeys[]` in `types/knowledge-base.ts`
+- [x] **CRUD helpers** — `lib/profile/people.ts`, `people-migrate.ts`
+- [x] **Graph integration** — `buildContactGraph`, `recordContactInteraction`, sync-signals, proactive cooling filter removed
+
+#### P9.2 — People UI
+
+- [x] **Unified People list** — `ProfilePeopleSection` on Profile summary
+- [x] **Person sheet** — Edit, archive, remove, restore; + Add person
+- [x] **Legacy editor** — Four-list `PersonListEditor` collapsed under contacts domain sheet
+
+#### P9.3 — Agent KB writes
+
+- [x] **`person` patch** — `kb-updates` merges into `people[]`
+- [x] **Dispatcher / inbox-triage** — Stop tracking → `status: removed`
+- [x] **Tests** — People + proactive nudge skip removed contacts
+
+#### P9.4 — Memory hygiene
+
+- [x] **Pulse dismiss** — `preferences.memoryHygiene.dismissedPulseIds`
+- [x] **Job remove** — Remove row on Profile priorities
+- [x] **KB reject feedback** — `rejectedKbPatches` on queue reject
+
+#### P9.5 — Docs
+
+- [x] **ROADMAP / PLAN / VISION / ARCHITECTURE** — P9 sections synced
+
+#### P9 follow-up (post-delivery, not blocking)
+
+- [x] **`person` queue round-trip** — `update_kb` schema + queue payload includes `person` for semi-autonomous approve
+- [x] **Onboarding → `people[]`** — wizard + Work key contacts write canonical store (not legacy lists)
+- [x] **Archived restore UI** — Profile People “Show archived (N)” section
+- [x] **Profile memory E2E** — `tests/integration/profile-memory-e2e.test.ts`; `app/api/kb/kb.contract.test.ts`
+- [x] **Agent reads rejection memory** — `rejectedKbPatches` injected into dispatch task + agent prompts
+- [ ] **Rich person sheet** — interaction history (wire `ContactLensPanel` patterns)
+- [ ] **Legacy list deprecation** — stop reading `work.keyContacts` in remaining agent paths
 
 ### Deferred (post-P8)
 

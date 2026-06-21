@@ -14,7 +14,10 @@
     "test:inbox-triage:live": "RUN_INTEGRATION=1 INTEGRATION_GMAIL=1 vitest run --config vitest.integration.config.ts tests/integration/inbox-triage.test.ts",
     "test:inbox-triage:run": "npx tsx scripts/test-inbox-triage.mts",
     "test:integration:e2e": "RUN_INTEGRATION=1 INTEGRATION_E2E=1 INTEGRATION_GMAIL=1 vitest run --config vitest.integration.config.ts tests/integration/inbox-approve-e2e.test.ts",
-    "test:e2e": "npm run test:integration:e2e",
+    "test:e2e": "RUN_INTEGRATION=1 vitest run --config vitest.integration.config.ts tests/integration/profile-memory-e2e.test.ts tests/integration/platform.test.ts",
+    "test:e2e:profile": "RUN_INTEGRATION=1 vitest run --config vitest.integration.config.ts tests/integration/profile-memory-e2e.test.ts",
+    "test:e2e:inbox": "npm run test:integration:e2e",
+    "test:e2e:all": "RUN_INTEGRATION=1 vitest run --config vitest.integration.config.ts tests/integration/profile-memory-e2e.test.ts tests/integration/platform.test.ts && npm run test:integration:e2e",
     "reset:activity": "npx tsx scripts/reset-activity.mts",
     "test:all": "vitest run",
     "test:watch": "vitest"

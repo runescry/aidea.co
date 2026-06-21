@@ -22,7 +22,9 @@ A relationship is cooling if:
 WORKFLOW:
 
 STEP 1: Load relationship context.
-Call kb_read with keys: ["relationships.mentors", "relationships.collaborators", "work.keyContacts", "relationships.reviewFrequency"]
+Call kb_read with keys: ["relationships.people", "relationships.reviewFrequency"]
+
+Only monitor people with status active in relationships.people (or legacy lists if people is empty). Never queue outreach for removed contacts.
 
 STEP 2: Scan recent email threads.
 Call gmail_read with { query: "in:anywhere newer_than:30d", maxResults: 50 }

@@ -29,7 +29,7 @@ import {
   sanitizeInboxTriage,
   type CachedGmail,
 } from './inbox-sanitize';
-import { buildContactGraph, findContactEntry } from '@/lib/contacts/interaction-graph';
+import { buildVisibleContactGraph, findContactEntry } from '@/lib/contacts/interaction-graph';
 import { recordCalendarCreated, recordEmailSent } from '@/lib/contacts/record-from-action';
 import {
   syncContactSignalsFromCalendar,
@@ -197,6 +197,20 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
             priority: { type: 'number' },
           },
           required: ['company'],
+        },
+        person: {
+          type: 'object',
+          description: 'Add, update, archive, or remove a person in relationships.people',
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            email: { type: 'string' },
+            company: { type: 'string' },
+            relationship: { type: 'string' },
+            notes: { type: 'string' },
+            status: { type: 'string', enum: ['active', 'archived', 'removed'] },
+          },
+          required: ['name'],
         },
         key: { type: 'string', description: 'Dot-notation key for a single-field update' },
         value: { description: 'Value when using key' },
@@ -439,7 +453,7 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
   contact_graph_read: {
     key: 'contact_graph_read',
     name: 'contact_graph_read',
-    description: 'Read the KB contact interaction graph — last touch, channels, and interaction history merged with relationship contacts.',
+    description: 'Read active profile contacts — last touch, channels, and interaction history. Excludes removed tombstones and archived people.',
     requiresApproval: false,
     realWorld: false,
     inputSchema: {
@@ -662,9 +676,9 @@ export async function executeHarnessTool(
 
       const normalized = normalizeKbPatchInput(patchInput);
       const patch = await buildKbPatch(normalized);
-      if (Object.keys(patch).length === 0 && normalized.key === undefined) {
+      if (Object.keys(patch).length === 0 && normalized.key === undefined && !normalized.person?.name) {
         return {
-          error: 'No profile fields to update — pass jobApplication, updates, or key/value',
+          error: 'No profile fields to update — pass jobApplication, person, updates, or key/value',
         };
       }
       const kb = await readAllKB() as KnowledgeBase;
@@ -695,6 +709,7 @@ export async function executeHarnessTool(
         payload: {
           input: {
             jobApplication: normalized.jobApplication,
+            person: normalized.person,
             updates: normalized.updates,
             key: normalized.key,
             value: normalized.value,
@@ -1000,7 +1015,7 @@ export async function executeHarnessTool(
     case 'contact_graph_read': {
       const { query } = input as { query?: string };
       const kb = await readAllKB() as KnowledgeBase;
-      const graph = buildContactGraph(kb);
+      const graph = buildVisibleContactGraph(kb);
       if (query?.trim()) {
         const entry = findContactEntry(graph, query);
         return entry ? { entry, count: 1 } : { entry: null, count: 0, query };

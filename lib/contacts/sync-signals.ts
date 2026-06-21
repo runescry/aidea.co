@@ -8,13 +8,13 @@ export async function syncContactSignalsFromEmails(emails: GmailMessage[]): Prom
   for (const email of emails) {
     const { name, email: addr } = parseRecipient(email.from);
     if (!name) continue;
-    await recordContactInteraction({
+    const result = await recordContactInteraction({
       name,
       email: addr,
       channel: 'email',
       summary: email.subject ? `Thread: ${email.subject}` : 'Email thread',
     });
-    count++;
+    if (result.ok) count++;
   }
   return count;
 }
@@ -26,13 +26,13 @@ export async function syncContactSignalsFromCalendar(events: CalendarEvent[]): P
     for (const attendee of event.attendees ?? []) {
       const { name, email } = parseRecipient(attendee);
       if (!name) continue;
-      await recordContactInteraction({
+      const result = await recordContactInteraction({
         name,
         email,
         channel: 'calendar',
         summary,
       });
-      count++;
+      if (result.ok) count++;
     }
   }
   return count;
@@ -44,7 +44,7 @@ export async function recordRelationshipMonitorSignals(
   let count = 0;
   for (const contact of cooling) {
     if (!contact.name?.trim()) continue;
-    await recordContactInteraction({
+    const result = await recordContactInteraction({
       name: contact.name.trim(),
       email: contact.email,
       channel: 'relationship-monitor',
@@ -52,7 +52,7 @@ export async function recordRelationshipMonitorSignals(
         ? `Cooling — ${contact.weeksSince} weeks since touch`
         : 'Cooling relationship flagged',
     });
-    count++;
+    if (result.ok) count++;
   }
   return count;
 }

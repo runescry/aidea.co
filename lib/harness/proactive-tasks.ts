@@ -1,4 +1,5 @@
-import type { KnowledgeBase, JobApplication, PersonalBuild, CurrentProjects } from '@/types/knowledge-base';
+import type { CurrentProjects, JobApplication, KnowledgeBase, PersonalBuild } from '@/types/knowledge-base';
+import { isContactBlocked } from '@/lib/profile/people';
 import type { EntityState } from './types';
 import type { TaskItem } from './tasks';
 import { financeSubscriptionNudges } from '@/lib/finance/subscription-nudges';
@@ -139,7 +140,7 @@ function staleProjectTasks(projects?: CurrentProjects): TaskItem[] {
   return tasks;
 }
 
-function relationshipNudges(entities: EntityState[]): TaskItem[] {
+function relationshipNudges(entities: EntityState[], kb: KnowledgeBase): TaskItem[] {
   let latest: { checkedAt: string; data: RelationshipMonitorOutput } | null = null;
 
   for (const entity of entities) {
@@ -154,6 +155,7 @@ function relationshipNudges(entities: EntityState[]): TaskItem[] {
 
   return latest.data.coolingRelationships
     .filter(rel => rel.name && !rel.draftQueued)
+    .filter(rel => !isContactBlocked(kb, { name: rel.name!, email: rel.email }))
     .map(rel => ({
       id: `proactive-rel-${slug(rel.email ?? rel.name)}`,
       source: 'proactive' as const,
@@ -183,7 +185,7 @@ export function buildProactiveTasks(input: {
   entities: EntityState[];
 }): TaskItem[] {
   const tasks = [
-    ...relationshipNudges(input.entities),
+    ...relationshipNudges(input.entities, input.kb),
     ...financeSubscriptionNudges(input.kb),
     ...staleProjectTasks(input.kb.work?.currentProjects),
   ];

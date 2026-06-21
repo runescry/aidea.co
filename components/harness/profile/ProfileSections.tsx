@@ -5,6 +5,7 @@ import type { KnowledgeBase } from '@/types/knowledge-base';
 import { WORKOUT_DAYS, TIMEZONES, PRONOUNS, COMPANY_STAGES } from '@/types/knowledge-base';
 import { Label, TextField, TextArea, TextArrayInput, SelectField, Section } from '../forms';
 import PersonListEditor from '../onboarding/PersonListEditor';
+import { applyContactListToPeople, peopleContactsForEditor } from '@/lib/profile/people';
 import ProjectsEditor from '../ProjectsEditor';
 
 export type ProfileUpdater = <K extends keyof KnowledgeBase>(
@@ -84,7 +85,12 @@ export function WorkSection({ data, u, embedded }: SectionProps) {
         <div><Label>Work role</Label><TextField value={data.work?.role ?? ''} onChange={v => u('work', { role: v })} /></div>
         <div><Label>Company stage</Label><SelectField value={data.work?.companyStage ?? ''} onChange={v => u('work', { companyStage: v })} options={COMPANY_STAGES} /></div>
       </div>
-      <PersonListEditor label="Key contacts" people={data.work?.keyContacts ?? []} onChange={v => u('work', { keyContacts: v })} showCompany />
+      <PersonListEditor
+        label="Key contacts"
+        people={peopleContactsForEditor(data, 'contact')}
+        onChange={v => u('relationships', { people: applyContactListToPeople(data, v, 'contact').relationships?.people })}
+        showCompany
+      />
       <div><Label>Current projects</Label><ProjectsEditor value={data.work?.currentProjects} onChange={v => u('work', { currentProjects: v })} /></div>
       <div><Label>Typical day</Label><TextArea value={data.work?.typicalDay ?? ''} onChange={v => u('work', { typicalDay: v })} rows={2} /></div>
       <div><Label>Meeting preferences</Label><TextArea value={data.work?.meetingPreferences ?? ''} onChange={v => u('work', { meetingPreferences: v })} rows={2} /></div>
@@ -98,9 +104,17 @@ export function WorkSection({ data, u, embedded }: SectionProps) {
 export function RelationshipsSection({ data, u, embedded }: SectionProps) {
   return (
     <ProfileWrap embedded={embedded} title="Relationships" description="People you work and spend time with">
-      <PersonListEditor label="Mentors" people={data.relationships?.mentors ?? []} onChange={v => u('relationships', { mentors: v })} showCompany />
-      <PersonListEditor label="Collaborators" people={data.relationships?.collaborators ?? []} onChange={v => u('relationships', { collaborators: v })} showCompany />
-      <PersonListEditor label="Friends" people={data.relationships?.friends ?? []} onChange={v => u('relationships', { friends: v })} />
+      <p className="text-xs text-foreground-muted">
+        Add, edit, archive, or remove people on the Profile summary. Legacy lists below are read-only fallbacks during migration.
+      </p>
+      <details className="rounded-lg border border-border/60 p-3">
+        <summary className="text-xs text-foreground-subtle cursor-pointer">Legacy list editor</summary>
+        <div className="mt-3 space-y-4">
+          <PersonListEditor label="Mentors" people={data.relationships?.mentors ?? []} onChange={v => u('relationships', { mentors: v })} showCompany />
+          <PersonListEditor label="Collaborators" people={data.relationships?.collaborators ?? []} onChange={v => u('relationships', { collaborators: v })} showCompany />
+          <PersonListEditor label="Friends" people={data.relationships?.friends ?? []} onChange={v => u('relationships', { friends: v })} />
+        </div>
+      </details>
     </ProfileWrap>
   );
 }

@@ -16,8 +16,8 @@ export const inboxTriageDef: AgentDefinition = {
 WORKFLOW:
 
 STEP 1: Load contact and project context.
-Call kb_read with keys: ["work.keyContacts", "work.urgentFrom", "work.skipFrom", "work.currentProjects", "preferences.defaultAutonomyLevel", "family"]
-- keyContacts: people whose emails are always worth reading
+Call kb_read with keys: ["relationships.people", "work.urgentFrom", "work.skipFrom", "work.currentProjects", "preferences.defaultAutonomyLevel", "family"]
+- relationships.people: active contacts (name, email, relationship) — always worth reading when sender matches
 - urgentFrom: senders that always get high urgency
 - skipFrom: newsletters, automated tools, promotional — always low priority
 - currentProjects: job applications and personal builds — match hiring/property/school emails to these
@@ -35,7 +35,7 @@ CRITICAL ATTRIBUTION RULES:
 
 Apply these urgency rules in order (first match wins):
   HIGH urgency:
-    - Sender is in keyContacts or urgentFrom
+    - Sender matches an active entry in relationships.people (by email or name) or is in urgentFrom
     - Subject contains: "urgent", "action required", "deadline", "asap", "by today", "by [today's date]"
     - Thread is a reply to something you sent
     - Email from school, doctor, mortgage broker, or government authority (time-sensitive)
@@ -52,6 +52,7 @@ Apply these urgency rules in order (first match wins):
 Do NOT call update_kb jobApplication for recruiting ads or companies the user is not tracking. Only update profile when the email advances a company already in jobApplications (or user clearly started a new application in the thread).
 
 STEP 4: Profile updates from email (update_kb).
+Before update_kb, kb_read preferences.memoryHygiene.rejectedKbPatches. Skip proposals that match a rejected summary unless the email clearly supersedes it (new facts, user-initiated thread).
 For emails that change facts in the user's profile, call update_kb BEFORE or alongside queue_action.
 Use jobApplication ONLY for hiring emails where the company matches an entry in work.currentProjects.jobApplications (or the thread proves an application already exists):
   - Offer / acceptance → status: "Offer received", nextAction: specific deadline from email
@@ -62,6 +63,8 @@ Use jobApplication ONLY for hiring emails where the company matches an entry in 
 For property (Bryce, Macquarie, conveyancer): update_kb with updates.work or updates.goals shortTerm if milestone reached.
 
 For school (Xavier, Genazzano, MLC): update_kb family.children notes or goals if enrollment/placement news.
+
+People corrections: kb_read relationships.people first. To add or update a contact from email context, use update_kb with person: { name, email, relationship, notes }. To stop tracking someone, person: { name, email, status: "removed" } — never re-add removed keys.
 
 Set priority: "high" for job offers, rejections, finance deadlines on TRACKED applications only.
 Set requireApproval: true for ambiguous interpretation; otherwise let autonomy setting decide (semi-autonomous = queue, autonomous = auto-apply).

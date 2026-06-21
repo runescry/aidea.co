@@ -3,6 +3,7 @@ import { getAgentByRole, setAgentStatus } from './registry';
 import { setStateKey } from './state';
 import { executeHarnessTool } from './tools';
 import { eventDateYmd } from '@/lib/calendar/dates';
+import { userDateYmd, resolveUserTimezone } from '@/lib/calendar/user-time';
 
 const PARALLEL_ROLES = [
   'inbox-triage',
@@ -131,7 +132,10 @@ function filterLogisticsForToday(flags: unknown[], schedule: Record<string, unkn
 }
 
 function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
-  const todayDate = String(ctx.state.data.currentDate ?? new Date().toISOString().split('T')[0]);
+  const tz = String(ctx.state.data.userTimezone ?? resolveUserTimezone(null));
+  const todayDate = String(
+    ctx.state.data.currentDate ?? userDateYmd(new Date(), tz),
+  );
   const inbox = ctx.state.data.inbox_triage as Record<string, unknown> | undefined;
   const calendar = ctx.state.data.calendar_brief as Record<string, unknown> | undefined;
   const health = ctx.state.data.health_brief as Record<string, unknown> | undefined;

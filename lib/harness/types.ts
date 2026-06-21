@@ -214,6 +214,8 @@ export interface CostTracker {
 // ── Entity Config ─────────────────────────────────────────────────────────────
 
 export interface EntityInput {
+  /** Human-readable block of recently rejected KB patches for agent prompts. */
+  rejectionMemory?: string;
   [key: string]: unknown;
 }
 

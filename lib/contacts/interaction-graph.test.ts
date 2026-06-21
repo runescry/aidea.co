@@ -2,7 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { buildContactGraph, findContactEntry } from './interaction-graph';
 
 describe('buildContactGraph', () => {
-  it('merges graph entries with KB contacts', () => {
+  it('excludes removed contacts from graph', () => {
+    const graph = buildContactGraph({
+      relationships: {
+        people: [
+          { id: '1', name: 'Sarah', email: 's@x.com', status: 'active' },
+          { id: '2', name: 'Ghost', email: 'g@x.com', status: 'removed', removedAt: '2026-06-01' },
+        ],
+        removedKeys: ['g@x.com'],
+      },
+    });
+    expect(graph.map(e => e.email)).toEqual(['s@x.com']);
+  });
+
+  it('uses canonical people store when present', () => {
     const graph = buildContactGraph({
       relationships: {
         mentors: [{ name: 'Sarah', email: 's@x.com' }],

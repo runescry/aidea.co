@@ -1,4 +1,5 @@
-import { buildContactGraph, type ContactGraphEntry } from '@/lib/contacts/interaction-graph';
+import { buildContactGraph, buildVisibleContactGraph, type ContactGraphEntry } from '@/lib/contacts/interaction-graph';
+import { listPeople } from '@/lib/profile/people';
 import type { JobApplication, KnowledgeBase } from '@/types/knowledge-base';
 import { hasProjects } from '@/types/knowledge-base';
 
@@ -73,6 +74,15 @@ export function profileSubtitle(kb: KnowledgeBase): string {
   return parts.join(' · ');
 }
 
+export function profileTimezone(kb: KnowledgeBase): string {
+  return kb.identity?.timezone?.trim() ?? '';
+}
+
+export function formatTimezoneLabel(timeZone: string): string {
+  if (!timeZone) return 'Not set';
+  return timeZone.replace(/_/g, ' ').replace('/', ' — ');
+}
+
 export function getCurrentChapter(kb: KnowledgeBase): string {
   return kb.goals?.currentChapter?.trim() ?? '';
 }
@@ -107,7 +117,8 @@ export function isNoiseJobApplication(job: JobApplication): boolean {
 export function getCoolingContacts(kb: KnowledgeBase): ContactGraphEntry[] {
   const reviewDays = kb.relationships?.reviewFrequency ?? 21;
   const thresholdMs = Date.now() - reviewDays * 24 * 60 * 60 * 1000;
-  return buildContactGraph(kb).filter(entry => {
+  return buildVisibleContactGraph(kb).filter(entry => {
+    if (entry.status === 'archived') return false;
     if (!entry.lastTouch) return false;
     const touch = new Date(entry.lastTouch).getTime();
     return !Number.isNaN(touch) && touch < thresholdMs;
@@ -115,7 +126,15 @@ export function getCoolingContacts(kb: KnowledgeBase): ContactGraphEntry[] {
 }
 
 export function getFeaturedContacts(kb: KnowledgeBase, limit = 3): ContactGraphEntry[] {
-  return buildContactGraph(kb).slice(0, limit);
+  return buildVisibleContactGraph(kb).slice(0, limit);
+}
+
+export function getRemovedPeople(kb: KnowledgeBase) {
+  return listPeople(kb, 'removed');
+}
+
+export function getArchivedPeople(kb: KnowledgeBase) {
+  return listPeople(kb, 'archived');
 }
 
 export function formatLastTouch(iso?: string): string {

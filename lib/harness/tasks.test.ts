@@ -252,6 +252,13 @@ describe('latestBriefToTask', () => {
     expect(task?.subtitle).toBe('2 priorities today');
     expect(isTodayBrief({ generatedAt: '2026-06-01T06:30:00.000Z' }, new Date('2026-06-01T12:00:00.000Z'))).toBe(true);
   });
+
+  it('uses user timezone for brief.date not UTC midnight', () => {
+    const now = new Date('2026-06-21T22:00:00.000Z'); // 08:00 AEST on 22 June
+    expect(isTodayBrief({ date: '2026-06-22' }, now, 'Australia/Sydney')).toBe(true);
+    expect(isTodayBrief({ date: '2026-06-21' }, now, 'Australia/Sydney')).toBe(false);
+    expect(isTodayBrief({ date: '2026-06-21' }, now, 'UTC')).toBe(true);
+  });
 });
 
 describe('latestHealthBriefToTask', () => {

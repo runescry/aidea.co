@@ -34,6 +34,9 @@ export function workDomainReadout(kb: KnowledgeBase): string[] {
 
 export function identityDomainReadout(kb: KnowledgeBase): string[] {
   const lines: string[] = [];
+  if (kb.identity?.timezone?.trim()) {
+    lines.push(`Timezone: ${kb.identity.timezone.replace(/_/g, ' ')}`);
+  }
   if (kb.identity?.bio?.trim()) {
     const bio = kb.identity.bio.trim();
     lines.push(bio.length > 240 ? `${bio.slice(0, 237)}…` : bio);

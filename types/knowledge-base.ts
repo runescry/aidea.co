@@ -6,6 +6,31 @@ export interface PersonContact {
   company?: string;
 }
 
+export type ProfilePersonStatus = 'active' | 'archived' | 'removed';
+
+export type ProfilePersonSource = 'manual' | 'agent' | 'gmail' | 'calendar' | 'monitor';
+
+export interface ProfilePerson {
+  id: string;
+  name: string;
+  email?: string;
+  company?: string;
+  relationship?: string;
+  notes?: string;
+  status: ProfilePersonStatus;
+  removedAt?: string;
+  sources?: ProfilePersonSource[];
+}
+
+export interface MemoryHygiene {
+  dismissedPulseIds?: string[];
+  rejectedKbPatches?: Array<{
+    at: string;
+    summary: string;
+    agentRole?: string;
+  }>;
+}
+
 export interface ChildProfile {
   name?: string;
   age?: string;
@@ -103,6 +128,8 @@ export interface KnowledgeBase {
     skipFrom?: string[];
   };
   relationships?: {
+    people?: ProfilePerson[];
+    removedKeys?: string[];
     mentors?: PersonContact[];
     collaborators?: PersonContact[];
     innerCircle?: PersonContact[];
@@ -191,6 +218,7 @@ export interface KnowledgeBase {
     notificationPreferences?: string;
     onboardingComplete?: boolean;
     onboardingMode?: 'quick' | 'full';
+    memoryHygiene?: MemoryHygiene;
   };
   _notes?: string[];
 }

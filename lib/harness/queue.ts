@@ -25,7 +25,8 @@ import {
   saveQueuedEmailDraft,
 } from './execute-queued-action';
 import { invalidateDevTasksCache } from './tasks-cache';
-import { readAllKB } from './knowledge-base';
+import { readAllKB, writeManyKB } from './knowledge-base';
+import { buildKbPatchRejectionUpdate } from '@/lib/profile/memory-hygiene';
 import { autonomyForAction, shouldAutoExecuteAction } from './domain-autonomy';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
@@ -115,6 +116,13 @@ export async function resolveQueueAction(
   const resolvedAt = new Date().toISOString();
 
   if (intent === 'reject') {
+    if (action.type === 'kb_update') {
+      const kb = await readAllKB() as KnowledgeBase;
+      await writeManyKB(buildKbPatchRejectionUpdate(kb, {
+        summary: action.summary,
+        agentRole: action.agentRole,
+      }));
+    }
     const updated = { ...action, status: 'rejected' as const, resolvedAt };
     await commitQueueAction(updated);
     await recordQueueAudit(updated);

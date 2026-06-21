@@ -144,8 +144,28 @@ Central facade: `lib/storage/index.ts` — switches filesystem vs Postgres trans
 
 - **`mergeProfile(updates)`** — top-level keys replace; dot-keys (e.g. `health.sync`) use nested merge via `lib/storage/nested-keys.ts`.
 - **`writeManyKB` / `writeKB`** — batch or single-key writes through profile; invalidate KB cache on write.
+- **People store (P9)** — Canonical identity in `relationships.people[]`; touch history in `relationships.interactionGraph`; tombstones in `removedKeys` block Gmail/Calendar re-ingest. Helpers: `lib/profile/people.ts`, `lib/profile/people-migrate.ts`, `lib/profile/memory-hygiene.ts`.
+- **Memory hygiene (P9)** — `preferences.memoryHygiene.dismissedPulseIds` (Profile Pulse dismiss); `rejectedKbPatches` (Inbox kb_update reject). Person tombstones live on `ProfilePerson.status`.
 - **Queue items** — upserted by id in `saveQueuedAction`; bulk clear via `replaceQueue`.
 - **Chat** — per-conversation JSON files or rows; active conversation id in meta.
+
+### Profile people graph (P9)
+
+Canonical store and consumers:
+
+| Layer | Module | Behaviour |
+|-------|--------|-----------|
+| **Identity** | `relationships.people[]` | `ProfilePerson` with `status`: active / archived / removed |
+| **Blocklist** | `relationships.removedKeys[]` | Email/name keys — sync and agents must not re-ingest |
+| **Enrichment** | `relationships.interactionGraph` | Last touch, channels, interaction history only |
+| **Migration** | `people-migrate.ts` | Idempotent backfill from legacy lists on `readAllKB` |
+| **Graph read** | `interaction-graph.ts` | Merge people + graph; filter removed; `buildVisibleContactGraph` for UI/tools |
+| **Graph write** | `interaction-graph-persist.ts` | Skip blocked keys; upsert into `people[]` on interaction |
+| **Agent writes** | `kb-updates.ts` | `person` patch merges into `people[]`; queue payload includes `person` |
+| **UI** | `ProfilePeopleSection.tsx` | Edit, archive, remove, restore; + Add person |
+| **Hygiene** | `memory-hygiene.ts` | Pulse dismiss; kb reject → `rejectedKbPatches` |
+
+Onboarding and Profile Work key contacts write to `people[]` (relationship tags: mentor, collaborator, friend, contact, etc.). Inbox triage and work-prep read `relationships.people` (not legacy `work.keyContacts`).
 
 ### Unified Work feed (`GET /api/tasks`)
 
@@ -254,7 +274,7 @@ Per-domain autonomy (`domain-autonomy.ts`) gates auto-execute vs `needs_you` on 
 | `/api/tasks`, `/api/tasks/suggestions` | Unified Inbox feed + suggestion actions |
 | `/api/queue`, `/api/queue/audit` | Queue CRUD + audit history |
 | `/api/chat` | Conversation persistence |
-| `/api/kb` | KB batch writes |
+| `/api/kb` | Profile read (`GET`) + batch merge (`POST`) — people store, hygiene fields |
 | `/api/brief` | Latest brief read |
 | `/api/agents` | Agent library + overrides |
 | `/api/settings` | Settings read (write local only) |
@@ -292,6 +312,20 @@ Per-domain autonomy (`domain-autonomy.ts`) gates auto-execute vs `needs_you` on 
 | `NODE_ENV` | Dev vs prod behavior (caches, cron auth fallback) |
 
 Full deployment checklist: [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+---
+
+## Testing layers
+
+| Layer | Location | CI | Notes |
+|-------|----------|-----|-------|
+| Unit | `lib/**/*.test.ts` | Yes | People, graph, memory-hygiene, kb-updates |
+| Contract | `app/api/**/*.contract.test.ts` | Yes | Includes `kb`, `queue`, `tasks` |
+| Integration | `tests/integration/platform.test.ts` | No | Agent library, Work feed, queue reject |
+| Profile E2E | `tests/integration/profile-memory-e2e.test.ts` | No | People store + queue hygiene — **no Gmail** (`npm run test:e2e:profile`) |
+| Inbox E2E | `tests/integration/inbox-approve-e2e.test.ts` | No | Live Gmail send + calendar create (`npm run test:e2e:inbox`) |
+
+Handler mode calls route handlers directly; set `TEST_BASE_URL=http://localhost:3000` for HTTP mode against `npm run dev`. See [AGENTS.md](../AGENTS.md) integration section.
 
 ---
 

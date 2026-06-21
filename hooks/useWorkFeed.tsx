@@ -47,19 +47,25 @@ const WorkFeedContext = createContext<WorkFeedContextValue | null>(null);
 interface ProviderProps {
   children: ReactNode;
   homeActive: boolean;
+  profileActive?: boolean;
   agentsRunning: boolean;
   chatStreaming: boolean;
   refreshKey?: number;
 }
 
-function pollDelayMs(homeActive: boolean, active: boolean): number {
-  if (!homeActive) return POLL_BADGE_MS;
+function feedSurfaceActive(homeActive: boolean, profileActive: boolean): boolean {
+  return homeActive || profileActive;
+}
+
+function pollDelayMs(surfaceActive: boolean, active: boolean): number {
+  if (!surfaceActive) return POLL_BADGE_MS;
   return active ? POLL_HOME_ACTIVE_MS : POLL_HOME_IDLE_MS;
 }
 
 export function WorkFeedProvider({
   children,
   homeActive,
+  profileActive = false,
   agentsRunning,
   chatStreaming,
   refreshKey = 0,
@@ -67,10 +73,10 @@ export function WorkFeedProvider({
   const [data, setData] = useState<WorkFeedPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const fetchGenRef = useRef(0);
-  const homeActiveRef = useRef(homeActive);
+  const surfaceActiveRef = useRef(feedSurfaceActive(homeActive, profileActive));
   const activeRef = useRef(agentsRunning || chatStreaming);
 
-  homeActiveRef.current = homeActive;
+  surfaceActiveRef.current = feedSurfaceActive(homeActive, profileActive);
   activeRef.current = agentsRunning || chatStreaming;
 
   const fetchFeed = useCallback(async (full: boolean) => {
@@ -114,7 +120,7 @@ export function WorkFeedProvider({
   }, []);
 
   const refresh = useCallback(async () => {
-    if (homeActiveRef.current) {
+    if (surfaceActiveRef.current) {
       await fetchFeed(true);
       return;
     }
@@ -127,8 +133,8 @@ export function WorkFeedProvider({
 
   useEffect(() => {
     setLoading(true);
-    void fetchFeed(homeActive);
-  }, [homeActive, fetchFeed]);
+    void fetchFeed(feedSurfaceActive(homeActive, profileActive));
+  }, [homeActive, profileActive, fetchFeed]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -138,10 +144,10 @@ export function WorkFeedProvider({
     const schedule = () => {
       timeoutId = setTimeout(async () => {
         if (!document.hidden) {
-          await fetchFeed(homeActiveRef.current);
+          await fetchFeed(surfaceActiveRef.current);
         }
         schedule();
-      }, pollDelayMs(homeActiveRef.current, activeRef.current));
+      }, pollDelayMs(surfaceActiveRef.current, activeRef.current));
     };
 
     schedule();

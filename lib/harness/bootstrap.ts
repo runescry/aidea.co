@@ -9,6 +9,10 @@ import { runAgentLoop } from './executor';
 import { loadAgentOverrides, resolveLibraryAgent } from '@/lib/agents/resolve';
 import { hasNangoConnections } from '@/lib/nango/connections';
 import { kickstartDailyOrchestrator, finalizeDailyBrief } from './daily-kickstart';
+import { readKB } from './knowledge-base';
+import { resolveUserTimezone } from '@/lib/calendar/user-time';
+import { formatRejectedKbPatchesForAgent } from '@/lib/profile/memory-hygiene';
+import type { KnowledgeBase } from '@/types/knowledge-base';
 
 export interface BootstrapOptions {
   /** When set, use this mode and skip auto-upgrade to auto when Nango is connected. */
@@ -23,7 +27,20 @@ export async function bootstrapEntity(
   options?: BootstrapOptions,
 ): Promise<EntityState> {
   const entityId = crypto.randomUUID();
-  const initialData = config.buildInitialContext(input);
+  const kbSlice = await readKB(['identity', 'preferences']).catch(() => ({} as Record<string, unknown>));
+  const identity = kbSlice.identity as KnowledgeBase['identity'] | undefined;
+  const kbForRejection = {
+    identity,
+    preferences: kbSlice.preferences as KnowledgeBase['preferences'],
+  } as KnowledgeBase;
+  const rejectionMemory = formatRejectedKbPatchesForAgent(kbForRejection);
+  const enrichedInput: EntityInput = {
+    ...input,
+    kb: { identity },
+    timezone: resolveUserTimezone({ identity }),
+    ...(rejectionMemory ? { rejectionMemory } : {}),
+  };
+  const initialData = config.buildInitialContext(enrichedInput);
   const state = createEntityState(entityId, config.type, config.name, initialData);
 
   send({
@@ -84,7 +101,7 @@ export async function bootstrapEntity(
   };
 
   const rootDef = resolveLibraryAgent(config.rootAgentId, agentOverrides);
-  const taskSpec = config.buildInitialTask(input);
+  const taskSpec = config.buildInitialTask(enrichedInput);
   const rootAgent = buildHarnessAgent(rootDef, entityId, null, 0, taskSpec.description);
   rootAgent.stateReadKeys = [...rootDef.stateReadKeys, ...taskSpec.contextKeys];
 

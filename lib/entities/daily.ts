@@ -1,4 +1,6 @@
 import type { EntityConfig, EntityInput } from '@/lib/harness/types';
+import { userDateContext, resolveUserTimezone } from '@/lib/calendar/user-time';
+import type { KnowledgeBase } from '@/types/knowledge-base';
 
 export type DailyMode = 'full' | 'lite';
 
@@ -10,16 +12,36 @@ export function resolveDailyEntityConfig(input: EntityInput = {}): EntityConfig 
   return isDailyLiteMode(input) ? dailyLiteEntityConfig : dailyEntityConfig;
 }
 
-const dailyContext = (_input: EntityInput) => ({
-  currentDate: new Date().toISOString().split('T')[0],
-  currentTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-  dayOfWeek: new Date().toLocaleDateString('en-GB', { weekday: 'long' }),
-});
+function dailyContextFromInput(input: EntityInput) {
+  const kb = input.kb as Pick<KnowledgeBase, 'identity'> | undefined;
+  const tz = typeof input.timezone === 'string' ? input.timezone : resolveUserTimezone(kb);
+  const now = input.now instanceof Date ? input.now : new Date();
+  const ctx = userDateContext(now, tz);
+  return {
+    ...ctx,
+    ...(typeof input.command === 'string' ? { command: input.command } : {}),
+    ...(input.history ? { conversationHistory: input.history } : {}),
+  };
+}
 
-const dailyTask = (_input: EntityInput) => ({
-  description: `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}. Produce the morning brief.`,
-  contextKeys: [] as string[],
-});
+const dailyContext = (input: EntityInput) => dailyContextFromInput(input);
+
+const dailyTask = (input: EntityInput) => {
+  const kb = input.kb as Pick<KnowledgeBase, 'identity'> | undefined;
+  const tz = typeof input.timezone === 'string' ? input.timezone : resolveUserTimezone(kb);
+  const now = input.now instanceof Date ? input.now : new Date();
+  const label = new Intl.DateTimeFormat('en-GB', {
+    timeZone: tz,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(now);
+  return {
+    description: `Today is ${label}. Produce the morning brief.`,
+    contextKeys: [] as string[],
+  };
+};
 
 export const dailyLiteEntityConfig: EntityConfig = {
   type: 'daily',
@@ -128,14 +150,12 @@ export const dispatchEntityConfig: EntityConfig = {
     realWorldToolMode: 'dry-run',
   },
   deferStatePersist: true,
-  buildInitialContext: (input) => ({
-    command: input.command ?? '',
-    conversationHistory: input.history ?? [],
-    currentDate: new Date().toISOString().split('T')[0],
-    currentTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-  }),
-  buildInitialTask: (input) => ({
-    description: `Execute this command: "${input.command ?? ''}"`,
-    contextKeys: [],
-  }),
+  buildInitialContext: dailyContextFromInput,
+  buildInitialTask: (input) => {
+    let description = `Execute this command: "${input.command ?? ''}"`;
+    if (typeof input.rejectionMemory === 'string' && input.rejectionMemory.trim()) {
+      description += `\n\n${input.rejectionMemory.trim()}`;
+    }
+    return { description, contextKeys: [] };
+  },
 };

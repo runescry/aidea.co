@@ -81,6 +81,38 @@ describe('buildProactiveTasks', () => {
     };
     expect(buildProactiveTasks({ kb, entities: [] })).toHaveLength(0);
   });
+
+  it('skips removed contacts in relationship nudges', () => {
+    const entities: EntityState[] = [{
+      entityId: 'e1',
+      entityType: 'personal',
+      entityName: 'Personal',
+      status: 'complete',
+      data: {
+        relationship_monitor: {
+          checkedAt: '2026-06-01T10:00:00.000Z',
+          coolingRelationships: [{
+            name: 'Sarah',
+            email: 'sarah@example.com',
+            type: 'mentor',
+            weeksSince: 4,
+            lastContact: '2026-05-01',
+            draftQueued: false,
+          }],
+        },
+      },
+      decisions: [],
+      createdAt: '2026-06-01T09:00:00.000Z',
+      updatedAt: '2026-06-01T10:00:00.000Z',
+    }];
+    const kb: KnowledgeBase = {
+      relationships: {
+        people: [{ id: 'p1', name: 'Sarah', email: 'sarah@example.com', status: 'removed' }],
+        removedKeys: ['sarah@example.com'],
+      },
+    };
+    expect(buildProactiveTasks({ kb, entities })).toHaveLength(0);
+  });
 });
 
 describe('proactive hygiene', () => {

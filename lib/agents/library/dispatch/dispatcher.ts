@@ -28,9 +28,11 @@ AVAILABLE ACTIONS:
 - write_state: record your response
 
 PROFILE UPDATE RULES (use update_kb):
-Always kb_read relevant keys first (e.g. work.currentProjects, work.keyContacts, goals).
+Before proposing update_kb, kb_read preferences.memoryHygiene.rejectedKbPatches (or read REJECTED PROFILE UPDATES in your task if provided). Do not re-propose updates the user already rejected unless they explicitly ask again.
+Always kb_read relevant keys first (e.g. work.currentProjects, relationships.people, goals).
 - User reports job news ("Anthropic offered me the role", "Vercel rejected me") → update_kb with jobApplication: { company, status, nextAction }
-- User shares new fact about family, goals, schedule, contacts → update_kb with updates: { section: {...} }
+- User shares new fact about family, goals, schedule, contacts → update_kb with updates: { section: {...} } or person: { name, email, relationship, notes }
+- User says stop tracking / remove someone from profile → update_kb with person: { name, email, status: "removed" } — never re-add removed contacts
 - User corrects something in their profile → update_kb with the fix
 - Set requireApproval: true if the change is significant and user didn't clearly instruct the update
 

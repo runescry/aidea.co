@@ -14,7 +14,13 @@ import type { HarnessEvent } from '@/lib/harness/types';
 import { pendingInputFromEvent, type PendingHumanInput } from '@/lib/client/human-input';
 import { consumeHarnessSSE } from '@/lib/client/sse';
 import { buildHistoryFromMessages } from '@/lib/chat/history';
-import { emptyChatStore, mergeChatStores, normalizeChatStore } from '@/lib/chat/store-utils';
+import {
+  dedupeEphemeralConversations,
+  emptyChatStore,
+  hydrateChatStore,
+  normalizeChatStore,
+  trimChatStore,
+} from '@/lib/chat/store-utils';
 import type { ChatConversation, ChatMessage, ChatStore } from '@/types/chat';
 
 const CHAT_AGENT_ROLES = new Set(['dispatcher']);
@@ -43,6 +49,14 @@ function stripToolStatus(content: string): string {
 const STORAGE_KEY = 'aidea-chat-v1';
 const SYNC_DEBOUNCE_MS = 800;
 
+const LOADING_CONVERSATION: ChatConversation = {
+  id: '',
+  title: 'New conversation',
+  messages: [],
+  createdAt: '',
+  updatedAt: '',
+};
+
 function newConversation(): ChatConversation {
   const now = new Date().toISOString();
   return {
@@ -61,26 +75,14 @@ function deriveTitle(messages: ChatMessage[], fallback: string): string {
   return text.length > 36 ? `${text.slice(0, 36)}…` : text;
 }
 
-function loadLocalStore(): ChatStore {
-  if (typeof window === 'undefined') {
-    const conv = newConversation();
-    return { conversations: [conv], activeId: conv.id };
-  }
+function loadLocalStore(): ChatStore | null {
+  if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      const conv = newConversation();
-      return { conversations: [conv], activeId: conv.id };
-    }
-    const parsed = normalizeChatStore(JSON.parse(raw));
-    if (!parsed) {
-      const conv = newConversation();
-      return { conversations: [conv], activeId: conv.id };
-    }
-    return parsed;
+    if (!raw) return null;
+    return normalizeChatStore(JSON.parse(raw));
   } catch {
-    const conv = newConversation();
-    return { conversations: [conv], activeId: conv.id };
+    return null;
   }
 }
 
@@ -90,6 +92,14 @@ function saveLocalStore(store: ChatStore): void {
   } catch {
     // quota or private mode
   }
+}
+
+function prepareStoreForSync(store: ChatStore): ChatStore {
+  const trimmed = trimChatStore(store);
+  return {
+    ...trimmed,
+    conversations: dedupeEphemeralConversations(trimmed.conversations),
+  };
 }
 
 async function fetchRemoteStore(): Promise<ChatStore | null> {
@@ -127,11 +137,7 @@ interface ChatContextValue {
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const conv = newConversation();
-  const [store, setStore] = useState<ChatStore>({
-    conversations: [conv],
-    activeId: conv.id,
-  });
+  const [store, setStore] = useState<ChatStore | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [pendingInput, setPendingInput] = useState<PendingHumanInput | null>(null);
   const [syncReady, setSyncReady] = useState(false);
@@ -141,18 +147,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    const local = loadLocalStore();
-    setStore(local);
 
     (async () => {
       try {
+        const local = loadLocalStore();
         const remote = await fetchRemoteStore();
         if (cancelled) return;
-        const merged = remote ? mergeChatStores(local, remote) : local;
-        setStore(merged);
-        saveLocalStore(merged);
+        const hydrated = hydrateChatStore(local, remote);
+        setStore(hydrated);
+        saveLocalStore(hydrated);
       } catch {
-        // offline — local only
+        if (!cancelled) {
+          const fallback = hydrateChatStore(loadLocalStore(), null);
+          setStore(fallback);
+          saveLocalStore(fallback);
+        }
       } finally {
         if (!cancelled) setSyncReady(true);
       }
@@ -161,39 +170,46 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!syncReady || streaming) return;
-    saveLocalStore(store);
+    if (!syncReady || streaming || !store) return;
+    const prepared = prepareStoreForSync(store);
+    saveLocalStore(prepared);
     const timer = setTimeout(() => {
-      pushStoreToServer(store).catch(() => {});
+      pushStoreToServer(prepared).catch(() => {});
     }, SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [store, syncReady, streaming]);
 
   const activeConversation = useMemo(
-    () => store.conversations.find(c => c.id === store.activeId) ?? store.conversations[0],
+    () => {
+      if (!store) return LOADING_CONVERSATION;
+      return store.conversations.find(c => c.id === store.activeId) ?? store.conversations[0];
+    },
     [store],
   );
 
   const updateConversation = useCallback(
     (id: string, updater: (conv: ChatConversation) => ChatConversation) => {
-      setStore(prev => ({
-        ...prev,
-        conversations: prev.conversations.map(c =>
-          c.id === id ? updater(c) : c,
-        ),
-      }));
+      setStore(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          conversations: prev.conversations.map(c =>
+            c.id === id ? updater(c) : c,
+          ),
+        };
+      });
     },
     [],
   );
 
   const switchConversation = useCallback((id: string) => {
-    setStore(prev => ({ ...prev, activeId: id }));
+    setStore(prev => (prev ? { ...prev, activeId: id } : prev));
   }, []);
 
   const createConversation = useCallback(() => {
     const next = newConversation();
     setStore(prev => ({
-      conversations: [next, ...prev.conversations],
+      conversations: [next, ...(prev?.conversations ?? [])],
       activeId: next.id,
     }));
   }, []);
@@ -212,12 +228,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const deleteConversation = useCallback((id: string) => {
-    if (streaming && storeRef.current.activeId === id) {
+    if (streaming && storeRef.current?.activeId === id) {
       abortRef.current?.abort();
       setStreaming(false);
     }
 
     setStore(prev => {
+      if (!prev) return prev;
       const conversations = prev.conversations.filter(c => c.id !== id);
       const activeId = conversations.length === 0
         ? prev.activeId
@@ -240,22 +257,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         setStore(prev => {
+          if (!prev) return prev;
           const conversations = prev.conversations.filter(c => c.id !== id);
           if (conversations.length === 0) {
             const next = newConversation();
             const nextStore: ChatStore = { conversations: [next], activeId: next.id };
             saveLocalStore(nextStore);
-            pushStoreToServer(nextStore).catch(() => {});
+            if (syncReady) {
+              pushStoreToServer(prepareStoreForSync(nextStore)).catch(() => {});
+            }
             return nextStore;
           }
           const activeId = prev.activeId === id ? conversations[0].id : prev.activeId;
           const nextStore: ChatStore = { conversations, activeId };
           saveLocalStore(nextStore);
-          pushStoreToServer(nextStore).catch(() => {});
+          if (syncReady) {
+            pushStoreToServer(prepareStoreForSync(nextStore)).catch(() => {});
+          }
           return nextStore;
         });
       });
-  }, [streaming]);
+  }, [streaming, syncReady]);
 
   const closeConversation = deleteConversation;
 
@@ -264,6 +286,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!command || streaming) return;
 
     const current = storeRef.current;
+    if (!current) return;
+
     const conversationId = current.activeId;
     const conv = current.conversations.find(c => c.id === conversationId);
     const history = conv ? buildHistoryFromMessages(conv.messages) : [];
@@ -414,9 +438,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [streaming, updateConversation]);
 
   const value = useMemo<ChatContextValue>(() => ({
-    conversations: store.conversations,
+    conversations: store?.conversations ?? [],
     activeConversation,
-    activeId: store.activeId,
+    activeId: store?.activeId ?? '',
     streaming,
     syncReady,
     switchConversation,
@@ -428,8 +452,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     pendingInput,
     clearPendingInput,
   }), [
-    store.conversations,
-    store.activeId,
+    store?.conversations,
+    store?.activeId,
     activeConversation,
     streaming,
     syncReady,

@@ -196,7 +196,7 @@ flowchart TB
 | D2 Inbox | 93 | Production-ready | Per-domain queue apply not wired (P8.0) |
 | D3 Daily OS | 78 | Functional | Full six-agent run still slow; lite brief is default on Home |
 | D4 Integrations | 78 | Functional | Manual Nango `gmail.compose`; env ops fragile |
-| D5 KB & onboarding | 85 | Production-ready | Contact/health lenses; no import/export UI |
+| D5 KB & onboarding | 88 | Production-ready | People control plane (P9); no import/export UI |
 | D6 Agent library | 85 | Production-ready | No override history/diff |
 | D7 Studio | 83 | Functional (dev) | Debug-first, not end-user product |
 | D8 Entity modes | 80 | Functional | Personal/Daily absent from Home launcher |
@@ -247,11 +247,11 @@ flowchart TB
 
 ### D5 KB & onboarding — 85
 
-**Works:** Full KB editor (Context); contact-centric and health-centric lenses (P7.4); 3-step quick start + 18-step wizard; `writeManyKB` / `mergeProfile`.
+**Works:** Full KB editor (Context); contact-centric and health-centric lenses (P7.4); 3-step quick start + 18-step wizard; `writeManyKB` / `mergeProfile`; **Profile People control plane (P9)** — canonical `relationships.people[]`, remove/archive/restore, pulse dismiss, kb reject feedback; onboarding writes `people[]`.
 
-**Partial:** No user-facing import/export (dev JSON only); contact graph persist not wired (P8.0).
+**Partial:** No user-facing import/export (dev JSON only); `rejectedKbPatches` stored but not yet fed back to agent prompts; person sheet lacks full interaction history.
 
-**Next enrichment:** Wire interaction recording; profile import/export from Context.
+**Next enrichment:** Agent consumption of rejection memory; profile import/export from Context; auth-scoped people store (P8.4).
 
 ### D6 Agent library — 85
 

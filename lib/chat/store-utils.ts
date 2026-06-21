@@ -18,6 +18,18 @@ export function emptyChatStore(): ChatStore {
   };
 }
 
+/** Empty shell created on each dashboard mount — must not be synced to server. */
+export function isEphemeralConversation(c: ChatConversation): boolean {
+  return c.title === 'New conversation' && (c.messages?.length ?? 0) === 0;
+}
+
+export function dedupeEphemeralConversations(conversations: ChatConversation[]): ChatConversation[] {
+  const ephemeral = conversations.filter(isEphemeralConversation);
+  if (ephemeral.length <= 1) return conversations;
+  const keep = ephemeral.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  return conversations.filter(c => !isEphemeralConversation(c) || c.id === keep.id);
+}
+
 export function normalizeConversation(raw: unknown): ChatConversation | null {
   if (!raw || typeof raw !== 'object') return null;
   const c = raw as ChatConversation;
@@ -33,10 +45,12 @@ export function normalizeChatStore(raw: unknown): ChatStore | null {
   const data = raw as ChatStore;
   if (!Array.isArray(data.conversations) || !data.activeId) return null;
 
-  const conversations = data.conversations
-    .map(normalizeConversation)
-    .filter((c): c is ChatConversation => c !== null)
-    .slice(0, MAX_CONVERSATIONS);
+  const conversations = dedupeEphemeralConversations(
+    data.conversations
+      .map(normalizeConversation)
+      .filter((c): c is ChatConversation => c !== null)
+      .slice(0, MAX_CONVERSATIONS),
+  );
 
   if (conversations.length === 0) return null;
 
@@ -59,9 +73,11 @@ export function mergeChatStores(local: ChatStore, remote: ChatStore | null): Cha
     }
   }
 
-  const conversations = [...byId.values()]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-    .slice(0, MAX_CONVERSATIONS);
+  const conversations = dedupeEphemeralConversations(
+    [...byId.values()]
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, MAX_CONVERSATIONS),
+  );
 
   if (conversations.length === 0) return emptyChatStore();
 
@@ -83,6 +99,14 @@ export function applyChatStoreUpdate(client: ChatStore, server: ChatStore | null
   }
   if (merged.conversations.length === 0) return emptyChatStore();
   return merged;
+}
+
+/** Merge local + remote without inventing a throwaway when only one side exists. */
+export function hydrateChatStore(local: ChatStore | null, remote: ChatStore | null): ChatStore {
+  if (local && remote) return mergeChatStores(local, remote);
+  const single = remote ?? local;
+  if (single) return trimChatStore(single);
+  return emptyChatStore();
 }
 
 export function trimChatStore(store: ChatStore): ChatStore {

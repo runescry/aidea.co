@@ -1,21 +1,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { JobApplication, KnowledgeBase } from '@/types/knowledge-base';
+import type { JobApplication, KnowledgeBase, ProfilePerson, ProfilePersonStatus } from '@/types/knowledge-base';
 import {
   PROFILE_DOMAINS,
   domainHasData,
-  formatLastTouch,
-  getCoolingContacts,
-  getCurrentChapter,
-  getFeaturedContacts,
+  formatTimezoneLabel,
   getPrioritizedJobs,
+  getCurrentChapter,
   profileCompletenessPercent,
   profileDisplayName,
   profileSubtitle,
+  profileTimezone,
   type ProfileDomain,
 } from '@/lib/profile/summary';
-import { TextArea, TextField } from '../forms';
+import ProfilePeopleSection from './ProfilePeopleSection';
+import { userDateYmd, userDayOfWeek, userLocalTime } from '@/lib/calendar/user-time';
+import { TIMEZONES } from '@/types/knowledge-base';
+import { Label, SelectField, TextArea, TextField } from '../forms';
 
 function CompletenessRing({ percent }: { percent: number }) {
   return (
@@ -32,6 +34,13 @@ interface SummaryProps {
   data: KnowledgeBase;
   onEditChapter: (chapter: string) => void;
   onUpdateJob: (job: JobApplication, patch: Partial<JobApplication>) => void;
+  onRemoveJob: (job: JobApplication) => void;
+  onUpsertPerson: (
+    patch: Omit<ProfilePerson, 'id' | 'status'> & { id?: string; status?: ProfilePersonStatus },
+  ) => void | Promise<void>;
+  onSetPersonStatus: (id: string, status: ProfilePersonStatus) => void | Promise<void>;
+  onSaveTimezone: (timezone: string) => void | Promise<void>;
+  timezoneSaving?: boolean;
   onOpenDomain: (domain: ProfileDomain) => void;
   onOpenChat: (draft: string) => void;
 }
@@ -40,6 +49,11 @@ export default function ProfileSummaryView({
   data,
   onEditChapter,
   onUpdateJob,
+  onRemoveJob,
+  onUpsertPerson,
+  onSetPersonStatus,
+  onSaveTimezone,
+  timezoneSaving = false,
   onOpenDomain,
   onOpenChat,
 }: SummaryProps) {
@@ -49,10 +63,11 @@ export default function ProfileSummaryView({
 
   const chapter = getCurrentChapter(data);
   const jobs = getPrioritizedJobs(data, 5);
-  const featured = getFeaturedContacts(data, 3);
-  const cooling = getCoolingContacts(data);
   const completeness = profileCompletenessPercent(data);
   const subtitle = profileSubtitle(data);
+  const timezone = profileTimezone(data);
+  const tzForClock = timezone || 'UTC';
+  const now = new Date();
 
   const startChapterEdit = () => {
     setChapterDraft(chapter);
@@ -65,12 +80,47 @@ export default function ProfileSummaryView({
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <header className="space-y-2">
         <h2 className="text-xl font-semibold text-foreground tracking-tight">{profileDisplayName(data)}</h2>
         {subtitle && <p className="text-sm text-foreground-muted">{subtitle}</p>}
         <CompletenessRing percent={completeness} />
       </header>
+
+      <section className="rounded-xl border border-border p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[13px] font-semibold text-foreground uppercase tracking-wide">Timezone</h3>
+            <p className="text-xs text-foreground-muted mt-1">
+              Daily brief, calendar, and &quot;today&quot; use this — not UTC.
+            </p>
+          </div>
+          {timezoneSaving && (
+            <span className="text-[11px] text-foreground-subtle shrink-0">Saving…</span>
+          )}
+        </div>
+        <div>
+          <Label hint={timezone ? undefined : 'Required for correct morning brief dates'}>Your timezone</Label>
+          <SelectField
+            value={timezone}
+            onChange={v => { void onSaveTimezone(v); }}
+            options={TIMEZONES}
+            placeholder="Select timezone"
+          />
+        </div>
+        <p className="text-[11px] text-foreground-subtle">
+          {timezone ? (
+            <>
+              Now in {formatTimezoneLabel(timezone)}:{' '}
+              <span className="text-foreground-muted tabular-nums">
+                {userDayOfWeek(now, tzForClock)}, {userDateYmd(now, tzForClock)} · {userLocalTime(now, tzForClock)}
+              </span>
+            </>
+          ) : (
+            <>Pick Australia/Sydney (or your city) so Daily OS labels the right date.</>
+          )}
+        </p>
+      </section>
 
       <section className="rounded-xl border border-border bg-surface-subtle/40 p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
@@ -146,50 +196,26 @@ export default function ProfileSummaryView({
                   onUpdateJob(job, patch);
                   setEditingJobKey(null);
                 }}
+                onRemove={() => {
+                  onRemoveJob(job);
+                  setEditingJobKey(null);
+                }}
               />
             ))}
           </ol>
         )}
       </section>
 
-      <section className="rounded-xl border border-border p-4 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-[13px] font-semibold text-foreground uppercase tracking-wide">People</h3>
-          <button type="button" onClick={() => onOpenDomain('contacts')} className="text-xs text-accent hover:underline">
-            Overview →
-          </button>
-        </div>
-        {cooling.length > 0 && (
-          <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-            Cooling: {cooling.slice(0, 3).map(c => c.name).join(', ')}
-            {cooling.length > 3 ? ` +${cooling.length - 3} more` : ''}
-          </p>
-        )}
-        {featured.length === 0 ? (
-          <p className="text-sm text-foreground-muted">No contacts yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {featured.map(entry => (
-              <li
-                key={entry.email ?? entry.name}
-                className="flex items-start justify-between gap-3 py-1.5"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{entry.name}</p>
-                  <p className="text-xs text-foreground-muted truncate">
-                    {[entry.company, entry.relationship].filter(Boolean).join(' · ') || 'Contact'}
-                  </p>
-                </div>
-                <span className="text-[11px] text-foreground-subtle shrink-0">{formatLastTouch(entry.lastTouch)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <ProfilePeopleSection
+        data={data}
+        onUpsertPerson={onUpsertPerson}
+        onSetStatus={onSetPersonStatus}
+        onOpenChat={onOpenChat}
+      />
 
       <section className="space-y-2">
         <h3 className="text-[13px] font-semibold text-foreground uppercase tracking-wide px-1">More detail</h3>
-        <p className="text-[11px] text-foreground-subtle px-1 mb-2">Read-only overview — use chat to change.</p>
+        <p className="text-[11px] text-foreground-subtle px-1 mb-2">Detail views — chat or agents keep these fresh.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {PROFILE_DOMAINS.filter(d => d.id !== 'contacts').map(domain => (
             <button
@@ -232,12 +258,14 @@ function PriorityRow({
   expanded,
   onToggle,
   onSave,
+  onRemove,
 }: {
   job: JobApplication;
   rank: number;
   expanded: boolean;
   onToggle: () => void;
   onSave: (patch: Partial<JobApplication>) => void;
+  onRemove: () => void;
 }) {
   const [status, setStatus] = useState(job.status ?? '');
   const [nextAction, setNextAction] = useState(job.nextAction ?? '');
@@ -278,13 +306,22 @@ function PriorityRow({
             <label className="text-[10px] uppercase tracking-wide text-foreground-subtle">Next action</label>
             <TextField value={nextAction} onChange={setNextAction} />
           </div>
-          <button
-            type="button"
-            onClick={() => onSave({ status, nextAction })}
-            className="px-3 py-1.5 btn-primary text-xs"
-          >
-            Save
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onSave({ status, nextAction })}
+              className="px-3 py-1.5 btn-primary text-xs"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              className="px-3 py-1.5 btn-secondary text-xs text-red-700 dark:text-red-300"
+            >
+              Remove
+            </button>
+          </div>
         </div>
       )}
     </li>
