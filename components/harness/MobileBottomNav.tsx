@@ -17,7 +17,7 @@ const NAV: Array<{
   { id: 'home', label: 'Home', Icon: IconHome },
   { id: 'agents', label: 'Agents', Icon: IconAgents },
   { id: 'studio', label: 'Studio', Icon: IconStudio },
-  { id: 'context', label: 'Context', Icon: IconContext },
+  { id: 'profile', label: 'Profile', Icon: IconContext },
   { id: 'settings', label: 'Settings', Icon: IconSettings },
 ];
 

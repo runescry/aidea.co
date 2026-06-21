@@ -15,17 +15,18 @@ function contactKey(entry: Pick<ContactGraphEntry, 'name' | 'email'>): string {
 }
 
 function kbContacts(kb: KnowledgeBase): Array<PersonContact & { relationship?: string }> {
-  const rel = kb.relationships;
-  if (!rel) return [];
-  const groups: Array<[PersonContact[] | undefined, string]> = [
-    [rel.mentors, 'mentor'], [rel.collaborators, 'collaborator'],
-    [rel.innerCircle, 'inner circle'], [rel.friends, 'friend'],
-  ];
   const contacts: Array<PersonContact & { relationship?: string }> = [];
-  for (const [list, relationship] of groups) {
-    for (const person of list ?? []) {
-      if (!person.name?.trim()) continue;
-      contacts.push({ ...person, relationship: person.relationship ?? relationship });
+  const rel = kb.relationships;
+  if (rel) {
+    const groups: Array<[PersonContact[] | undefined, string]> = [
+      [rel.mentors, 'mentor'], [rel.collaborators, 'collaborator'],
+      [rel.innerCircle, 'inner circle'], [rel.friends, 'friend'],
+    ];
+    for (const [list, relationship] of groups) {
+      for (const person of list ?? []) {
+        if (!person.name?.trim()) continue;
+        contacts.push({ ...person, relationship: person.relationship ?? relationship });
+      }
     }
   }
   for (const person of kb.work?.keyContacts ?? []) {

@@ -27,6 +27,8 @@ interface Props {
   runInProgress?: boolean;
   onTaskRefresh?: () => void;
   humanInputPending?: PendingHumanInput | null;
+  chatPrefill?: string | null;
+  onChatPrefillApplied?: () => void;
 }
 
 export default function HomeScreen({
@@ -38,6 +40,8 @@ export default function HomeScreen({
   runInProgress,
   onTaskRefresh,
   humanInputPending,
+  chatPrefill: externalChatPrefill,
+  onChatPrefillApplied,
 }: Props) {
   const [chatPrefill, setChatPrefill] = useState<string | null>(null);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -114,8 +118,11 @@ export default function HomeScreen({
           <ChatInterface
             variant="home"
             onMessageComplete={onTaskRefresh}
-            prefill={chatPrefill}
-            onPrefillApplied={() => setChatPrefill(null)}
+            prefill={externalChatPrefill ?? chatPrefill}
+            onPrefillApplied={() => {
+              onChatPrefillApplied?.();
+              setChatPrefill(null);
+            }}
           />
         </div>
       </section>

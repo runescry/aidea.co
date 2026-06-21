@@ -13,7 +13,7 @@ import {
   IconStudio,
 } from './sidebar/icons';
 
-export type MainView = 'home' | 'agents' | 'studio' | 'context' | 'settings';
+export type MainView = 'home' | 'agents' | 'studio' | 'profile' | 'settings';
 
 const STORAGE_KEY = 'aidea-sidebar-expanded';
 
@@ -25,7 +25,7 @@ const NAV: Array<{
   { id: 'home', label: 'Home', Icon: IconHome },
   { id: 'agents', label: 'Agents', Icon: IconAgents },
   { id: 'studio', label: 'Studio', Icon: IconStudio },
-  { id: 'context', label: 'Context', Icon: IconContext },
+  { id: 'profile', label: 'Profile', Icon: IconContext },
   { id: 'settings', label: 'Settings', Icon: IconSettings },
 ];
 

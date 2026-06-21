@@ -10,7 +10,7 @@ import MobileBottomNav from './MobileBottomNav';
 import ConversationDrawer from './sidebar/ConversationDrawer';
 import HomeScreen from './home/HomeScreen';
 import RunStudio from './RunStudio';
-import KnowledgeBaseEditor from './KnowledgeBaseEditor';
+import ProfilePage from './ProfilePage';
 import SettingsPanel from './SettingsPanel';
 import AgentLibrary from './AgentLibrary';
 import OnboardingWizard from './onboarding/OnboardingWizard';
@@ -144,6 +144,7 @@ function DashboardChrome({
 }) {
   const { needsYou, refresh: refreshWorkFeed } = useWorkFeed();
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+  const [homeChatPrefill, setHomeChatPrefill] = useState<string | null>(null);
 
   const activeAgents = Object.values(state.agents).filter(a => a.status === 'running').length;
   const agentsRunning = state.status === 'running' || state.status === 'starting';
@@ -157,8 +158,14 @@ function DashboardChrome({
   const navigate = (next: MainView) => {
     setView(next);
     setChatDrawerOpen(false);
-    if (next === 'context') setTaskRefreshKey(k => k + 1);
+    if (next === 'profile') setTaskRefreshKey(k => k + 1);
   };
+
+  const openChatWithDraft = useCallback((draft: string) => {
+    setHomeChatPrefill(draft);
+    setView('home');
+    setChatDrawerOpen(false);
+  }, [setView]);
 
   return (
     <div className="h-[100dvh] bg-surface-muted text-foreground flex overflow-hidden">
@@ -203,6 +210,8 @@ function DashboardChrome({
             runInProgress={agentsRunning}
             onTaskRefresh={bumpWorkFeed}
             humanInputPending={humanInputPending}
+            chatPrefill={homeChatPrefill}
+            onChatPrefillApplied={() => setHomeChatPrefill(null)}
           />
         )}
 
@@ -212,9 +221,10 @@ function DashboardChrome({
           <RunStudio state={state} startSession={startSession} reset={reset} />
         )}
 
-        {view === 'context' && (
-          <KnowledgeBaseEditor
+        {view === 'profile' && (
+          <ProfilePage
             refreshKey={taskRefreshKey}
+            onOpenChat={openChatWithDraft}
             onRestartOnboarding={() => {
               setOnboardingMode('full');
               setShowOnboarding(true);

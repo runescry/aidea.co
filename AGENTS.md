@@ -1,6 +1,6 @@
 # aidea — agent instructions
 
-Personal AI chief-of-staff platform — unified context across mail, calendar, health, contacts, KB, and connected services. Active UI: `HarnessDashboard` → **Home** (chat + **Inbox**), Agents, Studio, Context, Settings.
+Personal AI chief-of-staff platform — unified context across mail, calendar, health, contacts, KB, and connected services. Active UI: `HarnessDashboard` → **Home** (chat + **Inbox**), Agents, Studio, Profile, Settings.
 
 **Production:** [aidea-co.vercel.app](https://aidea-co.vercel.app) · **Local:** `http://localhost:3000`
 
@@ -222,7 +222,7 @@ Agent definitions live in `lib/agents/library/`. User overrides persist at `prof
 - **Onboarding** = 3-step `QuickStartOnboarding` on first launch; full `OnboardingWizard` from Context → Re-run onboarding
 - **Studio** = `RunStudio` (harness debug + entity runs); Reset session = in-memory only
 - **Agents** = `AgentLibrary` (view/customize workforce); Reset = agent overrides only
-- **Context** = `KnowledgeBaseEditor` (+ contact/health lenses from P7.4)
+- **Profile** = narrative control center (`ProfilePage`) — chapter, priorities, people band; domain sheets for full edits; re-run onboarding from Profile
 - **Settings** = API keys, Google connect/disconnect, per-domain autonomy (P7.4), queue activity audit, **Danger zone** (activity reset)
 - **Home Yesterday tab** = cross-domain timeline (`HomeScreen.tsx`)
 - Reuse `components/harness/forms.tsx` for inputs (`Label`, `TextField`, `TextArea`, `Section`, etc.)

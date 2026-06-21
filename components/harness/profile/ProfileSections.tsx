@@ -108,6 +108,7 @@ export function RelationshipsSection({ data, u, embedded }: SectionProps) {
 export function GoalsSection({ data, u, wrapSection = true, embedded }: SectionProps) {
   return (
     <ProfileWrap wrapSection={wrapSection} embedded={embedded} title="Goals">
+      <div><Label>Current chapter</Label><TextArea value={data.goals?.currentChapter ?? ''} onChange={v => u('goals', { currentChapter: v })} rows={3} placeholder="What life chapter are you in right now?" /></div>
       <div><Label>Life priorities</Label><TextArrayInput value={data.goals?.lifePriorities ?? []} onChange={v => u('goals', { lifePriorities: v })} /></div>
       <div><Label>Short-term</Label><TextArrayInput value={data.goals?.shortTerm ?? []} onChange={v => u('goals', { shortTerm: v })} /></div>
       <div><Label>Long-term</Label><TextArrayInput value={data.goals?.longTerm ?? []} onChange={v => u('goals', { longTerm: v })} /></div>

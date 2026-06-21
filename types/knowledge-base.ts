@@ -156,6 +156,8 @@ export interface KnowledgeBase {
     commute?: string;
   };
   goals?: {
+    /** Narrative “life chapter” shown on Profile summary (editable). */
+    currentChapter?: string;
     lifePriorities?: string[];
     shortTerm?: string[];
     longTerm?: string[];
