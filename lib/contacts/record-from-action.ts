@@ -1,6 +1,6 @@
 import { recordContactInteraction } from './interaction-graph-persist';
 
-function parseRecipient(raw: string): { name: string; email?: string } {
+export function parseRecipient(raw: string): { name: string; email?: string } {
   const trimmed = raw.trim();
   const angle = trimmed.match(/^(.+?)\s*<([^>]+)>$/);
   if (angle) {

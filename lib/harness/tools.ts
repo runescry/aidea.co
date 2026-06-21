@@ -31,6 +31,10 @@ import {
 } from './inbox-sanitize';
 import { buildContactGraph, findContactEntry } from '@/lib/contacts/interaction-graph';
 import { recordCalendarCreated, recordEmailSent } from '@/lib/contacts/record-from-action';
+import {
+  syncContactSignalsFromCalendar,
+  syncContactSignalsFromEmails,
+} from '@/lib/contacts/sync-signals';
 import { readHealthSyncSnapshot, weekTrainingSummary } from '@/lib/health/sync';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
@@ -843,6 +847,7 @@ export async function executeHarnessTool(
           connectionId: e.connectionId,
         }));
         cacheGmailRead(ctx.state.data, emails as CachedGmail[]);
+        await syncContactSignalsFromEmails(result.emails).catch(() => undefined);
         return { ...result, emails };
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) };
@@ -895,7 +900,11 @@ export async function executeHarnessTool(
         date?: string; daysAhead?: number; maxResults?: number; connectionId?: string;
       };
       try {
-        return await readCalendarEvents({ date, daysAhead, maxResults, connectionId });
+        const result = await readCalendarEvents({ date, daysAhead, maxResults, connectionId });
+        if (result.events?.length) {
+          await syncContactSignalsFromCalendar(result.events).catch(() => undefined);
+        }
+        return result;
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) };
       }

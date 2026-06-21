@@ -392,8 +392,8 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 
 #### P8.2 — Rich contact graph
 
-- [ ] **Last touch from mail/calendar** — Derive interaction signals from Gmail/Calendar into graph (`interaction-graph.ts`, Nango)
-- [ ] **Relationship-monitor → graph** — Cron writes cooling-contact and outreach outcomes via `recordContactInteraction`
+- [x] **Last touch from mail/calendar** — Derive interaction signals from Gmail/Calendar into graph (`interaction-graph.ts`, Nango)
+- [x] **Relationship-monitor → graph** — Cron writes cooling-contact and outreach outcomes via `recordContactInteraction`
 
 #### P8.3 — Finance spike
 

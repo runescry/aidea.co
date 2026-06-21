@@ -4,6 +4,7 @@ import { bootstrapEntity } from '@/lib/harness/bootstrap';
 import { dailyEntityConfig, dailyLiteEntityConfig } from '@/lib/entities/daily';
 import { hasApiKey } from '@/lib/ai/provider';
 import { writeLatestBrief } from '@/lib/storage';
+import { recordRelationshipMonitorSignals } from '@/lib/contacts/sync-signals';
 
 export const runtime = 'nodejs';
 export const maxDuration = 1800;
@@ -57,6 +58,13 @@ export async function GET(req: NextRequest) {
 
     if (name === 'daily' && state.data.morning_brief) {
       await writeLatestBrief(state.data.morning_brief as Record<string, unknown>);
+    }
+
+    if (name === 'relationships' && state.data.relationship_monitor) {
+      const monitor = state.data.relationship_monitor as {
+        coolingRelationships?: Array<{ name?: string; email?: string; weeksSince?: number }>;
+      };
+      await recordRelationshipMonitorSignals(monitor.coolingRelationships ?? []).catch(() => undefined);
     }
 
     return NextResponse.json({ ok: true, eventCount: events.length });

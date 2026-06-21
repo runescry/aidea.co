@@ -11,8 +11,8 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
 **Phase:** P8 — harden & extend (P8.0 complete)  
-**Next up:** [P8.2 — Rich contact graph](./docs/PLAN.md#p82--rich-contact-graph)  
-**Recent:** P8.1 Strava OAuth + health sync to KB  
+**Next up:** [P8.3 — Finance spike](./docs/PLAN.md#p83--finance-spike)  
+**Recent:** P8.2 Gmail/Calendar contact signals + relationship-monitor graph writes  
 **Git:** `main` ahead of `origin/main` (docs + P8.0)
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
@@ -128,7 +128,7 @@ Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkb
 
 - [x] **P8.0 P7 partials** — Wire contact graph persist; per-domain autonomy on queue; prod smoke doc
 - [x] **Live health connector** — One wearable OAuth + sync (Strava, Apple Health, or Whoop)
-- [ ] **Rich contact graph** — Last touch from Gmail/Calendar; relationship-monitor writes graph
+- [x] **Rich contact graph** — Last touch from Gmail/Calendar; relationship-monitor writes graph
 - [ ] **Finance spike** — Plaid read-only or minimal subscription alerts
 - [ ] **Finance → Inbox** — Actionable finance nudges as approval/suggestion cards
 - [ ] **Auth / multi-user** — Session middleware; per-user profile/KB
@@ -171,3 +171,4 @@ Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkb
 - 2026-06-21 — P7 complete — prod daily loop shipped; docs synced for P8 (PLAN, ROADMAP, VISION, AGENTS)
 - 2026-06-21 — P8.0 P7 partials — contact interaction recording, per-domain queue autonomy, prod smoke doc
 - 2026-06-21 — P8.1 Strava health connector — OAuth, sync job, Settings connect/disconnect
+- 2026-06-21 — P8.2 rich contact graph — mail/calendar signal sync, relationship-monitor persist
