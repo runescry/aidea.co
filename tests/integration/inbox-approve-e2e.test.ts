@@ -22,11 +22,12 @@ import { nangoConfigured } from '@/lib/nango/client';
 const RUN = isE2eRun();
 
 describe.skipIf(!RUN || !hasValidLlmKey() || !nangoConfigured())('inbox approve e2e', () => {
-  describe.sequential(() => {
+  describe.sequential('inbox approve e2e steps', () => {
   let skipReason: string | undefined;
   let subject: string;
   let gmailMessageId: string;
   let gmailConnectionId: string;
+  let gmailTo: string;
   let replyAction: QueuedAction | undefined;
 
   beforeAll(async () => {
@@ -44,19 +45,23 @@ describe.skipIf(!RUN || !hasValidLlmKey() || !nangoConfigured())('inbox approve 
     expect(sent.to).toMatch(/@/);
     gmailMessageId = sent.messageId;
     gmailConnectionId = sent.connectionId;
+    gmailTo = sent.to;
   }, 60_000);
 
   it('waits for delivery and runs inbox triage on the test email', async () => {
     if (skipReason) return;
 
-    const delivered = await waitForE2eEmail(subject);
+    const delivered = await waitForE2eEmail(subject, {
+      knownMessageId: gmailMessageId,
+      connectionId: gmailConnectionId,
+    });
     expect(delivered.id).toBeTruthy();
     gmailMessageId = delivered.id;
     gmailConnectionId = delivered.connectionId;
 
     const result = await runInboxTriageHarness({
       realWorldMode: 'auto',
-      mission: triageMissionForSubject(subject),
+      mission: triageMissionForSubject(subject, gmailMessageId, gmailConnectionId, gmailTo),
     });
 
     expect(result.events.some(e => e.type === 'entity_complete')).toBe(true);

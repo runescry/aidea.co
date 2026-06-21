@@ -1,4 +1,4 @@
-import { nangoConfigured } from '@/lib/nango/client';
+import { getNango, gmailIntegrationId, nangoConfigured } from '@/lib/nango/client';
 import {
   hasNangoConnections,
   listCalendarConnectionsLite,
@@ -55,11 +55,19 @@ Please reply confirming receipt of this test message.
 This email was sent by the aidea integration test suite.`;
 }
 
-export function triageMissionForSubject(subject: string): string {
-  return `Triage unread Gmail. ONLY process the email whose subject is exactly "${subject}".
+export function triageMissionForSubject(
+  subject: string,
+  messageId: string,
+  connectionId: string,
+  replyToEmail: string,
+): string {
+  return `Triage Gmail. ONLY process the email whose subject is exactly "${subject}".
+Call gmail_read once with query: in:anywhere subject:"${subject}" (do not use is:unread — self-sent test mail may already be read).
 For that email only:
-1. Include it in inbox_triage urgent[] with HIGH urgency
-2. queue_action type email_reply with a short acknowledgment draft to the sender (replyToMessageId from gmail_read, connectionId from gmail_read)
+1. Include it in inbox_triage urgent[] with HIGH urgency (messageId from gmail_read, or ${messageId} if missing)
+2. queue_action type email_reply with a short acknowledgment draft to the sender
+   payload MUST include: to "${replyToEmail}", subject "Re: ${subject}", body (draft text),
+   replyToMessageId (from gmail_read or ${messageId}), connectionId (from gmail_read or ${connectionId})
 Ignore all other emails. Complete write_state for inbox_triage.`;
 }
 
@@ -76,25 +84,78 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function findE2eEmailBySubject(
+  emails: Awaited<ReturnType<typeof readGmailMessages>>['emails'],
+  subject: string,
+): { id: string; connectionId: string; subject: string } | undefined {
+  const match = emails.find(e => e.subject === subject && !e.id.startsWith('error-'));
+  return match
+    ? { id: match.id, connectionId: match.connectionId, subject: match.subject }
+    : undefined;
+}
+
+async function getGmailMessageById(
+  messageId: string,
+  connectionId: string,
+): Promise<{ id: string; connectionId: string; subject: string } | undefined> {
+  try {
+    const nango = getNango();
+    const res = await nango.get<{
+      id: string;
+      payload?: { headers?: Array<{ name: string; value: string }> };
+    }>({
+      providerConfigKey: gmailIntegrationId(),
+      connectionId,
+      endpoint: `/gmail/v1/users/me/messages/${messageId}`,
+      params: { format: 'metadata', metadataHeaders: ['Subject'] },
+    });
+    const headers = res.data.payload?.headers ?? [];
+    const subject = headers.find(h => h.name === 'Subject')?.value ?? '';
+    return { id: res.data.id, connectionId, subject };
+  } catch {
+    return undefined;
+  }
+}
+
 export async function waitForE2eEmail(
   subject: string,
-  options?: { timeoutMs?: number; intervalMs?: number },
+  options?: {
+    timeoutMs?: number;
+    intervalMs?: number;
+    /** Sent message id from sendE2eTestEmail — poll inbox copy first; fall back to direct fetch */
+    knownMessageId?: string;
+    connectionId?: string;
+  },
 ): Promise<{ id: string; connectionId: string; subject: string }> {
-  const timeoutMs = options?.timeoutMs ?? 90_000;
+  const timeoutMs = options?.timeoutMs ?? 30_000;
   const intervalMs = options?.intervalMs ?? 4_000;
-  const query = `subject:"${subject}" is:unread`;
+  const connectionId = options?.connectionId;
+  const query = `in:anywhere subject:"${subject}"`;
+  const readOpts = { query, maxResults: 5, connectionId };
   const deadline = Date.now() + timeoutMs;
 
+  const searchOnce = async () =>
+    findE2eEmailBySubject((await readGmailMessages(readOpts)).emails, subject);
+
+  const inboxCopy = await searchOnce();
+  if (inboxCopy && inboxCopy.id !== options?.knownMessageId) return inboxCopy;
+  if (inboxCopy) return inboxCopy;
+
   while (Date.now() < deadline) {
-    const { emails } = await readGmailMessages({ query, maxResults: 5 });
-    const match = emails.find(e => e.subject === subject && !e.id.startsWith('error-'));
-    if (match) {
-      return { id: match.id, connectionId: match.connectionId, subject: match.subject };
-    }
     await sleep(intervalMs);
+    const found = await searchOnce();
+    if (found) return found;
   }
 
-  throw new Error(`Timed out waiting for unread email with subject "${subject}"`);
+  if (options?.knownMessageId && connectionId) {
+    const sent = await getGmailMessageById(options.knownMessageId, connectionId);
+    if (sent?.subject === subject) return sent;
+  }
+
+  throw new Error(
+    `Timed out waiting for email with subject "${subject}"`
+    + (options?.knownMessageId ? ` (sent messageId ${options.knownMessageId})` : ''),
+  );
 }
 
 export async function hasCalendarConnection(): Promise<boolean> {
