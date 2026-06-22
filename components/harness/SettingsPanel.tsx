@@ -7,6 +7,7 @@ import { Label, TextField, StatusDot } from './forms';
 import AuditTrailPanel from './AuditTrailPanel';
 import DomainAutonomyPanel from './DomainAutonomyPanel';
 import { useSaveFeedback } from '@/hooks/useSaveFeedback';
+import { useConfirm } from '@/hooks/useConfirm';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 import { useChatConversations } from '@/hooks/useChatConversations';
 
@@ -66,6 +67,7 @@ const SETTING_FIELDS: SettingField[] = [
 ];
 
 export default function SettingsPanel() {
+  const confirm = useConfirm();
   const [status, setStatus] = useState<Record<SettingKey, SettingStatus> | null>(null);
   const [readOnly, setReadOnly] = useState(false);
   const [values, setValues] = useState<Partial<Record<SettingKey, string>>>({});
@@ -170,7 +172,13 @@ export default function SettingsPanel() {
   };
 
   const handleDisconnect = async (conn: NangoConnection) => {
-    if (!confirm(`Disconnect ${connectionTitle(conn)}?`)) return;
+    const ok = await confirm({
+      title: `Disconnect ${connectionTitle(conn)}?`,
+      message: 'Agents will no longer read or act on this account until you reconnect.',
+      confirmLabel: 'Disconnect',
+      destructive: true,
+    });
+    if (!ok) return;
     await fetch(
       `/api/nango/connections?connectionId=${encodeURIComponent(conn.connectionId)}&integrationId=${encodeURIComponent(conn.integrationId)}`,
       { method: 'DELETE' },
@@ -183,7 +191,13 @@ export default function SettingsPanel() {
   };
 
   const handleDisconnectStrava = async () => {
-    if (!confirm('Disconnect Strava?')) return;
+    const ok = await confirm({
+      title: 'Disconnect Strava?',
+      message: 'Health activity sync from Strava will stop. Existing profile data is kept.',
+      confirmLabel: 'Disconnect',
+      destructive: true,
+    });
+    if (!ok) return;
     setStravaBusy(true);
     setStravaMessage(null);
     await fetch('/api/integrations/strava', { method: 'DELETE' });
@@ -206,12 +220,15 @@ export default function SettingsPanel() {
   };
 
   const handleResetActivity = async () => {
-    const confirmed = confirm(
-      'Reset all activity history?\n\n'
-      + 'Clears: action queue and approvals, audit trail, harness runs, chat history, and latest brief.\n\n'
-      + 'Keeps: profile and knowledge base, API keys, and Google connections.',
-    );
-    if (!confirmed) return;
+    const ok = await confirm({
+      title: 'Reset all activity history?',
+      message:
+        'Clears: action queue and approvals, audit trail, harness runs, chat history, and latest brief.\n\n'
+        + 'Keeps: profile and knowledge base, API keys, and Google connections.',
+      confirmLabel: 'Reset activity',
+      destructive: true,
+    });
+    if (!ok) return;
 
     setResetError(null);
     await runReset(async () => {

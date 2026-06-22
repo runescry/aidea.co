@@ -102,7 +102,7 @@ export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStud
                 expanded ? 'px-2.5 py-2' : 'p-2.5 justify-center'
               } ${
                 active
-                  ? 'bg-surface-subtle text-foreground font-medium'
+                  ? 'bg-accent/12 text-foreground font-medium ring-1 ring-accent/20'
                   : 'text-foreground-muted hover:text-foreground hover:bg-surface-subtle/70'
               }`}
             >
@@ -110,7 +110,7 @@ export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStud
               {expanded && <span className="text-[13px] truncate">{label}</span>}
               {id === 'home' && workPendingCount > 0 && (
                 <span
-                  className={`absolute flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-[10px] font-semibold text-surface tabular-nums ${
+                  className={`absolute flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-[10px] font-semibold text-accent-foreground tabular-nums ${
                     expanded ? 'right-2 top-1/2 -translate-y-1/2' : 'top-1 right-1'
                   }`}
                 >

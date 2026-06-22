@@ -1,6 +1,6 @@
 import { readProfile, writeProfile, mergeProfile } from '@/lib/storage';
 import { getNestedKey, setNestedKey } from '@/lib/storage/nested-keys';
-import { ensurePeopleStore } from '@/lib/profile/people-migrate';
+import { ensureGraphPeopleLinked, ensurePeopleStore } from '@/lib/profile/people-migrate';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
 let profileCache: { data: Record<string, unknown>; at: number } | null = null;
@@ -27,7 +27,8 @@ export async function readKB(keys: string[]): Promise<Record<string, unknown>> {
 
 export async function readAllKB(): Promise<Record<string, unknown>> {
   const data = await cachedReadProfile();
-  const migrated = ensurePeopleStore(data as KnowledgeBase);
+  let migrated = ensurePeopleStore(data as KnowledgeBase);
+  migrated = ensureGraphPeopleLinked(migrated);
   if (migrated !== data) {
     invalidateProfileCache();
     await mergeProfile({ relationships: migrated.relationships });

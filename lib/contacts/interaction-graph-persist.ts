@@ -1,7 +1,7 @@
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB, writeManyKB } from '@/lib/harness/knowledge-base';
 import { buildContactGraph, contactKey, type ContactGraphEntry } from './interaction-graph';
-import { isContactBlocked, upsertPerson } from '@/lib/profile/people';
+import { findPersonByContact, isContactBlocked, upsertPerson } from '@/lib/profile/people';
 import { ensurePeopleStore } from '@/lib/profile/people-migrate';
 
 export async function recordContactInteraction(input: {
@@ -15,7 +15,10 @@ export async function recordContactInteraction(input: {
   const graph = buildContactGraph(kb);
   const at = new Date().toISOString();
   const key = contactKey(input.name, input.email);
-  const existing = graph.find(e => contactKey(e.name, e.email) === key);
+  const matchedPerson = input.email ? findPersonByContact(kb, input.email) : undefined;
+  const existing = matchedPerson
+    ? graph.find(e => e.id === matchedPerson.id)
+    : graph.find(e => contactKey(e.name, e.email) === key);
   const interaction = { at, channel: input.channel, summary: input.summary };
   const entry: ContactGraphEntry = existing ? {
     ...existing,
@@ -38,9 +41,10 @@ export async function recordContactInteraction(input: {
     : 'manual' as const;
 
   const upserted = upsertPerson(kb, {
-    id: existing?.id,
+    id: matchedPerson?.id ?? existing?.id,
     name: entry.name,
     email: entry.email,
+    emails: entry.email ? [entry.email] : undefined,
     company: entry.company,
     relationship: entry.relationship,
     status: 'active',

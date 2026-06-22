@@ -205,6 +205,8 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
             id: { type: 'string' },
             name: { type: 'string' },
             email: { type: 'string' },
+            emails: { type: 'array', items: { type: 'string' }, description: 'Additional emails for the same person' },
+            phones: { type: 'array', items: { type: 'string' }, description: 'Phone numbers for the same person' },
             company: { type: 'string' },
             relationship: { type: 'string' },
             notes: { type: 'string' },

@@ -31,4 +31,19 @@ describe('findContactEntry', () => {
     const graph = buildContactGraph({ relationships: { friends: [{ name: 'Emma', email: 'e@x.com' }] } });
     expect(findContactEntry(graph, 'e@x.com')?.name).toBe('Emma');
   });
+
+  it('finds by secondary email alias', () => {
+    const graph = buildContactGraph({
+      relationships: {
+        people: [{
+          id: 'p1',
+          name: 'Sarah',
+          email: 's@work.com',
+          emails: ['s@work.com', 's@gmail.com'],
+          status: 'active',
+        }],
+      },
+    });
+    expect(findContactEntry(graph, 's@gmail.com')?.name).toBe('Sarah');
+  });
 });

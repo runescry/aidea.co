@@ -29,7 +29,7 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
 };
 
 const STATUS_STYLE: Record<TaskStatus, string> = {
-  needs_you: 'text-accent',
+  needs_you: 'text-domain-inbox',
   suggestion: 'text-foreground-muted',
   running: 'text-accent',
   done: 'text-foreground-subtle',
@@ -37,7 +37,7 @@ const STATUS_STYLE: Record<TaskStatus, string> = {
 };
 
 const DOT_STYLE: Record<TaskStatus, string> = {
-  needs_you: 'bg-accent',
+  needs_you: 'bg-domain-inbox',
   suggestion: 'bg-foreground-subtle/60',
   running: 'bg-accent animate-pulse',
   done: 'bg-foreground-subtle/40',
@@ -631,7 +631,7 @@ function TaskDetail({
             type="button"
             disabled={actionPending}
             onClick={() => onIntent(action.id, 'approve', queueEdits)}
-            className="w-full py-3 text-sm font-semibold bg-foreground text-surface rounded-lg hover:bg-foreground/90 transition-colors disabled:opacity-50"
+            className="w-full py-3 text-sm font-semibold btn-primary rounded-lg transition-colors disabled:opacity-50"
           >
             {actionPending ? 'Working…' : approveLabel}
           </button>
@@ -860,7 +860,7 @@ export default function TaskFeed({
 
   return (
     <div className="flex flex-col h-full bg-surface">
-      <div className="shrink-0 px-4 pt-4 pb-2 border-b border-border">
+      <div className="shrink-0 px-4 pt-4 pb-2 border-b border-domain-inbox/15 bg-domain-inbox/[0.08]">
         <div className="flex items-center justify-between mb-3 gap-2">
           <h2 className="text-[13px] font-semibold text-foreground tracking-tight">Inbox</h2>
           <div className="flex items-center gap-2 shrink-0">
@@ -883,7 +883,7 @@ export default function TaskFeed({
               </span>
             )}
             {approvalCount > 0 && (
-              <span className="text-[11px] font-medium text-accent tabular-nums">
+              <span className="text-[11px] font-medium text-domain-inbox tabular-nums">
                 {approvalCount} to approve
               </span>
             )}
@@ -901,7 +901,7 @@ export default function TaskFeed({
               }}
               className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                 filter === f.id
-                  ? 'bg-foreground text-surface'
+                  ? 'bg-accent text-accent-foreground'
                   : 'text-foreground-muted hover:text-foreground hover:bg-surface-subtle'
               }`}
             >
@@ -1018,7 +1018,7 @@ export default function TaskFeed({
                   type="button"
                   disabled={actionPending}
                   onClick={() => handleBulkIntent('approve')}
-                  className="w-full py-2.5 text-sm font-semibold bg-foreground text-surface rounded-lg hover:bg-foreground/90 transition-colors disabled:opacity-50"
+                  className="w-full py-2.5 text-sm font-semibold btn-primary rounded-lg transition-colors disabled:opacity-50"
                 >
                   {actionPending ? 'Working…' : `Approve & send (${selectedIds.size})`}
                 </button>

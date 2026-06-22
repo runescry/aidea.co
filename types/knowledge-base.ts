@@ -13,7 +13,11 @@ export type ProfilePersonSource = 'manual' | 'agent' | 'gmail' | 'calendar' | 'm
 export interface ProfilePerson {
   id: string;
   name: string;
+  /** Primary email — kept in sync with first entry in `emails` when present. */
   email?: string;
+  /** Additional emails for the same person (work, personal, etc.). */
+  emails?: string[];
+  phones?: string[];
   company?: string;
   relationship?: string;
   notes?: string;

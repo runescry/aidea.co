@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, type Dispatch, type SetStateAction } from 'react';
 import { useHarnessSession } from '@/hooks/useHarnessSession';
 import { ChatProvider, useChatConversations } from '@/hooks/useChatConversations';
+import { ConfirmProvider } from '@/hooks/useConfirm';
 import { WorkFeedProvider, useWorkFeed } from '@/hooks/useWorkFeed';
 import { readOnboardingCache, writeOnboardingCache } from '@/lib/client/onboarding-cache';
 import AppSidebar, { type MainView } from './AppSidebar';
@@ -63,12 +64,14 @@ export default function HarnessDashboard() {
   }
 
   return (
-    <ChatProvider>
-      <DashboardBody
-        setShowOnboarding={setShowOnboarding}
-        setOnboardingMode={setOnboardingMode}
-      />
-    </ChatProvider>
+    <ConfirmProvider>
+      <ChatProvider>
+        <DashboardBody
+          setShowOnboarding={setShowOnboarding}
+          setOnboardingMode={setOnboardingMode}
+        />
+      </ChatProvider>
+    </ConfirmProvider>
   );
 }
 

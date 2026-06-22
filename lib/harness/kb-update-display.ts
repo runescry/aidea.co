@@ -12,6 +12,8 @@ export interface PersonPatch {
   id?: string;
   name: string;
   email?: string;
+  emails?: string[];
+  phones?: string[];
   company?: string;
   relationship?: string;
   notes?: string;

@@ -73,7 +73,7 @@ function ChatMessageRow({ msg, variant }: { msg: ChatMessage; variant: 'default'
       <div className="flex justify-end">
         <div className={`max-w-[85%] text-sm leading-relaxed ${
           variant === 'home'
-            ? 'bg-foreground text-surface rounded-2xl rounded-br-sm px-4 py-2.5'
+            ? 'bg-accent/12 text-foreground border border-accent/25 rounded-2xl rounded-br-sm px-4 py-2.5'
             : 'bg-accent text-accent-foreground rounded-2xl rounded-br-md px-4 py-2.5'
         }`}>
           {msg.content}
@@ -191,7 +191,7 @@ export default function ChatInterface({
           Message
         </label>
       )}
-      <div className={`flex gap-2 ${isHome ? 'items-end rounded-xl border border-border bg-surface-subtle/40 p-3 shadow-sm focus-within:border-foreground/25 focus-within:ring-2 focus-within:ring-foreground/5' : ''}`}>
+      <div className={`flex gap-2 ${isHome ? 'items-end rounded-xl border border-border bg-surface-subtle/40 p-3 shadow-sm focus-within:border-accent/30 focus-within:ring-2 focus-within:ring-accent/10' : ''}`}>
         <textarea
           id={isHome ? 'chief-of-staff-input' : undefined}
           ref={inputRef}
@@ -219,7 +219,7 @@ export default function ChatInterface({
           disabled={!input.trim() || streaming}
           className={
             isHome
-              ? 'shrink-0 px-4 py-2 text-sm font-medium bg-foreground text-surface rounded-lg hover:bg-foreground/90 disabled:opacity-30 transition-colors'
+              ? 'shrink-0 px-4 py-2 text-sm font-medium bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 disabled:opacity-30 transition-colors'
               : 'px-4 py-2.5 btn-primary rounded-xl'
           }
         >
@@ -249,7 +249,7 @@ export default function ChatInterface({
                       type="button"
                       onClick={() => send(s)}
                       disabled={streaming}
-                      className="text-left text-[12px] text-foreground-muted px-3 py-2 rounded-lg border border-border hover:border-foreground/20 hover:text-foreground hover:bg-surface-subtle/50 transition-colors disabled:opacity-50"
+                      className="text-left text-[12px] text-foreground-muted px-3 py-2 rounded-lg border border-accent/20 hover:border-accent/40 hover:text-foreground hover:bg-accent/5 transition-colors disabled:opacity-50"
                     >
                       {s}
                     </button>

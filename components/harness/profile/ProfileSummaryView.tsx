@@ -38,6 +38,10 @@ interface SummaryProps {
   onUpsertPerson: (
     patch: Omit<ProfilePerson, 'id' | 'status'> & { id?: string; status?: ProfilePersonStatus },
   ) => void | Promise<void>;
+  onAddContactToPerson: (
+    personId: string,
+    contact: { email?: string; phone?: string },
+  ) => void | Promise<void>;
   onSetPersonStatus: (id: string, status: ProfilePersonStatus) => void | Promise<void>;
   onSaveTimezone: (timezone: string) => void | Promise<void>;
   timezoneSaving?: boolean;
@@ -51,6 +55,7 @@ export default function ProfileSummaryView({
   onUpdateJob,
   onRemoveJob,
   onUpsertPerson,
+  onAddContactToPerson,
   onSetPersonStatus,
   onSaveTimezone,
   timezoneSaving = false,
@@ -209,6 +214,7 @@ export default function ProfileSummaryView({
       <ProfilePeopleSection
         data={data}
         onUpsertPerson={onUpsertPerson}
+        onAddContactToPerson={onAddContactToPerson}
         onSetStatus={onSetPersonStatus}
         onOpenChat={onOpenChat}
       />

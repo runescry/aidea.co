@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { JobApplication, KnowledgeBase, ProfilePerson, ProfilePersonStatus } from '@/types/knowledge-base';
 import { useSaveFeedback } from '@/hooks/useSaveFeedback';
+import { useConfirm } from '@/hooks/useConfirm';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 import { buildProfilePulse } from '@/lib/profile/pulse';
 import { dismissPulseId, filterDismissedPulse } from '@/lib/profile/memory-hygiene';
-import { setPersonStatus, upsertPerson } from '@/lib/profile/people';
+import { setPersonStatus, upsertPerson, addContactToPerson } from '@/lib/profile/people';
 import type { ProfileDomain } from '@/lib/profile/summary';
 import { findJobApplicationIndex } from '@/lib/profile/summary';
 import type { ProfileUpdater } from './profile/ProfileSections';
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKey = 0 }: Props) {
+  const confirm = useConfirm();
   const [data, setData] = useState<KnowledgeBase>({});
   const [loading, setLoading] = useState(true);
   const [openDomain, setOpenDomain] = useState<ProfileDomain | null>(null);
@@ -98,6 +100,15 @@ export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKe
   };
 
   const removeJob = async (job: JobApplication) => {
+    const title = [job.company, job.role].filter(Boolean).join(' — ') || 'this application';
+    const ok = await confirm({
+      title: 'Remove application?',
+      message: `${title} will be removed from your profile priorities.`,
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!ok) return;
+
     const projects = data.work?.currentProjects;
     if (!projects || Array.isArray(projects)) return;
     const idx = findJobApplicationIndex(data, job);
@@ -114,6 +125,15 @@ export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKe
     patch: Omit<ProfilePerson, 'id' | 'status'> & { id?: string; status?: ProfilePersonStatus },
   ) => {
     const { kb: next } = upsertPerson(data, { ...patch, sources: ['manual'] });
+    setData(next);
+    await save({ relationships: next.relationships });
+  };
+
+  const addContactToPersonHandler = async (
+    personId: string,
+    contact: { email?: string; phone?: string },
+  ) => {
+    const { kb: next } = addContactToPerson(data, personId, contact);
     setData(next);
     await save({ relationships: next.relationships });
   };
@@ -200,6 +220,7 @@ export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKe
             onUpdateJob={(job, patch) => { void updateJob(job, patch); }}
             onRemoveJob={job => { void removeJob(job); }}
             onUpsertPerson={upsertPersonHandler}
+            onAddContactToPerson={addContactToPersonHandler}
             onSetPersonStatus={setPersonStatusHandler}
             onSaveTimezone={timezone => { void saveTimezone(timezone); }}
             timezoneSaving={saving}

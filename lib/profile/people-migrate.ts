@@ -1,5 +1,5 @@
 import type { KnowledgeBase, PersonContact, ProfilePerson, ProfilePersonSource } from '@/types/knowledge-base';
-import { personKey } from './people';
+import { findPersonByContact, findPersonByName, personKey, upsertPerson } from './people';
 
 function legacyContactGroups(kb: KnowledgeBase): Array<{ person: PersonContact; relationship: string; source: ProfilePersonSource }> {
   const out: Array<{ person: PersonContact; relationship: string; source: ProfilePersonSource }> = [];
@@ -54,4 +54,22 @@ export function ensurePeopleStore(kb: KnowledgeBase): KnowledgeBase {
       people: [...byKey.values()],
     },
   };
+}
+
+/** Ensure interaction-graph senders exist in relationships.people (ids for merge UI). */
+export function ensureGraphPeopleLinked(kb: KnowledgeBase): KnowledgeBase {
+  let next = kb;
+  for (const entry of next.relationships?.interactionGraph?.entries ?? []) {
+    if (!entry.name?.trim()) continue;
+    const email = entry.email?.trim();
+    if (email && findPersonByContact(next, email)) continue;
+    if (findPersonByName(next, entry.name)) continue;
+    const result = upsertPerson(next, {
+      name: entry.name.trim(),
+      email: email || undefined,
+      sources: ['gmail'],
+    });
+    next = result.kb;
+  }
+  return next;
 }
