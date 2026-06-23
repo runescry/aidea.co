@@ -57,13 +57,16 @@ describe('POST /api/eval/chat', () => {
     expect(runFastChatToText).toHaveBeenCalledWith('Hello');
   });
 
-  it('returns 422 for full-path prompts', async () => {
+  it('runs fast-chat for full-path prompts (model refuses in prose)', async () => {
     vi.mocked(hasApiKey).mockReturnValue(true);
+    vi.mocked(runFastChatToText).mockResolvedValue(
+      'I cannot access your inbox in fast mode — repeat the request and I will run the full workflow.',
+    );
     const res = await post({ message: "What's in my inbox?" });
-    expect(res.status).toBe(422);
-    const body = await res.json() as { error: string; hint: string };
-    expect(body.error).toBe('full_path_required');
-    expect(body.hint).toContain('fast-chat');
-    expect(runFastChatToText).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    const body = await res.json() as { response: string; mode: string };
+    expect(body.mode).toBe('fast');
+    expect(body.response).toContain('inbox');
+    expect(runFastChatToText).toHaveBeenCalledWith("What's in my inbox?");
   });
 });

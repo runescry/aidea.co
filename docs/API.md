@@ -30,27 +30,18 @@ Content-Type: application/json
 
 **400** — missing or empty `message`
 
-**422** — prompt would route to full harness (inbox, calendar, profile writes, research, news, queue, etc.)
-
-```json
-{
-  "error": "full_path_required",
-  "hint": "This eval endpoint only supports fast-chat prompts."
-}
-```
-
 **500** — no LLM API key configured, or fast-chat failure
 
 ### Scope
 
-| In scope | Out of scope |
-|----------|----------------|
-| Greetings, capability questions | Inbox / Gmail / email triage |
-| Planning advice, general chat | Calendar, drafts, send |
-| Same rules as `shouldUseFastChat` (empty history) | Profile KB writes, research, news |
-| ~1–3s Haiku, no tools | Queue actions, agent spawn |
+Always runs `runFastChat` (~1–3s Haiku, no tools) — never `bootstrapEntity` or `/api/message`.
 
-Uses `runFastChat` only — never `bootstrapEntity` or `/api/message`.
+Unlike production `/api/message`, does **not** pre-filter with `shouldUseFastChat`. Prompts that would route to the full harness in production (inbox, calendar, profile writes, research, news, queue, etc.) still invoke the model; the fast-chat system prompt refuses tool actions in natural language.
+
+| Eval expectation | Production `/api/message` |
+|------------------|---------------------------|
+| All prompts get a model response | `shouldUseFastChat` may route to full harness |
+| Model refuses email/calendar/profile in prose | Full harness may execute tools |
 
 ### Security
 

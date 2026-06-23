@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasApiKey } from '@/lib/ai/provider';
 import { runFastChatToText } from '@/lib/eval/collect-fast-chat';
-import { shouldUseFastChat } from '@/lib/harness/fast-chat';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 /**
- * EvalKit-compatible JSON adapter for fast-chat only.
+ * EvalKit-compatible JSON adapter — always runs fast-chat (no tools).
  *
- * In scope: greetings, capability questions, planning advice, general chat
- * (same routing as shouldUseFastChat with empty history).
- *
- * Out of scope: inbox/calendar/drafts, profile writes, research, news,
- * queue actions, follow-ups on numbered items — returns 422 full_path_required.
+ * Unlike production `/api/message`, does not pre-filter with shouldUseFastChat.
+ * Tool/inbox/calendar/profile requests are refused in natural language by the
+ * fast-chat system prompt so eval harnesses can score model behavior.
  */
 export async function POST(req: NextRequest) {
   if (!hasApiKey()) {
@@ -34,16 +31,6 @@ export async function POST(req: NextRequest) {
   const message = (body.message ?? '').trim();
   if (!message) {
     return NextResponse.json({ error: '"message" is required' }, { status: 400 });
-  }
-
-  if (!shouldUseFastChat(message, [])) {
-    return NextResponse.json(
-      {
-        error: 'full_path_required',
-        hint: 'This eval endpoint only supports fast-chat prompts.',
-      },
-      { status: 422 },
-    );
   }
 
   try {
