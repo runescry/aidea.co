@@ -82,6 +82,17 @@ function formatInboxFromStructured(obj: Record<string, unknown>): string | null 
   return `${header}${lines.join('\n')}`.trim();
 }
 
+/** True when dispatch output has renderable inbox or news structured content. */
+export function hasStructuredDispatchOutput(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const obj = value as Record<string, unknown>;
+  if (Array.isArray(obj.inbox_summary) && obj.inbox_summary.length > 0) return true;
+  const news = obj.news_summary as { top_stories?: unknown[] } | undefined;
+  if (Array.isArray(news?.top_stories) && news.top_stories.length > 0) return true;
+  if (Array.isArray(obj.headlines) && obj.headlines.length > 0) return true;
+  return false;
+}
+
 /** Prefer headline bullets from structured dispatch output over a generic summary line. */
 export function formatDispatchChatSummary(value: unknown): string {
   if (!value || typeof value !== 'object') {

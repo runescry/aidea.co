@@ -8,7 +8,8 @@ import { getModel, formatLlmError } from '@/lib/ai/provider';
 import { buildAiSdkTools } from '@/lib/ai/tools';
 import { formatConversationHistory } from '@/lib/chat/history';
 import type { ChatHistoryEntry } from '@/types/chat';
-import { formatDispatchChatSummary } from './dispatch-summary';
+import { formatDispatchChatSummary, hasStructuredDispatchOutput } from './dispatch-summary';
+import { enrichDispatchResponse } from './inbox-sanitize';
 
 function buildAgentPrompt(agent: HarnessAgent, ctx: HarnessContext): string {
   const stateContext = getStateKeys(ctx.state, agent.stateReadKeys);
@@ -39,14 +40,15 @@ function buildAgentSummary(
   ctx: HarnessContext,
   resultText: string,
 ): string {
+  const stateVal = agent.stateWriteKey
+    ? enrichDispatchResponse(ctx.state.data[agent.stateWriteKey], ctx.state.data)
+    : null;
+  const fromState = formatDispatchChatSummary(stateVal);
+  if (hasStructuredDispatchOutput(stateVal)) return fromState || 'Done.';
+
   const fromText = resultText.trim();
   if (fromText) return fromText;
-
-  const stateVal = agent.stateWriteKey ? ctx.state.data[agent.stateWriteKey] : null;
-  const fromState = formatDispatchChatSummary(stateVal);
-  if (fromState) return fromState;
-
-  return 'Done.';
+  return fromState || 'Done.';
 }
 
 interface ToolCallRecord { name: string; inputHash: string }
@@ -89,7 +91,9 @@ function completeAgent(
       stateWriteKey: agent.stateWriteKey,
       tokensUsed: ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0,
       summary: buildAgentSummary(agent, ctx, resultText).slice(0, 8000),
-      structured: agent.stateWriteKey ? ctx.state.data[agent.stateWriteKey] : undefined,
+      structured: agent.stateWriteKey
+        ? enrichDispatchResponse(ctx.state.data[agent.stateWriteKey], ctx.state.data)
+        : undefined,
     },
     timestamp: new Date().toISOString(),
   });

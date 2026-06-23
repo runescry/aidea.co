@@ -1,5 +1,6 @@
 import type { HarnessAgent, HarnessContext } from './types';
 import { formatDispatchChatSummary } from './dispatch-summary';
+import { enrichDispatchResponse } from './inbox-sanitize';
 
 /** Push chat-visible content as soon as an agent writes its output state. */
 export function emitChatAgentResponse(
@@ -10,9 +11,10 @@ export function emitChatAgentResponse(
 ): void {
   if (key !== agent.stateWriteKey) return;
 
-  const summary = formatDispatchChatSummary(value);
+  const enriched = enrichDispatchResponse(value, ctx.state.data);
+  const summary = formatDispatchChatSummary(enriched);
 
-  if (!summary && value == null) return;
+  if (!summary && enriched == null) return;
 
   ctx.send({
     type: 'agent_response',
@@ -22,7 +24,7 @@ export function emitChatAgentResponse(
     agentRole: agent.role,
     data: {
       summary: summary || undefined,
-      structured: value,
+      structured: enriched,
     },
     timestamp: new Date().toISOString(),
   });

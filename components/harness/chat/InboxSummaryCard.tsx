@@ -149,5 +149,6 @@ export default function InboxSummaryCard({ data, fallbackMarkdown }: Props) {
 
 export function isInboxStructured(data: unknown): data is DispatchInboxStructured {
   if (!data || typeof data !== 'object') return false;
-  return Array.isArray((data as DispatchInboxStructured).inbox_summary);
+  const summary = (data as DispatchInboxStructured).inbox_summary;
+  return Array.isArray(summary) && summary.length > 0;
 }

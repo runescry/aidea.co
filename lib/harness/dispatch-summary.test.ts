@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDispatchChatSummary } from './dispatch-summary';
+import { formatDispatchChatSummary, hasStructuredDispatchOutput } from './dispatch-summary';
 
 describe('formatDispatchChatSummary', () => {
   it('formats news_summary.top_stories as markdown bullets', () => {
@@ -124,5 +124,15 @@ describe('formatDispatchChatSummary', () => {
       summary: 'No failed payment emails in the last week.',
       inbox_summary: [],
     })).toBe('No failed payment emails in the last week.');
+  });
+});
+
+describe('hasStructuredDispatchOutput', () => {
+  it('is true when inbox_summary has items', () => {
+    expect(hasStructuredDispatchOutput({ inbox_summary: [{ subject: 'Hi' }] })).toBe(true);
+  });
+
+  it('is false for empty inbox_summary', () => {
+    expect(hasStructuredDispatchOutput({ inbox_summary: [], summary: 'None found' })).toBe(false);
   });
 });

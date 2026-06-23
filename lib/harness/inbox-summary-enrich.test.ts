@@ -29,4 +29,21 @@ describe('enrichInboxSummary', () => {
     );
     expect(rows[0]?.gmailUrl).toBe(gmailMessageUrl('msg-99'));
   });
+
+  it('matches when subject differs by Re: prefix', () => {
+    const fuzzyCache = new Map<string, CachedGmail>([
+      ['msg-2', {
+        id: 'msg-2',
+        from: 'Stripe <billing@stripe.com>',
+        subject: 'Re: Payment failed',
+        snippet: 'Retry charge',
+      }],
+    ]);
+    const rows = enrichInboxSummary(
+      [{ from: 'Stripe', subject: 'Payment failed' }],
+      fuzzyCache,
+    );
+    expect(rows[0]?.messageId).toBe('msg-2');
+    expect(rows[0]?.gmailUrl).toContain('msg-2');
+  });
 });

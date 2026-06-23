@@ -7,6 +7,7 @@ function mockCtx(send = vi.fn()): HarnessContext {
     entityId: 'e1',
     sessionId: 's1',
     send,
+    state: { data: {} },
   } as unknown as HarnessContext;
 }
 
