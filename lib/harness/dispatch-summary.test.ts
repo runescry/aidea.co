@@ -94,8 +94,29 @@ describe('formatDispatchChatSummary', () => {
       ],
     });
     expect(text).toContain('Two payment failures this week.');
-    expect(text).toContain('**[High]** **Stripe**');
-    expect(text).toContain('**Apple**');
+    expect(text).toContain('**[High]** **Payment failed** — Stripe');
+    expect(text).toContain('**Billing issue** — Apple');
+  });
+
+  it('formats inbox_summary with gmail links when gmailUrl is present', () => {
+    const text = formatDispatchChatSummary({
+      summary: 'Found two billing emails.',
+      inbox_summary: [
+        {
+          priority: 'HIGH',
+          from: 'Stripe <billing@stripe.com>',
+          subject: 'Payment failed',
+          gmailUrl: 'https://mail.google.com/mail/u/0/#inbox/msg-abc',
+        },
+        {
+          from: 'Apple',
+          subject: 'Your receipt',
+          gmailUrl: 'https://mail.google.com/mail/u/0/#inbox/msg-def',
+        },
+      ],
+    });
+    expect(text).toContain('[**Payment failed**](https://mail.google.com/mail/u/0/#inbox/msg-abc)');
+    expect(text).toContain('[**Your receipt**](https://mail.google.com/mail/u/0/#inbox/msg-def)');
   });
 
   it('returns summary when inbox_summary is empty', () => {

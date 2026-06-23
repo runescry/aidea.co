@@ -1,4 +1,6 @@
 /** Gmail rows cached from gmail_read — source of truth for triage attribution. */
+import { gmailMessageUrl } from '@/lib/gmail/message-url';
+
 export interface CachedGmail {
   id: string;
   from: string;
@@ -107,7 +109,44 @@ export function sanitizeTriageItem(
         : 'Reset summary — school/child names did not match sender';
   }
 
+  const messageId = out.messageId ? String(out.messageId) : '';
+  if (messageId) out.gmailUrl = gmailMessageUrl(messageId);
+
   return out;
+}
+
+export type InboxSummaryRow = {
+  priority?: string;
+  from?: string;
+  subject?: string;
+  snippet?: string;
+  messageId?: string;
+  gmailUrl?: string;
+};
+
+/** Attach messageId + gmailUrl from gmail_read cache when dispatch search omits ids. */
+export function enrichInboxSummary(
+  items: unknown[],
+  cache: Map<string, CachedGmail>,
+): InboxSummaryRow[] {
+  return items.map(item => {
+    if (!item || typeof item !== 'object') return {};
+    const raw = item as Record<string, unknown>;
+    const email = findCachedEmail(raw, cache);
+    const out: InboxSummaryRow = { ...(raw as InboxSummaryRow) };
+    if (email) {
+      out.from = email.from;
+      out.subject = email.subject;
+      out.snippet = email.snippet;
+      out.messageId = email.id;
+    }
+    const messageId = out.messageId ?? (raw.messageId ? String(raw.messageId) : '');
+    if (messageId) {
+      out.messageId = messageId;
+      out.gmailUrl = gmailMessageUrl(messageId);
+    }
+    return out;
+  });
 }
 
 export function sanitizeInboxTriage(

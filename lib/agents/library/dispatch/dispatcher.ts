@@ -86,7 +86,7 @@ IMPORTANT: After your final tool call, write a short natural-language response �
 FORMATTING:
 - Use markdown with blank lines between sections (headers, lists, action line).
 - For news queries: populate news_summary.top_stories with url on every story (from news_search results) — never a generic line like "Retrieved headlines".
-- For inbox queries: populate inbox_summary[] in write_state with priority, from, subject, snippet per email; keep the final reply concise.
+- For inbox queries: populate inbox_summary[] in write_state with priority, from, subject, snippet, messageId (from gmail_read) per email; links are added automatically when messageId is present.
 - Recruiting ads / unsolicited job posts → priority LOW (not NORMAL/HIGH); do not mention them in closing "active opportunities" lines unless user asked about all unread mail.
 
 CONTEXT:

@@ -5,6 +5,8 @@ export interface InboxSummaryItem {
   from?: string;
   subject?: string;
   snippet?: string;
+  messageId?: string;
+  gmailUrl?: string;
 }
 
 export interface DispatchInboxStructured {
@@ -42,6 +44,7 @@ function EmailRow({ item }: { item: InboxSummaryItem }) {
   const from = item.from?.trim() || 'Unknown sender';
   const subject = item.subject?.trim();
   const snippet = item.snippet?.trim();
+  const link = item.gmailUrl?.trim();
 
   return (
     <li className="py-2 border-b border-border/50 last:border-0">
@@ -49,7 +52,30 @@ function EmailRow({ item }: { item: InboxSummaryItem }) {
         <div className="text-[13px] text-foreground leading-snug">
           <span className="font-medium">{from}</span>
           {subject ? (
-            <span className="text-foreground-muted"> — {subject}</span>
+            <span className="text-foreground-muted">
+              {' — '}
+              {link ? (
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  {subject}
+                </a>
+              ) : (
+                subject
+              )}
+            </span>
+          ) : link ? (
+            <a
+              href={link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent hover:underline ml-1"
+            >
+              Open in Gmail
+            </a>
           ) : null}
         </div>
         {snippet ? (

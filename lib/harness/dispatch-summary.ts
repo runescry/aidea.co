@@ -49,7 +49,25 @@ type InboxItem = {
   from?: string;
   subject?: string;
   snippet?: string;
+  messageId?: string;
+  gmailUrl?: string;
 };
+
+function formatInboxLine(item: InboxItem): string {
+  const from = item.from?.trim() || 'Unknown sender';
+  const subject = item.subject?.trim();
+  const priority = item.priority?.toUpperCase();
+  const prefix = priority === 'HIGH' ? '**[High]** ' : '';
+  const snippet = item.snippet?.trim();
+  const linkTarget = (subject || from).trim();
+  const linked =
+    item.gmailUrl && linkTarget
+      ? `[**${linkTarget}**](${item.gmailUrl})`
+      : `**${linkTarget}**`;
+  const fromPart = subject ? ` — ${from}` : '';
+  const snippetPart = snippet ? ` _(${snippet.slice(0, 120)})_` : '';
+  return `- ${prefix}${linked}${fromPart}${snippetPart}`;
+}
 
 function formatInboxFromStructured(obj: Record<string, unknown>): string | null {
   const items = obj.inbox_summary as InboxItem[] | undefined;
@@ -57,16 +75,7 @@ function formatInboxFromStructured(obj: Record<string, unknown>): string | null 
     const summaryOnly = (obj.summary as string | undefined)?.trim();
     return summaryOnly || null;
   }
-  const lines = items.slice(0, 10).map(item => {
-    const from = item.from?.trim() || 'Unknown sender';
-    const subject = item.subject?.trim();
-    const priority = item.priority?.toUpperCase();
-    const prefix = priority === 'HIGH' ? '**[High]** ' : '';
-    const snippet = item.snippet?.trim();
-    const subjectPart = subject ? ` — ${subject}` : '';
-    const snippetPart = snippet ? ` _(${snippet.slice(0, 120)})_` : '';
-    return `- ${prefix}**${from}**${subjectPart}${snippetPart}`;
-  });
+  const lines = items.slice(0, 10).map(formatInboxLine);
   const header = typeof obj.summary === 'string' && obj.summary.trim()
     ? `${obj.summary.trim()}\n\n`
     : '';

@@ -26,6 +26,7 @@ import { isEvalHarnessActive } from '@/lib/eval/eval-context';
 import { addCalendarDays } from '@/lib/calendar/dates';
 import {
   cacheGmailRead,
+  enrichInboxSummary,
   getGmailCache,
   getGmailConnectionForMessage,
   sanitizeInboxTriage,
@@ -606,8 +607,16 @@ export async function executeHarnessTool(
     case 'write_state': {
       const { key, value } = input as { key: string; value: unknown };
       let valueToWrite = value;
-      if (key === 'inbox_triage' && value && typeof value === 'object') {
-        valueToWrite = sanitizeInboxTriage(value, getGmailCache(ctx.state.data));
+      if (value && typeof value === 'object') {
+        const obj = value as Record<string, unknown>;
+        if (key === 'inbox_triage' && valueToWrite && typeof valueToWrite === 'object') {
+          valueToWrite = sanitizeInboxTriage(valueToWrite, getGmailCache(ctx.state.data));
+        } else if (Array.isArray(obj.inbox_summary)) {
+          valueToWrite = {
+            ...obj,
+            inbox_summary: enrichInboxSummary(obj.inbox_summary, getGmailCache(ctx.state.data)),
+          };
+        }
       }
       await setStateKey(ctx.state, key, valueToWrite, {
         persist: !ctx.config.deferStatePersist,

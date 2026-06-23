@@ -8,6 +8,7 @@ interface EmailItem {
   reason?: string;
   action?: string;
   messageId?: string;
+  gmailUrl?: string;
   queueActionId?: string;
   attributionWarning?: string;
 }
@@ -33,7 +34,20 @@ function EmailCard({ item, showAction }: { item: EmailItem; showAction?: boolean
     <div className="card p-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-foreground">{item.subject ?? 'No subject'}</div>
+          <div className="text-sm font-medium text-foreground">
+            {item.gmailUrl ? (
+              <a
+                href={item.gmailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:underline"
+              >
+                {item.subject ?? 'No subject'}
+              </a>
+            ) : (
+              item.subject ?? 'No subject'
+            )}
+          </div>
           {item.from && <div className="text-xs text-foreground-muted mt-0.5">{item.from}</div>}
         </div>
         <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${URGENCY_STYLE[urgency] ?? URGENCY_STYLE.NORMAL}`}>
