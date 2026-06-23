@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { HarnessTool, HarnessAgent, HarnessContext, ToolInput } from './types';
 import { getAgentByRole } from './registry';
 import { setStateKey, getStateKeys } from './state';
@@ -21,6 +22,7 @@ import {
 } from './kb-updates';
 import { autonomyForAction } from './domain-autonomy';
 import { emitChatAgentResponse } from './chat-events';
+import { isEvalHarnessActive } from '@/lib/eval/eval-context';
 import { addCalendarDays } from '@/lib/calendar/dates';
 import {
   cacheGmailRead,
@@ -669,6 +671,9 @@ export async function executeHarnessTool(
 
     case 'kb_write': {
       const { key, value } = input as { key: string; value: unknown };
+      if (isEvalHarnessActive()) {
+        return { ok: true, key, evalStub: true };
+      }
       await writeKB(key, value);
       return { ok: true, key };
     }
@@ -691,6 +696,17 @@ export async function executeHarnessTool(
       const kb = await readAllKB() as KnowledgeBase;
       const autonomy = autonomyForAction(kb, 'kb_update') ?? 'semi-autonomous';
       const autoApply = shouldAutoApplyKb(autonomy, patchInput.requireApproval);
+
+      if (isEvalHarnessActive()) {
+        return {
+          ok: true,
+          queued: false,
+          evalStub: true,
+          summary: formatKbPatchSummary(normalized) !== 'Profile update'
+            ? formatKbPatchSummary(normalized)
+            : sanitizeQueueSummary(patchInput.summary ?? 'Profile update'),
+        };
+      }
 
       if (autoApply) {
         await applyKbPatch(normalized);
@@ -769,6 +785,21 @@ export async function executeHarnessTool(
 
       const tool = raw.tool
         ?? (raw.type === 'email_reply' || raw.type === 'email_send' ? 'gmail_send' : 'generic');
+
+      if (isEvalHarnessActive()) {
+        const stubId = `eval-${randomUUID()}`;
+        ctx.send({
+          type: 'state_updated',
+          sessionId: ctx.sessionId,
+          entityId: ctx.entityId,
+          agentId: callerAgent.id,
+          agentRole: callerAgent.role,
+          data: { queuedActionId: stubId, summary: raw.summary, evalStub: true },
+          timestamp: new Date().toISOString(),
+        });
+        return { ok: true, actionId: stubId, summary: raw.summary, evalStub: true };
+      }
+
       const action = await enqueueActionWithAutonomy({
         type: raw.type,
         summary: raw.type === 'kb_update'

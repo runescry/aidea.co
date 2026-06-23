@@ -1,3 +1,4 @@
+import type { AgentOverridesMap } from '@/types/agent-overrides';
 import type { EntityConfig, EntityInput, HarnessContext, EntityState, SenderFn } from './types';
 import { DEFAULT_COST_CONFIG } from './types';
 import { createRegistry, registerAgent } from './registry';
@@ -12,11 +13,14 @@ import { kickstartDailyOrchestrator, finalizeDailyBrief } from './daily-kickstar
 import { readKB } from './knowledge-base';
 import { resolveUserTimezone } from '@/lib/calendar/user-time';
 import { formatRejectedKbPatchesForAgent } from '@/lib/profile/memory-hygiene';
+import { getEvalHarnessContext } from '@/lib/eval/eval-context';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
 export interface BootstrapOptions {
   /** When set, use this mode and skip auto-upgrade to auto when Nango is connected. */
   realWorldMode?: import('./types').CostConfig['realWorldToolMode'];
+  /** When set, use these overrides instead of loading from profile. */
+  agentOverrides?: AgentOverridesMap;
 }
 
 export async function bootstrapEntity(
@@ -60,14 +64,19 @@ export async function bootstrapEntity(
   const registry = createRegistry(entityId);
   const bus = createMessageBus();
 
-  const [nangoConnected, agentOverrides] = await Promise.all([
-    hasNangoConnections(),
-    loadAgentOverrides(),
-  ]);
+  const evalCtx = getEvalHarnessContext();
+  const skipPersist = evalCtx?.skipPersist ?? false;
 
-  if (!config.deferStatePersist) {
+  if (!config.deferStatePersist && !skipPersist) {
     await persistEntityState(state);
   }
+
+  const [nangoConnected, agentOverrides] = await Promise.all([
+    hasNangoConnections(),
+    options?.agentOverrides != null
+      ? Promise.resolve(options.agentOverrides)
+      : loadAgentOverrides(),
+  ]);
 
   let realWorldMode =
     options?.realWorldMode
@@ -119,7 +128,7 @@ export async function bootstrapEntity(
     timestamp: new Date().toISOString(),
   });
 
-  if (config.deferStatePersist) {
+  if (config.deferStatePersist && !skipPersist) {
     await persistEntityState(state);
   }
 
@@ -145,7 +154,7 @@ export async function bootstrapEntity(
       const wroteBrief = config.rootAgentId === 'daily-lite-briefer' && ctx.state.data.morning_brief;
       if (wroteBrief) {
         state.status = 'complete';
-        await persistEntityState(state);
+        if (!skipPersist) await persistEntityState(state);
         send({
           type: 'entity_complete',
           sessionId,
@@ -160,7 +169,7 @@ export async function bootstrapEntity(
         return state;
       }
       state.status = 'error';
-      await persistEntityState(state);
+      if (!skipPersist) await persistEntityState(state);
       send({
         type: 'entity_error',
         sessionId,
@@ -173,7 +182,7 @@ export async function bootstrapEntity(
   }
 
   state.status = 'complete';
-  await persistEntityState(state);
+  if (!skipPersist) await persistEntityState(state);
 
   send({
     type: 'entity_complete',

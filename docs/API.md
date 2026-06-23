@@ -62,3 +62,109 @@ curl -s -X POST http://localhost:3000/api/eval/chat \
   -H 'Content-Type: application/json' \
   -d '{"message":"What can you help me with?"}' | jq
 ```
+
+---
+
+## `POST /api/eval/agent` — EvalKit adapter (single-agent harness)
+
+Stateless JSON endpoint for EvalKit **agent-matrix** mode. Runs one library agent through `bootstrapEntity` with dry-run tools by default (no live Gmail/Calendar, no real queue writes).
+
+### Request
+
+```http
+POST /api/eval/agent
+Content-Type: application/json
+X-Eval-Api-Secret: <optional when EVAL_API_SECRET is set>
+
+{
+  "agentId": "inbox-triage",
+  "mission": "Triage unread inbox and surface urgent items.",
+  "realWorldMode": "dry-run",
+  "applyOverrides": false,
+  "kbFixture": {
+    "identity": { "name": "Eval User" },
+    "work": { "currentProjects": [] }
+  }
+}
+```
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `agentId` | yes | Must exist in `AGENT_LIBRARY` |
+| `mission` | yes | Initial task for the agent loop |
+| `realWorldMode` | no | Default `"dry-run"` — never live integrations in eval |
+| `applyOverrides` | no | Default `false` for deterministic eval |
+| `kbFixture` | no | Overlay for `kb_read` / profile reads instead of real storage |
+
+### Response
+
+**200** — harness run
+
+```json
+{
+  "agentId": "inbox-triage",
+  "mode": "harness",
+  "realWorldMode": "dry-run",
+  "response": "Human-readable summary for rubric scoring",
+  "structured": {},
+  "stateWriteKey": "inbox_triage",
+  "toolsCalled": ["kb_read", "gmail_read", "write_state"],
+  "toolCalls": [{ "name": "gmail_read", "input": { "query": "is:unread", "maxResults": 20 } }],
+  "validation": { "ok": true, "errors": [], "warnings": [] },
+  "cost": { "estimatedUSD": 0.02, "agentCount": 1 }
+}
+```
+
+**400** — unknown `agentId`, missing `mission`, or `realWorldMode: "auto"` without `EVAL_ALLOW_LIVE=1`
+
+**401** — `EVAL_API_SECRET` set but `X-Eval-Api-Secret` header missing or wrong
+
+**500** — no LLM API key, or harness failure
+
+`maxDuration`: 120s. Pilot agents: `inbox-triage`, `finance-director`, `mental-health-director`. All other library agents use the generic harness validator.
+
+### Security
+
+- Default `dry-run`; reject `realWorldMode: "auto"` unless `EVAL_ALLOW_LIVE=1`
+- Optional `EVAL_API_SECRET` — when set, require `X-Eval-Api-Secret` header
+- Do not log full `mission` in observability spans (hash only)
+
+### Manual smoke test
+
+```bash
+curl -s -X POST http://localhost:3000/api/eval/agent \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "agentId": "inbox-triage",
+    "mission": "Triage unread inbox and surface urgent items.",
+    "kbFixture": { "identity": { "name": "Eval User" } }
+  }' | jq
+```
+
+---
+
+## `GET /api/eval/agents` — agent catalog for EvalKit fixtures
+
+Returns library metadata for fixture generation.
+
+```http
+GET /api/eval/agents
+X-Eval-Api-Secret: <optional when EVAL_API_SECRET is set>
+```
+
+**200:**
+
+```json
+{
+  "agents": [
+    {
+      "id": "inbox-triage",
+      "displayName": "Inbox Triage",
+      "authority": "executor",
+      "defaultTools": ["gmail_read", "queue_action"],
+      "stateWriteKey": "inbox_triage",
+      "contractSummary": "…"
+    }
+  ]
+}
+```

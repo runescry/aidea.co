@@ -1,6 +1,7 @@
 import { readProfile, writeProfile, mergeProfile } from '@/lib/storage';
 import { getNestedKey, setNestedKey } from '@/lib/storage/nested-keys';
 import { ensureGraphPeopleLinked, ensurePeopleStore } from '@/lib/profile/people-migrate';
+import { getEvalHarnessContext } from '@/lib/eval/eval-context';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
 let profileCache: { data: Record<string, unknown>; at: number } | null = null;
@@ -20,12 +21,24 @@ async function cachedReadProfile(): Promise<Record<string, unknown>> {
   return data;
 }
 
+function kbDataSource(): Promise<Record<string, unknown>> {
+  const fixture = getEvalHarnessContext()?.kbFixture;
+  if (fixture) {
+    return Promise.resolve({ ...fixture } as Record<string, unknown>);
+  }
+  return cachedReadProfile();
+}
+
 export async function readKB(keys: string[]): Promise<Record<string, unknown>> {
-  const data = await cachedReadProfile();
+  const data = await kbDataSource();
   return Object.fromEntries(keys.map(k => [k, getNestedKey(data, k) ?? null]));
 }
 
 export async function readAllKB(): Promise<Record<string, unknown>> {
+  const fixture = getEvalHarnessContext()?.kbFixture;
+  if (fixture) {
+    return { ...fixture } as Record<string, unknown>;
+  }
   const data = await cachedReadProfile();
   let migrated = ensurePeopleStore(data as KnowledgeBase);
   migrated = ensureGraphPeopleLinked(migrated);
@@ -38,6 +51,7 @@ export async function readAllKB(): Promise<Record<string, unknown>> {
 }
 
 export async function writeKB(key: string, value: unknown): Promise<void> {
+  if (getEvalHarnessContext()?.skipQueueWrites) return;
   const data = await readProfile();
   setNestedKey(data, key, value);
   invalidateProfileCache();
@@ -45,6 +59,7 @@ export async function writeKB(key: string, value: unknown): Promise<void> {
 }
 
 export async function writeManyKB(updates: Record<string, unknown>): Promise<void> {
+  if (getEvalHarnessContext()?.skipQueueWrites) return;
   invalidateProfileCache();
   await mergeProfile(updates);
 }
