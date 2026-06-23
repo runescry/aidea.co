@@ -10,7 +10,9 @@ const AGENT_ID = 'fast-dispatch';
 
 /** Routes that need tools, external APIs, or queue — must use full harness dispatch. */
 const FULL_PATH_PATTERNS: RegExp[] = [
-  /\b(inbox|email|gmail|calendar|schedule|meeting|draft|reply|send|remind|todo|task)\b/i,
+  /\b(inbox|emails?|mail|gmail|calendar|schedule|meetings?|messages?|draft|reply|send|remind|todos?|tasks?)\b/i,
+  /\b(check|read|scan|search|pull|look)\b.*\b(emails?|inbox|mail|gmail)\b/i,
+  /\b(subscription|billing|invoice|renewal|failed payment|payment failed|declined charge)\b/i,
   /\b(update|change|set)\s+(my\s+)?(profile|brief|role|goal|goals|preferences)\b/i,
   /\b(research|search|look up|find out|web search)\b/i,
   /\b(headlines?|breaking news|current events?)\b/i,
@@ -22,18 +24,28 @@ const FULL_PATH_PATTERNS: RegExp[] = [
   /\bhappening\b.*\b(at the moment|right now|currently)\b/i,
   /\b(at the moment|right now|currently)\b.*\bhappening\b/i,
   /\b(job|application|interview|offer|recruiting)\b/i,
-  /\bwhat('s| is)\s+(on|in)\s+my\s+(inbox|calendar|email|schedule)\b/i,
+  /\bwhat('s| is)\s+(on|in)\s+my\s+(inbox|calendar|emails?|schedule)\b/i,
   /\b(needs? my attention|attention right now|still open|this week)\b/i,
   /\b(queue|approve|reject|action queue)\b/i,
   /\b(connect|oauth|google mail)\b/i,
   /\b(before my (next )?meeting|meeting prep)\b/i,
 ];
 
+const FAST_MODE_REFUSAL = /\b(fast mode|without inbox|full workflow|repeat (that |the )?request)\b/i;
+
 const FOLLOW_UP_PATTERNS: RegExp[] = [
   /\b(the )?(first|second|third|fourth|#\d+)\b/i,
   /\b(that (one|email|message|reply|draft))\b/i,
   /\b(reply to|respond to) (#\d+|\d)\b/i,
 ];
+
+function isToolRetryAfterFastRefusal(command: string, history: ChatHistoryEntry[]): boolean {
+  if (history.length === 0) return false;
+  const lastAssistant = [...history].reverse().find(h => h.role === 'assistant');
+  if (!lastAssistant || !FAST_MODE_REFUSAL.test(lastAssistant.content)) return false;
+  return FULL_PATH_PATTERNS.some(p => p.test(command))
+    || /\b(check|pull|read|scan|search|look)\b/i.test(command);
+}
 
 export function shouldUseFastChat(command: string, history: ChatHistoryEntry[] = []): boolean {
   const trimmed = command.trim();
@@ -45,6 +57,8 @@ export function shouldUseFastChat(command: string, history: ChatHistoryEntry[] =
   if (history.length > 0 && FOLLOW_UP_PATTERNS.some(p => p.test(trimmed))) {
     return false;
   }
+
+  if (isToolRetryAfterFastRefusal(trimmed, history)) return false;
 
   return true;
 }

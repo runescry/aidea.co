@@ -14,6 +14,19 @@ describe('shouldUseFastChat', () => {
     expect(shouldUseFastChat('Research Acme Corp before my meeting')).toBe(false);
     expect(shouldUseFastChat('Update my profile — brief at 7am')).toBe(false);
     expect(shouldUseFastChat('What needs my attention right now?')).toBe(false);
+    expect(shouldUseFastChat('check for emails dude')).toBe(false);
+    expect(shouldUseFastChat('check my emails for failed payments in the past week')).toBe(false);
+    expect(shouldUseFastChat('which subscriptions have failed payment?')).toBe(false);
+  });
+
+  it('requires full path when retrying after fast-mode refusal', () => {
+    const history = [{
+      role: 'assistant' as const,
+      content: "I'm in fast mode without inbox access. Repeat the request and I'll run the full workflow.",
+      timestamp: '',
+    }];
+    expect(shouldUseFastChat('check for emails dude', history)).toBe(false);
+    expect(shouldUseFastChat('ok check them', history)).toBe(false);
   });
 
   it('requires full path for news and current-events queries', () => {
