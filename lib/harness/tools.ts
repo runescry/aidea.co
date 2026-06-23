@@ -38,6 +38,7 @@ import {
 import { readHealthSyncSnapshot, weekTrainingSummary } from '@/lib/health/sync';
 import { readPlaidStub } from '@/lib/finance/plaid-stub';
 import type { KnowledgeBase } from '@/types/knowledge-base';
+import { classifyAgentWait } from './agent-wait';
 
 // ── Tool Catalog ──────────────────────────────────────────────────────────────
 
@@ -582,14 +583,18 @@ export async function executeHarnessTool(
       const { timeoutMs = 120_000 } = raw;
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
-        const allDone = roles.every(role => getAgentByRole(ctx.registry, role)?.status === 'complete');
-        if (allDone) {
+        const wait = classifyAgentWait(roles, role => getAgentByRole(ctx.registry, role)?.status);
+        if (wait.allTerminal) {
           const outputs: Record<string, unknown> = {};
           for (const role of roles) {
             const agent = getAgentByRole(ctx.registry, role);
             if (agent?.stateWriteKey) outputs[role] = ctx.state.data[agent.stateWriteKey] ?? null;
           }
-          return { status: 'complete', outputs };
+          return {
+            status: wait.failed.length === 0 ? 'complete' : 'partial',
+            outputs,
+            failed: wait.failed.length > 0 ? wait.failed : undefined,
+          };
         }
         await new Promise(r => setTimeout(r, 500));
       }
@@ -845,18 +850,35 @@ export async function executeHarnessTool(
     case 'news_search': {
       const { topics, maxPerTopic = 3 } = input as { topics: string[]; maxPerTopic?: number };
       const apiKey = getSetting('braveSearchApiKey');
-      if (!apiKey) return { error: 'Brave Search API key not configured — add it in Settings' };
+      if (!apiKey) return { error: 'Brave Search API key not configured — add it in Settings', results: [] };
       const allResults: Array<{ topic: string; title: string; url: string; snippet: string }> = [];
+      const errors: string[] = [];
       for (const topic of topics) {
         const url = `https://api.search.brave.com/res/v1/news/search?q=${encodeURIComponent(topic)}&count=${maxPerTopic}&freshness=pd`;
-        const res = await fetch(url, { headers: { 'Accept': 'application/json', 'X-Subscription-Token': apiKey } });
-        if (!res.ok) continue;
+        const res = await fetch(url, { headers: { Accept: 'application/json', 'X-Subscription-Token': apiKey } });
+        if (!res.ok) {
+          const paymentOrQuota = res.status === 402 || res.status === 429;
+          errors.push(
+            paymentOrQuota
+              ? `Brave news API payment/quota issue (${res.status}) for "${topic}"`
+              : `Brave news API error ${res.status} for "${topic}"`,
+          );
+          continue;
+        }
         const data = await res.json() as { results?: Array<{ title: string; url: string; description: string }> };
         for (const r of data.results ?? []) {
           allResults.push({ topic, title: r.title, url: r.url, snippet: r.description });
         }
       }
-      return { results: allResults };
+      if (allResults.length === 0 && errors.length > 0) {
+        return {
+          results: [],
+          error: errors[0],
+          errors,
+          skipped: true,
+        };
+      }
+      return { results: allResults, ...(errors.length > 0 ? { errors } : {}) };
     }
 
     // ── Gmail ─────────────────────────────────────────────────────────────────

@@ -235,21 +235,24 @@ export async function finalizeDailyBrief(
     orchestrator,
     ctx,
     spawnFn,
-  ) as { status?: string; roles?: string[] };
+  ) as { status?: string; roles?: string[]; failed?: string[] };
 
   const brief = assembleMorningBrief(ctx);
-  if (waitResult?.status === 'timeout') {
-    brief.partial = true;
-    brief.note = 'Some sub-agents did not finish in time — brief assembled from available data';
-  }
-
-  const failedAgents = PARALLEL_ROLES.filter(role => {
+  const failedAgents = waitResult?.failed ?? PARALLEL_ROLES.filter(role => {
     const agent = getAgentByRole(ctx.registry, role);
     return agent?.status === 'error';
   });
-  if (failedAgents.length > 0) {
+
+  if (waitResult?.status === 'timeout') {
+    brief.partial = true;
+    brief.note = 'Some sub-agents did not finish in time — brief assembled from available data';
+  } else if (waitResult?.status === 'partial' || failedAgents.length > 0) {
+    brief.partial = true;
     brief.agentErrors = failedAgents;
-    brief.note = `Sub-agents failed (${failedAgents.join(', ')}) — check AI API keys in Vercel settings`;
+    const failedLabels = failedAgents.map(role => role.replace(/-/g, ' ')).join(', ');
+    brief.note = failedAgents.includes('news-curator')
+      ? `News step unavailable (${failedLabels}) — brief assembled without headlines`
+      : `Some sections unavailable (${failedLabels}) — brief assembled from available data`;
   }
 
   await emitTool(

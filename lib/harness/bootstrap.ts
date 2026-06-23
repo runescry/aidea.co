@@ -142,6 +142,23 @@ export async function bootstrapEntity(
       await runAgentLoop(rootAgent, ctx);
       await waitForAllAgents(registry, ctx);
     } catch (err) {
+      const wroteBrief = config.rootAgentId === 'daily-lite-briefer' && ctx.state.data.morning_brief;
+      if (wroteBrief) {
+        state.status = 'complete';
+        await persistEntityState(state);
+        send({
+          type: 'entity_complete',
+          sessionId,
+          entityId,
+          data: {
+            cost: cost.snapshot(),
+            partial: true,
+            note: 'Morning brief written but the run ended with errors in optional sections',
+          },
+          timestamp: new Date().toISOString(),
+        });
+        return state;
+      }
       state.status = 'error';
       await persistEntityState(state);
       send({
