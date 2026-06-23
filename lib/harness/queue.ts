@@ -32,6 +32,61 @@ import type { KnowledgeBase } from '@/types/knowledge-base';
 
 const AUTO_EXECUTABLE_TYPES = new Set<ActionType>(['email_reply', 'email_send', 'calendar_event']);
 
+/** Stable key for collapsing duplicate pending queue items. */
+export function queueDedupeKey(action: Pick<QueuedAction, 'type' | 'payload' | 'summary'>): string {
+  const payload = action.payload as Record<string, unknown>;
+  if (action.type === 'email_reply' || action.type === 'email_send') {
+    const replyId = payload.replyToMessageId as string | undefined;
+    if (replyId) return `${action.type}:reply:${replyId}`;
+    const to = (payload.to as string | undefined)?.trim().toLowerCase();
+    const subject = (payload.subject as string | undefined)?.trim().toLowerCase().slice(0, 60);
+    if (to) return `${action.type}:to:${to}:${subject ?? ''}`;
+  }
+  if (action.type === 'kb_update') {
+    const input = payload.input as Record<string, unknown> | undefined;
+    const job = input?.jobApplication as { company?: string } | undefined;
+    if (job?.company) return `kb_update:job:${job.company.toLowerCase()}`;
+    const person = input?.person as { email?: string; name?: string } | undefined;
+    if (person?.email) return `kb_update:person:${person.email.toLowerCase()}`;
+    if (person?.name) return `kb_update:person:${person.name.toLowerCase()}`;
+  }
+  if (action.type === 'calendar_event') {
+    const title = (payload.title as string | undefined)?.trim().toLowerCase();
+    const start = payload.start as string | undefined;
+    if (title && start) return `calendar:${title}:${start}`;
+  }
+  return `${action.type}:${action.summary.trim().toLowerCase().slice(0, 100)}`;
+}
+
+async function findPendingDuplicate(
+  action: Omit<QueuedAction, 'id' | 'status' | 'createdAt'>,
+): Promise<QueuedAction | null> {
+  const key = queueDedupeKey(action);
+  const pending = await listQueuedActions({ status: 'pending' });
+  return pending.find(a => queueDedupeKey(a) === key) ?? null;
+}
+
+/** Keep newest pending item per dedupe key; drop older duplicates. */
+export async function collapsePendingQueueDuplicates(): Promise<number> {
+  const all = await listQueuedActions();
+  const pending = all.filter(a => a.status === 'pending');
+  const rest = all.filter(a => a.status !== 'pending');
+  const byKey = new Map<string, QueuedAction>();
+  for (const action of pending.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )) {
+    const key = queueDedupeKey(action);
+    if (!byKey.has(key)) byKey.set(key, action);
+  }
+  const kept = [...byKey.values()];
+  const removed = pending.length - kept.length;
+  if (removed > 0) {
+    await replaceQueue([...rest, ...kept]);
+    invalidateDevTasksCache();
+  }
+  return removed;
+}
+
 export async function listActions(filter?: { status?: ActionStatus; type?: ActionType }): Promise<QueuedAction[]> {
   return listQueuedActions(filter);
 }
@@ -44,6 +99,9 @@ async function commitQueueAction(action: QueuedAction): Promise<void> {
 export async function enqueueAction(
   action: Omit<QueuedAction, 'id' | 'status' | 'createdAt'>
 ): Promise<QueuedAction> {
+  const existing = await findPendingDuplicate(action);
+  if (existing) return existing;
+
   const created: QueuedAction = {
     ...action,
     id: crypto.randomUUID(),

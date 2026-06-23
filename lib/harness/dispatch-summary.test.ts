@@ -84,4 +84,24 @@ describe('formatDispatchChatSummary', () => {
     expect(formatDispatchChatSummary({ summary: 'Queued a reply to Natalie.' }))
       .toBe('Queued a reply to Natalie.');
   });
+
+  it('formats inbox_summary as markdown bullets', () => {
+    const text = formatDispatchChatSummary({
+      summary: 'Two payment failures this week.',
+      inbox_summary: [
+        { priority: 'HIGH', from: 'Stripe', subject: 'Payment failed', snippet: 'Your card was declined' },
+        { from: 'Apple', subject: 'Billing issue' },
+      ],
+    });
+    expect(text).toContain('Two payment failures this week.');
+    expect(text).toContain('**[High]** **Stripe**');
+    expect(text).toContain('**Apple**');
+  });
+
+  it('returns summary when inbox_summary is empty', () => {
+    expect(formatDispatchChatSummary({
+      summary: 'No failed payment emails in the last week.',
+      inbox_summary: [],
+    })).toBe('No failed payment emails in the last week.');
+  });
 });

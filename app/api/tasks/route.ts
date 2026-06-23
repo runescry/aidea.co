@@ -4,6 +4,7 @@ import { buildUnifiedTaskFeed, isStaleRunningEntity } from '@/lib/harness/tasks'
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB } from '@/lib/harness/knowledge-base';
 import { countPendingQueuedActions, loadEntityStates, readLatestBrief, readProfile, saveEntityState } from '@/lib/storage';
+import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { readProactiveHygiene, autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
 import { listQueueAudit } from '@/lib/harness/queue-audit';
 import {
@@ -18,11 +19,15 @@ export const runtime = 'nodejs';
 
 let queueScrubPromise: Promise<void> | null = null;
 
-async function ensureQueueScrubbed(): Promise<void> {
-  if (process.env.NODE_ENV !== 'development') return;
+async function ensureQueueHygiene(): Promise<void> {
   if (!queueScrubPromise) {
-    queueScrubPromise = scrubQueuePayloadBloat()
-      .then(n => { if (n > 0) invalidateDevTasksCache(); })
+    queueScrubPromise = Promise.all([
+      scrubQueuePayloadBloat(),
+      collapsePendingQueueDuplicates(),
+    ])
+      .then(([scrubbed, collapsed]) => {
+        if (scrubbed > 0 || collapsed > 0) invalidateDevTasksCache();
+      })
       .catch(() => { /* best-effort */ });
   }
   await queueScrubPromise;
@@ -36,7 +41,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ needsYou, suggestions: 0 });
   }
 
-  await ensureQueueScrubbed();
+  await ensureQueueHygiene();
 
   const cached = getDevTasksCache();
   if (cached) {

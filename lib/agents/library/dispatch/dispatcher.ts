@@ -48,6 +48,7 @@ ROUTING RULES:
 - "schedule/cancel/move meeting" → calendar_read, then queue_action type='calendar_event'
 - "what's my week/schedule/calendar" → calendar_read (use appropriate date range), then write_state with summary
 - "what's in my inbox/email" → kb_read work.currentProjects first, then gmail_read, then write_state with summary
+- "failed payment" / "subscription" / "billing" / "declined" in inbox → gmail_read with query like newer_than:7d (payment OR declined OR subscription OR billing OR failed OR invoice), filter results, write_state with inbox_summary[] and a summary line (say clearly if none found)
 - "research/find out about X" → web_search, then write_state with findings
 - "news/headlines/current events/what's happening" → kb_read preferences.newsTopics + work.currentProjects (optional), news_search with 2–3 topic queries, then write_state with news_summary.top_stories[] (3–5 items: title/headline, url from news_search results, topic/category, brief context) and a short summary line
 - "remind me to X" → queue_action type='reminder'

@@ -14,6 +14,7 @@ import type { HarnessEvent } from '@/lib/harness/types';
 import { pendingInputFromEvent, type PendingHumanInput } from '@/lib/client/human-input';
 import { consumeHarnessSSE } from '@/lib/client/sse';
 import { buildHistoryFromMessages } from '@/lib/chat/history';
+import { formatDispatchChatSummary } from '@/lib/harness/dispatch-summary';
 import {
   dedupeEphemeralConversations,
   emptyChatStore,
@@ -37,6 +38,15 @@ const TOOL_STATUS: Record<string, string> = {
 };
 
 const TOOL_STATUS_VALUES = new Set(Object.values(TOOL_STATUS));
+
+function hasStructuredChatCard(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const obj = value as Record<string, unknown>;
+  if (Array.isArray(obj.inbox_summary)) return true;
+  if (Array.isArray(obj.headlines)) return true;
+  const news = obj.news_summary as { top_stories?: unknown[] } | undefined;
+  return Array.isArray(news?.top_stories) && news.top_stories.length > 0;
+}
 
 function isChatAgentEvent(event: HarnessEvent): boolean {
   return CHAT_AGENT_ROLES.has(event.agentRole ?? '');
@@ -394,10 +404,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (event.type === 'agent_complete' && isChatAgentEvent(event)) {
         const summary = event.data.summary as string | undefined;
         const structured = event.data.structured;
-        patchAssistant(m => ({
-          content: summary?.trim() || stripToolStatus(m.content) || 'Done.',
-          ...(structured !== undefined ? { structured } : {}),
-        }));
+        patchAssistant(m => {
+          const structuredOut = structured !== undefined ? structured : m.structured;
+          const formatted = summary?.trim()
+            || formatDispatchChatSummary(structuredOut)
+            || formatDispatchChatSummary(m.structured);
+          const hasCard = hasStructuredChatCard(structuredOut);
+          return {
+            content: formatted || (hasCard ? '' : stripToolStatus(m.content)) || 'Done.',
+            ...(structured !== undefined ? { structured } : {}),
+          };
+        });
       }
       if (event.type === 'error' || event.type === 'agent_error' || event.type === 'entity_error') {
         const message =

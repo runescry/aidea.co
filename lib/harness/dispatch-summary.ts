@@ -44,13 +44,45 @@ function formatHeadlinesFromStructured(obj: Record<string, unknown>): string | n
   return null;
 }
 
+type InboxItem = {
+  priority?: string;
+  from?: string;
+  subject?: string;
+  snippet?: string;
+};
+
+function formatInboxFromStructured(obj: Record<string, unknown>): string | null {
+  const items = obj.inbox_summary as InboxItem[] | undefined;
+  if (!items?.length) {
+    const summaryOnly = (obj.summary as string | undefined)?.trim();
+    return summaryOnly || null;
+  }
+  const lines = items.slice(0, 10).map(item => {
+    const from = item.from?.trim() || 'Unknown sender';
+    const subject = item.subject?.trim();
+    const priority = item.priority?.toUpperCase();
+    const prefix = priority === 'HIGH' ? '**[High]** ' : '';
+    const snippet = item.snippet?.trim();
+    const subjectPart = subject ? ` — ${subject}` : '';
+    const snippetPart = snippet ? ` _(${snippet.slice(0, 120)})_` : '';
+    return `- ${prefix}**${from}**${subjectPart}${snippetPart}`;
+  });
+  const header = typeof obj.summary === 'string' && obj.summary.trim()
+    ? `${obj.summary.trim()}\n\n`
+    : '';
+  return `${header}${lines.join('\n')}`.trim();
+}
+
 /** Prefer headline bullets from structured dispatch output over a generic summary line. */
 export function formatDispatchChatSummary(value: unknown): string {
   if (!value || typeof value !== 'object') {
     return typeof value === 'string' ? value.trim() : '';
   }
-  const headlines = formatHeadlinesFromStructured(value as Record<string, unknown>);
+  const obj = value as Record<string, unknown>;
+  const headlines = formatHeadlinesFromStructured(obj);
   if (headlines) return headlines;
-  const summary = (value as { summary?: unknown }).summary;
+  const inbox = formatInboxFromStructured(obj);
+  if (inbox) return inbox;
+  const summary = obj.summary;
   return typeof summary === 'string' ? summary.trim() : '';
 }

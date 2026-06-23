@@ -69,7 +69,14 @@ interface Props {
 
 export default function InboxSummaryCard({ data, fallbackMarkdown }: Props) {
   const items = data.inbox_summary ?? [];
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    if (data.summary?.trim()) {
+      return (
+        <p className="text-sm text-foreground leading-relaxed">{data.summary}</p>
+      );
+    }
+    return null;
+  }
 
   const groups = groupByPriority(items);
   const orderedKeys = [
