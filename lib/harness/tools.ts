@@ -4,6 +4,7 @@ import { getAgentByRole } from './registry';
 import { setStateKey, getStateKeys } from './state';
 import { readKB, readAllKB, writeKB } from './knowledge-base';
 import { enqueueAction, enqueueActionWithAutonomy } from './queue';
+import { enrichEmailQueuePayload, validateEmailQueueEnqueue } from './enrich-email-queue';
 import { runConsensus } from './consensus';
 import { awaitHumanInput, markPendingInput } from './pending-inputs';
 import { getSetting } from '@/lib/settings';
@@ -829,6 +830,17 @@ export async function executeHarnessTool(
         if (cached) payload = { ...payload, connectionId: cached };
       }
 
+      payload = await enrichEmailQueuePayload(ctx.state.data, payload, raw.summary);
+
+      const validation = validateEmailQueueEnqueue({
+        type: raw.type,
+        payload,
+        detail: draftBody,
+      });
+      if (!validation.ok) {
+        return { error: validation.error, summary: raw.summary };
+      }
+
       const tool = raw.tool
         ?? (raw.type === 'email_reply' || raw.type === 'email_send' ? 'gmail_send' : 'generic');
 
@@ -991,6 +1003,8 @@ export async function executeHarnessTool(
           isUnread: e.isUnread,
           account: e.account,
           connectionId: e.connectionId,
+          ...(e.threadId ? { threadId: e.threadId } : {}),
+          ...(e.replyTo ? { replyTo: e.replyTo } : {}),
           ...(e.bodyText ? { bodyText: e.bodyText, bodyTruncated: e.bodyTruncated } : {}),
         }));
         cacheGmailRead(ctx.state.data, emails as CachedGmail[]);

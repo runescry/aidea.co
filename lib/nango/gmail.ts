@@ -12,6 +12,8 @@ export interface GmailMessage {
   isUnread: boolean;
   connectionId: string;
   account?: string;
+  threadId?: string;
+  replyTo?: string;
   bodyText?: string;
   bodyTruncated?: boolean;
 }
@@ -37,6 +39,7 @@ async function readGmailForConnection(
     messages.map(m =>
       nango.get<{
         id: string;
+        threadId: string;
         snippet: string;
         labelIds?: string[];
         payload?: { headers?: Array<{ name: string; value: string }> };
@@ -44,20 +47,23 @@ async function readGmailForConnection(
         providerConfigKey: integrationId,
         connectionId: conn.connectionId,
         endpoint: `/gmail/v1/users/me/messages/${m.id}`,
-        params: { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] },
+        params: { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date', 'Reply-To'] },
       }).then(msgRes => {
         const msg = msgRes.data;
         const headers = msg.payload?.headers ?? [];
         const get = (name: string) => headers.find(h => h.name === name)?.value ?? '';
+        const from = get('From');
         return {
           id: msg.id,
-          from: get('From'),
+          from,
           subject: get('Subject'),
           date: get('Date'),
           snippet: msg.snippet,
           isUnread: (msg.labelIds ?? []).includes('UNREAD'),
           connectionId: conn.connectionId,
           account: conn.email,
+          threadId: msg.threadId,
+          replyTo: get('Reply-To') || from,
         } satisfies GmailMessage;
       }),
     ),
@@ -77,6 +83,7 @@ async function fetchGmailMessageById(
   try {
     const msgRes = await nango.get<{
       id: string;
+      threadId: string;
       snippet: string;
       labelIds?: string[];
       payload?: { headers?: Array<{ name: string; value: string }> };
@@ -86,12 +93,13 @@ async function fetchGmailMessageById(
       endpoint: `/gmail/v1/users/me/messages/${messageId}`,
       params: includeBody
         ? { format: 'full' }
-        : { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] },
+        : { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date', 'Reply-To'] },
     });
 
     const msg = msgRes.data;
     const headers = msg.payload?.headers ?? [];
     const get = (name: string) => headers.find(h => h.name === name)?.value ?? '';
+    const from = get('From');
 
     let bodyText: string | undefined;
     let bodyTruncated: boolean | undefined;
@@ -103,13 +111,15 @@ async function fetchGmailMessageById(
 
     return {
       id: msg.id,
-      from: get('From'),
+      from,
       subject: get('Subject'),
       date: get('Date'),
       snippet: msg.snippet,
       isUnread: (msg.labelIds ?? []).includes('UNREAD'),
       connectionId: conn.connectionId,
       account: conn.email,
+      threadId: msg.threadId,
+      replyTo: get('Reply-To') || from,
       bodyText,
       bodyTruncated,
     };

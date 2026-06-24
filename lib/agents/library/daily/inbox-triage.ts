@@ -79,12 +79,16 @@ update_kb SUMMARY RULES:
 - Good: update_kb({ summary: "Vercel interview scheduling", jobApplication: { company: "Vercel", status: "In progress — interview scheduling", nextAction: "Confirm availability" }, reason: "Cassidy requesting times" })
 
 STEP 5: For each HIGH urgency email needing a reply, queue a draft.
+Before queue_action for replies that ask for phone, bank details, or dates from attachments: kb_read identity (phone) and call gmail_attachment_read or gmail_read with messageIds + includeBody when needed.
 Call queue_action with:
   type: 'email_reply'
   summary: 'Reply to [Sender]: [topic]'
-  detail: '<full draft body>'
+  detail: '<full draft body with real phone/bank facts from kb_read — never [your phone number] placeholders>'
   tool: 'gmail_send'
-  payload: { to: '<reply-to email>', subject: 'Re: ...', body: '<same as detail>', replyToMessageId: '<gmail id>', connectionId: '<from gmail_read>' }
+  payload: { replyToMessageId: '<gmail id from gmail_read>', connectionId: '<from gmail_read>' }
+  — to and subject are filled automatically from gmail_read cache; do not use notification relay addresses (mail3.guide.co, notifications@)
+
+Do NOT queue email_reply without replyToMessageId and a complete draft body.
 
 STEP 6: Write triage output to write_state key "inbox_triage":
 {

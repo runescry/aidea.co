@@ -7,6 +7,8 @@ export interface CachedGmail {
   subject: string;
   snippet: string;
   bodyText?: string;
+  threadId?: string;
+  replyTo?: string;
   account?: string;
   connectionId?: string;
 }

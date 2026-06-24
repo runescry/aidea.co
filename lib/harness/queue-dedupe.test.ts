@@ -43,4 +43,18 @@ describe('queueDedupeKey', () => {
     });
     expect(queueDedupeKey(a)).toBe(queueDedupeKey(b));
   });
+
+  it('dedupes email replies by thread id when present', () => {
+    const a = action({
+      type: 'email_reply',
+      summary: 'Reply A',
+      payload: { threadId: 'thread-1', replyToMessageId: 'msg-old' },
+    });
+    const b = action({
+      type: 'email_reply',
+      summary: 'Reply B',
+      payload: { threadId: 'thread-1', replyToMessageId: 'msg-new' },
+    });
+    expect(queueDedupeKey(a)).toBe(queueDedupeKey(b));
+  });
 });

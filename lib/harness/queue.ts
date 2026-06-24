@@ -36,6 +36,8 @@ const AUTO_EXECUTABLE_TYPES = new Set<ActionType>(['email_reply', 'email_send', 
 export function queueDedupeKey(action: Pick<QueuedAction, 'type' | 'payload' | 'summary'>): string {
   const payload = action.payload as Record<string, unknown>;
   if (action.type === 'email_reply' || action.type === 'email_send') {
+    const threadId = payload.threadId as string | undefined;
+    if (threadId) return `${action.type}:thread:${threadId}`;
     const replyId = payload.replyToMessageId as string | undefined;
     if (replyId) return `${action.type}:reply:${replyId}`;
     const to = (payload.to as string | undefined)?.trim().toLowerCase();
@@ -100,7 +102,21 @@ export async function enqueueAction(
   action: Omit<QueuedAction, 'id' | 'status' | 'createdAt'>
 ): Promise<QueuedAction> {
   const existing = await findPendingDuplicate(action);
-  if (existing) return existing;
+  if (existing) {
+    const updated: QueuedAction = {
+      ...existing,
+      summary: action.summary,
+      detail: action.detail,
+      payload: action.payload,
+      priority: action.priority,
+      tool: action.tool,
+      agentRole: action.agentRole,
+      entityId: action.entityId,
+      createdAt: new Date().toISOString(),
+    };
+    await commitQueueAction(updated);
+    return updated;
+  }
 
   const created: QueuedAction = {
     ...action,
