@@ -56,7 +56,7 @@ interface Props {
 
 export default function RunStudio({ state, startSession, reset }: Props) {
   const [entity, setEntity] = useState<EntityType>('daily');
-  const [dailyMode, setDailyMode] = useState<'lite' | 'full'>('lite');
+  const [dailyMode, setDailyMode] = useState<'lite' | 'full'>('full');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [panel, setPanel] = useState<Panel>('artifacts');
 

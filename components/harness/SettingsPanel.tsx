@@ -6,6 +6,7 @@ import type { SettingStatus } from '@/lib/settings';
 import { Label, TextField, StatusDot } from './forms';
 import AuditTrailPanel from './AuditTrailPanel';
 import DomainAutonomyPanel from './DomainAutonomyPanel';
+import HarnessCostPanel from './HarnessCostPanel';
 import { useSaveFeedback } from '@/hooks/useSaveFeedback';
 import { useConfirm } from '@/hooks/useConfirm';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
@@ -424,6 +425,8 @@ export default function SettingsPanel() {
       </div>
 
       <DomainAutonomyPanel />
+
+      <HarnessCostPanel />
 
       <div className="card p-4 space-y-3">
         <h3 className="text-sm font-medium text-foreground">Queue activity</h3>

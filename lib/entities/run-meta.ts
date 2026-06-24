@@ -66,7 +66,7 @@ export const STUDIO_ENTITY_META: Record<StudioEntityType, { label: string; descr
   },
   daily: {
     label: 'Daily OS',
-    description: 'Morning brief from inbox, calendar, health, news, and work prep. Lite (default) uses one agent; Full runs six parallel agents.',
+    description: 'Morning brief from inbox, calendar, health, news, and work prep. Full (default) runs six parallel agents; Lite uses one pass.',
     fields: [],
   },
   custom: {

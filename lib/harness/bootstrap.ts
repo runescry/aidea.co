@@ -5,6 +5,11 @@ import { createRegistry, registerAgent } from './registry';
 import { createEntityState, persistEntityState } from './state';
 import { createMessageBus } from './bus';
 import { createCostTracker } from './cost';
+import {
+  readHarnessCostPreferences,
+  resolveHarnessCostConfig,
+  shouldApplyUserCostPrefs,
+} from './cost-preferences';
 import { buildHarnessAgent, spawnChildAgent } from './spawn';
 import { runAgentLoop } from './executor';
 import { loadAgentOverrides, resolveLibraryAgent } from '@/lib/agents/resolve';
@@ -87,13 +92,20 @@ export async function bootstrapEntity(
     realWorldMode = 'auto';
   }
 
+  const harnessCostPrefs = readHarnessCostPreferences(kbForRejection);
+  const applyUserCostPrefs = shouldApplyUserCostPrefs(config, enrichedInput);
+
   const effectiveConfig: EntityConfig = {
     ...config,
-    costConfig: {
-      ...DEFAULT_COST_CONFIG,
-      ...config.costConfig,
-      realWorldToolMode: realWorldMode,
-    },
+    costConfig: resolveHarnessCostConfig(
+      {
+        ...DEFAULT_COST_CONFIG,
+        ...config.costConfig,
+        realWorldToolMode: realWorldMode,
+      },
+      harnessCostPrefs,
+      applyUserCostPrefs,
+    ),
   };
 
   const cost = createCostTracker(effectiveConfig.costConfig!);

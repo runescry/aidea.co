@@ -223,6 +223,13 @@ export interface KnowledgeBase {
     onboardingComplete?: boolean;
     onboardingMode?: 'quick' | 'full';
     memoryHygiene?: MemoryHygiene;
+    harnessCost?: {
+      enforceTokenBudget?: boolean;
+      maxTokensPerRun?: number;
+      costMode?: 'standard' | 'strict';
+      maxTokensPerAgent?: number;
+      maxAgentTokensByRole?: Record<string, number>;
+    };
   };
   _notes?: string[];
 }

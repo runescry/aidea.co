@@ -192,6 +192,10 @@ export interface CostConfig {
   maxTokensPerRun: number;         // hard stop for entire entity run
   maxTokensPerAgent?: number;      // default per-agent cap when role-specific cap absent
   maxAgentTokensByRole?: Record<string, number>;
+  /** When false, only maxTokensPerRun is enforced (default for interactive runs). */
+  enforcePerAgentCaps?: boolean;
+  /** When false, runs are unlimited (Studio / Daily OS interactive). Crons keep this true. */
+  enforceRunBudget?: boolean;
   maxAgentsPerRun: number;
   maxTierDepth: number;
   warnAtPercent: number;
@@ -203,6 +207,7 @@ export interface CostConfig {
 export const DEFAULT_COST_CONFIG: CostConfig = {
   maxTokensPerRun: 100_000,
   maxTokensPerAgent: 24_000,
+  enforceRunBudget: true,
   maxAgentsPerRun: 25,
   maxTierDepth: 4,
   warnAtPercent: 0.8,

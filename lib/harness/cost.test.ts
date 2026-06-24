@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { createCostTracker } from './cost';
 
 describe('createCostTracker', () => {
-  it('tracks per-agent usage and enforces role caps', () => {
+  it('tracks per-agent usage and enforces role caps when enabled', () => {
     const cost = createCostTracker({
       maxTokensPerRun: 50_000,
+      enforceRunBudget: true,
+      enforcePerAgentCaps: true,
       maxTokensPerAgent: 10_000,
       maxAgentTokensByRole: { 'inbox-triage': 12_000 },
     });
@@ -28,7 +30,7 @@ describe('createCostTracker', () => {
   });
 
   it('stops run when shared pool is exhausted', () => {
-    const cost = createCostTracker({ maxTokensPerRun: 5_000 });
+    const cost = createCostTracker({ maxTokensPerRun: 5_000, enforceRunBudget: true });
     cost.recordUsage(4_000, 1_500, { agentId: 'x', agentRole: 'test', model: 'claude-haiku-4-5-20251001' });
     expect(cost.isOverBudget()).toBe(true);
   });

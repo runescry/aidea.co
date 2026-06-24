@@ -20,7 +20,7 @@ interface Props {
 export default function StudioLaunchPanel({
   entity,
   fields,
-  dailyMode = 'lite',
+  dailyMode = 'full',
   starting,
   error,
   onFieldChange,

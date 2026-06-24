@@ -125,18 +125,24 @@ export function createCostTracker(config?: Partial<CostConfig>): CostTracker {
     },
 
     isOverBudget(agentId?: string, agentRole?: string): boolean {
-      if (inputTokens + outputTokens >= cfg.maxTokensPerRun) return true;
-      if (!agentId) return false;
-      const { input, output } = agentTotals(agentId);
-      return input + output >= agentCap(agentRole);
+      if (cfg.enforceRunBudget === false && !cfg.enforcePerAgentCaps) return false;
+      if (cfg.enforcePerAgentCaps && agentId) {
+        const { input, output } = agentTotals(agentId);
+        if (input + output >= agentCap(agentRole)) return true;
+      }
+      if (cfg.enforceRunBudget === false) return false;
+      return inputTokens + outputTokens >= cfg.maxTokensPerRun;
     },
 
     isNearBudget(agentId?: string, agentRole?: string): boolean {
+      if (cfg.enforceRunBudget === false && !cfg.enforcePerAgentCaps) return false;
+      if (cfg.enforcePerAgentCaps && agentId) {
+        const { input, output } = agentTotals(agentId);
+        if (input + output >= agentCap(agentRole) * cfg.warnAtPercent) return true;
+      }
+      if (cfg.enforceRunBudget === false) return false;
       const runTotal = inputTokens + outputTokens;
-      if (runTotal >= cfg.maxTokensPerRun * cfg.warnAtPercent) return true;
-      if (!agentId) return false;
-      const { input, output } = agentTotals(agentId);
-      return input + output >= agentCap(agentRole) * cfg.warnAtPercent;
+      return runTotal >= cfg.maxTokensPerRun * cfg.warnAtPercent;
     },
 
     estimatedUSD(): number {
