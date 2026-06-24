@@ -6,7 +6,7 @@ export const inboxTriageDef: AgentDefinition = {
   displayName: 'Inbox Triage',
   defaultModel: 'claude-haiku-4-5-20251001',
   authority: 'executor',
-  defaultTools: ['write_state', 'read_state', 'kb_read', 'update_kb', 'gmail_read', 'queue_action', 'send_message'],
+  defaultTools: ['write_state', 'read_state', 'kb_read', 'update_kb', 'gmail_read', 'gmail_attachment_read', 'queue_action', 'send_message'],
   stateReadKeys: [],
   stateWriteKey: 'inbox_triage',
   spawnPatterns: [],
@@ -25,9 +25,13 @@ Call kb_read with keys: ["relationships.people", "work.urgentFrom", "work.skipFr
 STEP 2: Fetch unread email (once only — do not call gmail_read again later in the run).
 Call gmail_read with { query: "is:unread", maxResults: 20 }
 
+For HIGH urgency emails where the snippet is too short to draft a reply, you may call gmail_read again with { messageIds: ["<id>"], includeBody: true } for that message only.
+
+When an email mentions attachments (attached, PDF, document, invoice, statement, report) or the required action is unclear from the snippet alone, call gmail_attachment_read with { messageId: "<id>" } before scoring or queueing drafts.
+
 STEP 3: Score each email individually — one output row per gmail_read email.
 CRITICAL ATTRIBUTION RULES:
-- reason and action must come ONLY from that email's subject and snippet — never from KB or other emails
+- reason and action must come ONLY from that email's subject, snippet, body (if fetched), or attachment text — never from KB or other emails
 - Each row must include the exact messageId from gmail_read
 - Genazzano / MLC emails → Ivy only. Xavier College emails → Sebastian only
 - Do not mention Sebastian on Genazzano emails (or Ivy on Xavier emails) unless that name appears in the email text

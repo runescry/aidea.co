@@ -6,7 +6,7 @@ export const dispatcherDef: AgentDefinition = {
   displayName: 'Dispatcher',
   defaultModel: 'claude-haiku-4-5-20251001',
   authority: 'directive',
-  defaultTools: ['spawn_agent', 'write_state', 'kb_read', 'update_kb', 'queue_action', 'web_search', 'news_search', 'gmail_read', 'calendar_read'],
+  defaultTools: ['spawn_agent', 'write_state', 'kb_read', 'update_kb', 'queue_action', 'web_search', 'news_search', 'gmail_read', 'gmail_attachment_read', 'calendar_read'],
   stateReadKeys: [],
   stateWriteKey: 'dispatch_response',
   spawnPatterns: [],
@@ -24,6 +24,7 @@ AVAILABLE ACTIONS:
 - web_search: research requests (companies, topics — not daily headlines)
 - news_search: recent news headlines (past 24h) — use for news/current-events queries
 - gmail_read / calendar_read: check inbox or schedule
+- gmail_attachment_read: extract text from email attachments (PDF, HTML, plain text) when reply depends on attached documents
 - spawn_agent: delegate complex multi-step work
 - write_state: record your response
 
@@ -44,7 +45,7 @@ IMPORTANT: update_kb must pass jobApplication or updates as structured JSON fiel
 - "My brief should be at 7am" → update_kb preferences.briefingTime
 
 ROUTING RULES:
-- "draft/send/reply/email" → gmail_read if needed, then queue_action type='email_reply' or 'email_send'
+- "draft/send/reply/email" → gmail_read if needed; if attachment-heavy or snippet insufficient, gmail_attachment_read; then queue_action type='email_reply' or 'email_send'
 - "schedule/cancel/move meeting" → calendar_read, then queue_action type='calendar_event'
 - "what's my week/schedule/calendar" → calendar_read (use appropriate date range), then write_state with summary
 - "what's in my inbox/email" → kb_read work.currentProjects first, then gmail_read, then write_state with summary

@@ -55,6 +55,48 @@ describe('sanitizeTriageItem', () => {
     expect(item.messageId).toBe('msg-gen');
     expect(item.snippet).toContain('Ivy');
   });
+
+  it('uses bodyText for attribution when present', () => {
+    const bodyCache = new Map([
+      ['msg-body', {
+        id: 'msg-body',
+        from: 'Broker <broker@example.com>',
+        subject: 'Finance approval',
+        snippet: 'See attached.',
+        bodyText: 'Your finance approval is confirmed for settlement on 15 July.',
+      }],
+    ]);
+
+    const item = sanitizeTriageItem({
+      messageId: 'msg-body',
+      reason: 'Finance approval confirmed for 15 July settlement',
+      action: 'Confirm settlement date',
+    }, bodyCache);
+
+    expect(item.attributionWarning).toBeUndefined();
+  });
+
+  it('includes attachment excerpt in attribution checks', () => {
+    const emailCache = new Map([
+      ['msg-att', {
+        id: 'msg-att',
+        from: 'Broker',
+        subject: 'Documents attached',
+        snippet: 'Please review.',
+      }],
+    ]);
+    const attachmentCache = new Map([
+      ['msg-att', { text: 'Settlement date: 15 July. Amount: $1.2M', filenames: ['stmt.pdf'] }],
+    ]);
+
+    const item = sanitizeTriageItem({
+      messageId: 'msg-att',
+      reason: 'Settlement on 15 July per attached statement',
+      action: 'Review',
+    }, emailCache, attachmentCache);
+
+    expect(item.attributionWarning).toBeUndefined();
+  });
 });
 
 describe('sanitizeInboxTriage', () => {

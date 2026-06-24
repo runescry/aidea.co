@@ -1,6 +1,7 @@
 import { getNango, gmailIntegrationId } from './client';
 import { resolveGmailConnections, listGmailConnectionsLite, type NangoConnectionPublic } from './connections';
 import { formatGmailApiError, isGmailForbidden } from './gmail-errors';
+import { extractBodyFromPayload, getGmailMessageFull } from './gmail-body';
 
 export interface GmailMessage {
   id: string;
@@ -11,6 +12,8 @@ export interface GmailMessage {
   isUnread: boolean;
   connectionId: string;
   account?: string;
+  bodyText?: string;
+  bodyTruncated?: boolean;
 }
 
 async function readGmailForConnection(
@@ -63,13 +66,107 @@ async function readGmailForConnection(
   return details;
 }
 
+async function fetchGmailMessageById(
+  conn: NangoConnectionPublic,
+  messageId: string,
+  includeBody: boolean,
+): Promise<GmailMessage | null> {
+  const nango = getNango();
+  const integrationId = gmailIntegrationId();
+
+  try {
+    const msgRes = await nango.get<{
+      id: string;
+      snippet: string;
+      labelIds?: string[];
+      payload?: { headers?: Array<{ name: string; value: string }> };
+    }>({
+      providerConfigKey: integrationId,
+      connectionId: conn.connectionId,
+      endpoint: `/gmail/v1/users/me/messages/${messageId}`,
+      params: includeBody
+        ? { format: 'full' }
+        : { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] },
+    });
+
+    const msg = msgRes.data;
+    const headers = msg.payload?.headers ?? [];
+    const get = (name: string) => headers.find(h => h.name === name)?.value ?? '';
+
+    let bodyText: string | undefined;
+    let bodyTruncated: boolean | undefined;
+    if (includeBody && msg.payload) {
+      const extracted = extractBodyFromPayload(msg.payload);
+      bodyText = extracted.text;
+      bodyTruncated = extracted.truncated;
+    }
+
+    return {
+      id: msg.id,
+      from: get('From'),
+      subject: get('Subject'),
+      date: get('Date'),
+      snippet: msg.snippet,
+      isUnread: (msg.labelIds ?? []).includes('UNREAD'),
+      connectionId: conn.connectionId,
+      account: conn.email,
+      bodyText,
+      bodyTruncated,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function readGmailMessagesByIds(options: {
+  messageIds: string[];
+  connectionId?: string;
+  includeBody?: boolean;
+}): Promise<GmailMessage[]> {
+  const { messageIds, connectionId, includeBody = true } = options;
+  const connections = await resolveGmailConnections(connectionId);
+  const results: GmailMessage[] = [];
+
+  for (const messageId of messageIds) {
+    let found: GmailMessage | null = null;
+    for (const conn of connections) {
+      found = await fetchGmailMessageById(conn, messageId, includeBody);
+      if (found) break;
+    }
+    if (found) results.push(found);
+  }
+
+  return results;
+}
+
+export async function enrichGmailMessagesWithBodies(emails: GmailMessage[]): Promise<GmailMessage[]> {
+  return Promise.all(emails.map(async email => {
+    if (email.id.startsWith('error-') || email.bodyText) return email;
+    try {
+      const full = await getGmailMessageFull(email.id, email.connectionId);
+      const extracted = extractBodyFromPayload(full.payload);
+      return { ...email, bodyText: extracted.text, bodyTruncated: extracted.truncated };
+    } catch {
+      return email;
+    }
+  }));
+}
+
 export async function readGmailMessages(options: {
   query?: string;
   maxResults?: number;
   connectionId?: string;
+  includeBody?: boolean;
+  messageIds?: string[];
 }): Promise<{ emails: GmailMessage[]; query: string; connections: string[] }> {
-  const { query = 'is:unread', maxResults = 10, connectionId } = options;
+  const { query = 'is:unread', maxResults = 10, connectionId, includeBody = false, messageIds } = options;
   const connections = await resolveGmailConnections(connectionId);
+
+  let emails: GmailMessage[] = [];
+
+  if (messageIds?.length) {
+    emails = await readGmailMessagesByIds({ messageIds, connectionId, includeBody });
+  }
 
   const batches = await Promise.all(
     connections.map(async conn => {
@@ -90,7 +187,19 @@ export async function readGmailMessages(options: {
     }),
   );
 
-  const emails = batches.flat();
+  const listed = batches.flat();
+  const seen = new Set(emails.map(e => e.id));
+  for (const email of listed) {
+    if (!seen.has(email.id)) {
+      emails.push(email);
+      seen.add(email.id);
+    }
+  }
+
+  if (includeBody) {
+    emails = await enrichGmailMessagesWithBodies(emails);
+  }
+
   return {
     emails,
     query,

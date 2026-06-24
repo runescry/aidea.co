@@ -58,6 +58,7 @@ const IDEMPOTENT_READ_TOOLS = new Set([
   'read_state',
   'kb_read',
   'gmail_read',
+  'gmail_attachment_read',
   'calendar_read',
   'contacts_read',
   'web_search',

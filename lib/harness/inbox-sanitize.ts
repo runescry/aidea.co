@@ -6,8 +6,14 @@ export interface CachedGmail {
   from: string;
   subject: string;
   snippet: string;
+  bodyText?: string;
   account?: string;
   connectionId?: string;
+}
+
+export interface CachedGmailAttachment {
+  text: string;
+  filenames: string[];
 }
 
 export interface InboxTriagePayload {
@@ -114,9 +120,20 @@ function schoolAttributionViolation(from: string, subject: string, summaryText: 
   return false;
 }
 
+function attachmentSourceExcerpt(
+  messageId: string,
+  attachmentCache?: Map<string, CachedGmailAttachment>,
+): string {
+  if (!messageId || !attachmentCache) return '';
+  const cached = attachmentCache.get(messageId);
+  if (!cached?.text) return '';
+  return cached.text.slice(0, 800);
+}
+
 export function sanitizeTriageItem(
   item: unknown,
   cache: Map<string, CachedGmail>,
+  attachmentCache?: Map<string, CachedGmailAttachment>,
 ): Record<string, unknown> {
   if (!item || typeof item !== 'object') return { summary: String(item ?? '') };
   const raw = item as Record<string, unknown>;
@@ -131,7 +148,12 @@ export function sanitizeTriageItem(
     if (email.account) out.account = email.account;
   }
 
-  const sourceText = email ? `${email.from} ${email.subject} ${email.snippet}` : '';
+  const messageIdForSource = email?.id ?? (raw.messageId ? String(raw.messageId) : '');
+  const attachmentText = attachmentSourceExcerpt(messageIdForSource, attachmentCache);
+  const bodySource = email?.bodyText ?? email?.snippet ?? '';
+  const sourceText = email
+    ? `${email.from} ${email.subject} ${bodySource}${attachmentText ? ` ${attachmentText}` : ''}`
+    : '';
   const summaryText = `${String(out.reason ?? '')} ${String(out.action ?? '')}`;
   const orphans = orphanChildNames(sourceText, summaryText);
   const schoolMismatch = email
@@ -139,7 +161,8 @@ export function sanitizeTriageItem(
     : false;
 
   if (email && (orphans.length > 0 || schoolMismatch)) {
-    out.reason = email.snippet.slice(0, 220);
+    const resetSource = email.bodyText?.slice(0, 220) ?? email.snippet.slice(0, 220);
+    out.reason = resetSource;
     if (!String(out.action ?? '').trim()) {
       out.action = 'Review this email';
     }
@@ -217,12 +240,14 @@ export function enrichDispatchResponse(
 export function sanitizeInboxTriage(
   triage: unknown,
   cache: Map<string, CachedGmail>,
+  stateData?: Record<string, unknown>,
 ): InboxTriagePayload {
   if (!triage || typeof triage !== 'object') return {};
   const src = triage as InboxTriagePayload;
+  const attachmentCache = stateData ? getGmailAttachmentCache(stateData) : undefined;
 
   const sanitizeList = (list: unknown[] | undefined) =>
-    (list ?? []).map(item => sanitizeTriageItem(item, cache));
+    (list ?? []).map(item => sanitizeTriageItem(item, cache, attachmentCache));
 
   return {
     ...src,
@@ -257,4 +282,34 @@ export function getGmailConnectionForMessage(
 ): string | undefined {
   const raw = stateData._gmailById as Record<string, CachedGmail> | undefined;
   return raw?.[messageId]?.connectionId;
+}
+
+export function cacheGmailAttachmentText(
+  stateData: Record<string, unknown>,
+  messageId: string,
+  text: string,
+  filenames: string[],
+): void {
+  const existing = (stateData._gmailAttachmentTextByMessageId as Record<string, CachedGmailAttachment> | undefined) ?? {};
+  const prior = existing[messageId];
+  const mergedFilenames = [...new Set([...(prior?.filenames ?? []), ...filenames])];
+  const mergedText = prior?.text ? `${prior.text}\n\n${text}` : text;
+  stateData._gmailAttachmentTextByMessageId = {
+    ...existing,
+    [messageId]: { text: mergedText.slice(0, 8000), filenames: mergedFilenames },
+  };
+}
+
+export function getGmailAttachmentCache(
+  stateData: Record<string, unknown>,
+): Map<string, CachedGmailAttachment> {
+  const raw = stateData._gmailAttachmentTextByMessageId as Record<string, CachedGmailAttachment> | undefined;
+  return new Map(Object.entries(raw ?? {}));
+}
+
+export function getGmailAttachmentText(
+  stateData: Record<string, unknown>,
+  messageId: string,
+): string | undefined {
+  return (stateData._gmailAttachmentTextByMessageId as Record<string, CachedGmailAttachment> | undefined)?.[messageId]?.text;
 }

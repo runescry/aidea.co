@@ -88,6 +88,33 @@ describe('validateInboxTriageRun', () => {
     expect(result.errors.some(e => e.includes('missing'))).toBe(true);
   });
 
+  it('warns when attachments mentioned but tool not called', () => {
+    const result = validateInboxTriageRun(
+      baseEvents,
+      {
+        urgent: [{
+          messageId: 'msg-1',
+          subject: 'Settlement documents attached',
+          snippet: 'Please review the attached PDF.',
+          reason: 'Needs review',
+          action: 'Open attachment',
+        }],
+      },
+      {
+        _gmailById: {
+          'msg-1': {
+            id: 'msg-1',
+            from: 'Broker',
+            subject: 'Settlement documents attached',
+            snippet: 'Please review the attached PDF.',
+          },
+        },
+      },
+    );
+
+    expect(result.warnings.some(w => w.includes('gmail_attachment_read'))).toBe(true);
+  });
+
   it('fails when list limits are exceeded', () => {
     const urgent = Array.from({ length: 6 }, (_, i) => ({
       messageId: `msg-${i}`,

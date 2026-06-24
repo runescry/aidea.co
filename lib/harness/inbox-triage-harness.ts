@@ -1,6 +1,7 @@
 import { runAgentHarness, type RunAgentHarnessOptions } from '@/lib/eval/run-agent-harness';
 import {
   formatInboxTriageReport,
+  validateInboxTriageRun,
   type InboxTriageValidation,
 } from './inbox-triage-validate';
 
@@ -41,7 +42,11 @@ export async function runInboxTriageHarness(
     applyOverrides: options.applyOverrides,
   });
 
-  const validation = result.validation as InboxTriageValidation;
+  const validation = validateInboxTriageRun(
+    result.events,
+    result.structured,
+    result.state.data,
+  );
 
   return {
     sessionId: result.sessionId,
