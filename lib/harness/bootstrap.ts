@@ -96,7 +96,7 @@ export async function bootstrapEntity(
     },
   };
 
-  const cost = createCostTracker(effectiveConfig.costConfig!, realWorldMode);
+  const cost = createCostTracker(effectiveConfig.costConfig!);
 
   const ctx: HarnessContext = {
     entityId,

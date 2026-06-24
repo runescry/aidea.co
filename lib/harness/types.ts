@@ -168,6 +168,15 @@ export interface AgentRegistry {
 
 // ── Cost ──────────────────────────────────────────────────────────────────────
 
+export interface AgentUsageSnapshot {
+  agentRole: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedUSD: number;
+}
+
 export interface CostSnapshot {
   inputTokens: number;
   outputTokens: number;
@@ -176,20 +185,24 @@ export interface CostSnapshot {
   estimatedUSD: number;
   agentCount: number;
   toolCallCount: number;
+  agentUsage?: Record<string, AgentUsageSnapshot>;
 }
 
 export interface CostConfig {
-  maxTokensPerRun: number;         // hard stop (default 100_000)
-  maxAgentsPerRun: number;         // spawn limit (default 25)
-  maxTierDepth: number;            // depth limit (default 4)
-  warnAtPercent: number;           // 0.8 = warn at 80% of budget
+  maxTokensPerRun: number;         // hard stop for entire entity run
+  maxTokensPerAgent?: number;      // default per-agent cap when role-specific cap absent
+  maxAgentTokensByRole?: Record<string, number>;
+  maxAgentsPerRun: number;
+  maxTierDepth: number;
+  warnAtPercent: number;
   realWorldToolMode: 'auto' | 'require-approval' | 'dry-run';
-  agentTimeoutMs: number;          // per-agent timeout (default 60_000)
-  runTimeoutMs: number;            // per-run timeout (default 300_000)
+  agentTimeoutMs: number;
+  runTimeoutMs: number;
 }
 
 export const DEFAULT_COST_CONFIG: CostConfig = {
   maxTokensPerRun: 100_000,
+  maxTokensPerAgent: 24_000,
   maxAgentsPerRun: 25,
   maxTierDepth: 4,
   warnAtPercent: 0.8,
@@ -198,14 +211,22 @@ export const DEFAULT_COST_CONFIG: CostConfig = {
   runTimeoutMs: 360_000,
 };
 
+export interface RecordUsageOptions {
+  cacheRead?: number;
+  cacheWrite?: number;
+  agentId?: string;
+  agentRole?: string;
+  model?: string;
+}
+
 export interface CostTracker {
   config: CostConfig;
   snapshot(): CostSnapshot;
-  recordUsage(inputTokens: number, outputTokens: number, cacheRead?: number, cacheWrite?: number): void;
+  recordUsage(inputTokens: number, outputTokens: number, options?: RecordUsageOptions): void;
   recordAgent(): void;
   recordToolCall(): void;
-  isOverBudget(): boolean;
-  isNearBudget(): boolean;
+  isOverBudget(agentId?: string, agentRole?: string): boolean;
+  isNearBudget(agentId?: string, agentRole?: string): boolean;
   estimatedUSD(): number;
   canSpawnAgent(): boolean;
   canSpawnAtTier(tier: number): boolean;
@@ -229,6 +250,8 @@ export interface EntityConfig {
   autonomy: AutonomyLevel;
   consensusThreshold: number;      // 0-1
   costConfig?: Partial<CostConfig>;
+  /** Inbox triage cron/monitor: fewer emails, no queue drafts or attachment reads. */
+  inboxTriageMode?: 'lite' | 'full';
   /** Skip Postgres writes on each write_state; persist once at entity end. */
   deferStatePersist?: boolean;
   buildInitialContext: (input: EntityInput) => Record<string, unknown>;

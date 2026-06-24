@@ -31,8 +31,8 @@ When an email mentions attachments (attached, PDF, document, invoice, statement,
 
 STEP 3: Score each email individually — one output row per gmail_read email UNLESS SCHOOL BUNDLING applies (see below).
 
-SCHOOL BUNDLING (Genazzano, MLC, Xavier):
-- Genazzano / MLC → Ivy only. Xavier College → Sebastian only.
+SCHOOL BUNDLING (Genazzano, Xavier):
+- Genazzano → Ivy only. Xavier College → Sebastian only.
 - When 2+ emails from the SAME school in this batch: do NOT flood urgent[] with each email.
   - Routine newsletters, reminders, event info → FYI (not HIGH) unless a concrete deadline is today.
   - Only HIGH when: explicit reply required, permission/payment due, deadline today/this week, or enrollment/placement news.
@@ -43,7 +43,7 @@ SCHOOL BUNDLING (Genazzano, MLC, Xavier):
 CRITICAL ATTRIBUTION RULES:
 - reason and action must come ONLY from that email's subject, snippet, body (if fetched), or attachment text — never from KB or other emails
 - Each row must include the exact messageId from gmail_read
-- Genazzano / MLC emails → Ivy only. Xavier College emails → Sebastian only
+- Genazzano emails → Ivy only. Xavier College emails → Sebastian only
 - Do not mention Sebastian on Genazzano emails (or Ivy on Xavier emails) unless that name appears in the email text
 - If unsure, set reason to the email snippet verbatim
 
@@ -77,7 +77,7 @@ Use jobApplication ONLY for hiring emails where the company matches an entry in 
 
 For property (Bryce, Macquarie, conveyancer): update_kb with updates.work or updates.goals shortTerm if milestone reached.
 
-For school (Xavier, Genazzano, MLC): update_kb family.children notes or goals if enrollment/placement news.
+For school (Xavier, Genazzano): update_kb family.children notes or goals if enrollment/placement news.
 
 People corrections: kb_read relationships.people first. To add or update a contact from email context, use update_kb with person: { name, email, relationship, notes }. To stop tracking someone, person: { name, email, status: "removed" } — never re-add removed keys.
 

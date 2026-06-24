@@ -973,7 +973,7 @@ export async function executeHarnessTool(
     // ── Gmail ─────────────────────────────────────────────────────────────────
 
     case 'gmail_read': {
-      const {
+      let {
         query = 'is:unread',
         maxResults = 5,
         connectionId,
@@ -986,6 +986,10 @@ export async function executeHarnessTool(
         includeBody?: boolean;
         messageIds?: string[];
       };
+      if (ctx.config.inboxTriageMode === 'lite') {
+        maxResults = Math.min(maxResults, 10);
+        if (!messageIds?.length) includeBody = false;
+      }
       try {
         const result = await readGmailMessages({
           query,
@@ -1016,6 +1020,9 @@ export async function executeHarnessTool(
     }
 
     case 'gmail_attachment_read': {
+      if (ctx.config.inboxTriageMode === 'lite') {
+        return { error: 'gmail_attachment_read disabled in inbox lite mode — use full triage for PDFs' };
+      }
       const { messageId, connectionId: inputConnectionId } = input as {
         messageId: string;
         connectionId?: string;

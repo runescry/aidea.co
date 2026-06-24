@@ -43,6 +43,36 @@ const dailyTask = (input: EntityInput) => {
   };
 };
 
+export const inboxLiteEntityConfig: EntityConfig = {
+  type: 'daily',
+  name: 'Inbox triage (lite)',
+  mission: 'Scan unread inbox and produce a triage summary — no queue drafts or attachment reads.',
+  rootAgentId: 'inbox-triage',
+  agentIds: ['inbox-triage'],
+  availableTools: [
+    'write_state',
+    'read_state',
+    'kb_read',
+    'gmail_read',
+  ],
+  inboxTriageMode: 'lite',
+  autonomy: 'semi-auto',
+  consensusThreshold: 0.60,
+  costConfig: {
+    maxTokensPerRun: 22_000,
+    maxTokensPerAgent: 20_000,
+    maxAgentTokensByRole: { 'inbox-triage': 20_000 },
+    maxAgentsPerRun: 1,
+    maxTierDepth: 1,
+    realWorldToolMode: 'dry-run',
+  },
+  buildInitialContext: dailyContext,
+  buildInitialTask: () => ({
+    description: 'Triage unread inbox — summarize priorities; do not queue email drafts.',
+    contextKeys: [] as string[],
+  }),
+};
+
 export const dailyLiteEntityConfig: EntityConfig = {
   type: 'daily',
   name: 'Daily OS (lite)',
@@ -62,6 +92,7 @@ export const dailyLiteEntityConfig: EntityConfig = {
   consensusThreshold: 0.60,
   costConfig: {
     maxTokensPerRun: 20_000,
+    maxTokensPerAgent: 18_000,
     maxAgentsPerRun: 1,
     maxTierDepth: 1,
     realWorldToolMode: 'dry-run',
@@ -107,6 +138,15 @@ export const dailyEntityConfig: EntityConfig = {
   consensusThreshold: 0.60,
   costConfig: {
     maxTokensPerRun: 80_000,
+    maxTokensPerAgent: 16_000,
+    maxAgentTokensByRole: {
+      'daily-orchestrator': 14_000,
+      'inbox-triage': 28_000,
+      'calendar-reader': 12_000,
+      'health-briefer': 10_000,
+      'news-curator': 12_000,
+      'work-prep': 12_000,
+    },
     maxAgentsPerRun: 10,
     maxTierDepth: 2,
     realWorldToolMode: 'dry-run',
@@ -148,6 +188,13 @@ export const dispatchEntityConfig: EntityConfig = {
   consensusThreshold: 0.60,
   costConfig: {
     maxTokensPerRun: 30_000,
+    maxTokensPerAgent: 14_000,
+    maxAgentTokensByRole: {
+      dispatcher: 12_000,
+      'inbox-triage': 18_000,
+      'calendar-reader': 10_000,
+      'shared-researcher': 12_000,
+    },
     maxAgentsPerRun: 4,
     maxTierDepth: 2,
     realWorldToolMode: 'dry-run',

@@ -139,8 +139,7 @@ export async function runConsensus(
         ctx.cost.recordUsage(
           resp.usage?.promptTokens ?? 0,
           resp.usage?.completionTokens ?? 0,
-          0,
-          0
+          { agentId: agent.id, agentRole: agent.role, model: voteModel },
         );
 
         const parsed = extractJSON<{ position: string; confidence: number; reasoning: string }>(resp.text);
@@ -226,8 +225,7 @@ export async function runConsensus(
   ctx.cost.recordUsage(
     arbResp.usage?.promptTokens ?? 0,
     arbResp.usage?.completionTokens ?? 0,
-    0,
-    0
+    { agentId: parentAgent.id, agentRole: parentRole, model: parentAgent.model },
   );
 
   const arb = extractJSON<{ decision: string; rationale: string }>(arbResp.text);

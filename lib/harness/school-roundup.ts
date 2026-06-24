@@ -4,7 +4,6 @@ import { gmailMessageUrl } from '@/lib/gmail/message-url';
 
 const SCHOOL_SENDERS: Array<{ match: RegExp; school: string; child: string }> = [
   { match: /genazzano/i, school: 'Genazzano', child: 'Ivy' },
-  { match: /\bmlc\b/i, school: 'MLC', child: 'Ivy' },
   { match: /xavier/i, school: 'Xavier College', child: 'Sebastian' },
 ];
 

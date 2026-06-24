@@ -10,6 +10,7 @@ import { formatConversationHistory } from '@/lib/chat/history';
 import type { ChatHistoryEntry } from '@/types/chat';
 import { formatDispatchChatSummary, hasStructuredDispatchOutput } from './dispatch-summary';
 import { enrichDispatchResponse } from './inbox-sanitize';
+import { compactToolResultForLlm } from './tool-result-truncate';
 
 function buildAgentPrompt(agent: HarnessAgent, ctx: HarnessContext): string {
   const stateContext = getStateKeys(ctx.state, agent.stateReadKeys);
@@ -167,8 +168,8 @@ export async function runAgentLoop(
     while (iterations < MAX_ITERATIONS) {
       iterations++;
 
-      if (ctx.cost.isOverBudget()) {
-        throw new Error('Token budget exceeded mid-loop');
+      if (ctx.cost.isOverBudget(agent.id, agent.role)) {
+        throw new Error(`Token budget exceeded for ${agent.role} — stopping this agent to protect the run`);
       }
 
       const kickstarted = agent.role === 'daily-orchestrator' && ctx.state.data.dailyKickstartComplete;
@@ -211,15 +212,18 @@ export async function runAgentLoop(
       ctx.cost.recordUsage(
         result.usage?.promptTokens ?? 0,
         result.usage?.completionTokens ?? 0,
-        0,
-        0,
+        {
+          agentId: agent.id,
+          agentRole: agent.role,
+          model: agent.model,
+        },
       );
 
       patchAgent(ctx.registry, agent.id, {
         tokensUsed: (ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0) + (result.usage?.completionTokens ?? 0),
       });
 
-      if (ctx.cost.isNearBudget()) {
+      if (ctx.cost.isNearBudget(agent.id, agent.role)) {
         ctx.send({
           type: 'cost_warning',
           sessionId: ctx.sessionId,
@@ -314,7 +318,7 @@ export async function runAgentLoop(
             type: 'tool-result',
             toolCallId: tc.toolCallId,
             toolName: tc.toolName,
-            result: toolResult,
+            result: compactToolResultForLlm(tc.toolName, toolResult),
           });
         }
 

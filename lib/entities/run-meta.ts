@@ -66,7 +66,7 @@ export const STUDIO_ENTITY_META: Record<StudioEntityType, { label: string; descr
   },
   daily: {
     label: 'Daily OS',
-    description: 'Orchestrates inbox triage, calendar, health, news, and work prep using your profile — outputs a morning brief.',
+    description: 'Morning brief from inbox, calendar, health, news, and work prep. Lite (default) uses one agent; Full runs six parallel agents.',
     fields: [],
   },
   custom: {

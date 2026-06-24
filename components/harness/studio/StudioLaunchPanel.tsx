@@ -9,18 +9,22 @@ const DAILY_STEPS = ['Inbox triage', 'Calendar', 'Health brief', 'News', 'Work p
 interface Props {
   entity: EntityType;
   fields: Record<string, string>;
+  dailyMode?: 'lite' | 'full';
   starting?: boolean;
   error?: string;
   onFieldChange: (key: string, value: string) => void;
+  onDailyModeChange?: (mode: 'lite' | 'full') => void;
   onStart: () => void;
 }
 
 export default function StudioLaunchPanel({
   entity,
   fields,
+  dailyMode = 'lite',
   starting,
   error,
   onFieldChange,
+  onDailyModeChange,
   onStart,
 }: Props) {
   const meta = STUDIO_ENTITY_META[entity];
@@ -45,16 +49,35 @@ export default function StudioLaunchPanel({
         </div>
 
         {entity === 'daily' && (
-          <div className="flex flex-wrap gap-1.5">
-            {DAILY_STEPS.map(step => (
-              <span
-                key={step}
-                className="text-micro px-2 py-1 rounded-md bg-surface-subtle text-foreground-muted border border-border"
-              >
-                {step}
-              </span>
-            ))}
-          </div>
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              {DAILY_STEPS.map(step => (
+                <span
+                  key={step}
+                  className="text-micro px-2 py-1 rounded-md bg-surface-subtle text-foreground-muted border border-border"
+                >
+                  {step}
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-1">
+              {(['lite', 'full'] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  disabled={starting}
+                  onClick={() => onDailyModeChange?.(mode)}
+                  className={`text-caption px-3 py-1.5 rounded-lg border transition-colors ${
+                    dailyMode === mode
+                      ? 'bg-foreground text-surface border-foreground'
+                      : 'text-foreground-muted border-border hover:text-foreground hover:bg-surface-subtle disabled:opacity-50'
+                  }`}
+                >
+                  {mode === 'lite' ? 'Lite (recommended)' : 'Full (6 agents)'}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
         {meta.fields.length > 0 && (

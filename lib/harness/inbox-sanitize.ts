@@ -35,7 +35,6 @@ const CHILD_NAMES = ['sebastian', 'ivy'] as const;
 /** School senders → child names that may appear in that school's emails. */
 const SCHOOL_CHILD_MAP: Array<{ match: RegExp; allowedChildren: string[] }> = [
   { match: /genazzano/i, allowedChildren: ['ivy'] },
-  { match: /mlc/i, allowedChildren: ['ivy'] },
   { match: /xavier/i, allowedChildren: ['sebastian'] },
 ];
 

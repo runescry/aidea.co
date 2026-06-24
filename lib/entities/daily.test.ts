@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dailyEntityConfig,
   dailyLiteEntityConfig,
+  inboxLiteEntityConfig,
   isDailyLiteMode,
   resolveDailyEntityConfig,
 } from './daily';
@@ -36,8 +37,17 @@ describe('resolveDailyEntityConfig', () => {
     expect(config.costConfig?.maxAgentsPerRun).toBe(1);
   });
 
-  it('keeps full orchestrator config for Studio default', () => {
+  it('keeps full orchestrator config when mode is full', () => {
     expect(dailyEntityConfig.rootAgentId).toBe('daily-orchestrator');
-    expect(resolveDailyEntityConfig()).toBe(dailyEntityConfig);
+    expect(resolveDailyEntityConfig({ mode: 'full' })).toBe(dailyEntityConfig);
+  });
+});
+
+describe('inboxLiteEntityConfig', () => {
+  it('limits tools and token budget for cron triage', () => {
+    expect(inboxLiteEntityConfig.inboxTriageMode).toBe('lite');
+    expect(inboxLiteEntityConfig.availableTools).not.toContain('queue_action');
+    expect(inboxLiteEntityConfig.availableTools).not.toContain('gmail_attachment_read');
+    expect(inboxLiteEntityConfig.costConfig?.maxTokensPerRun).toBeLessThanOrEqual(25_000);
   });
 });
