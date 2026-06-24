@@ -29,6 +29,11 @@ export function getSql(): ReturnType<typeof postgres> {
       max: 1,
       idle_timeout: 20,
       connect_timeout: 15,
+      onnotice: notice => {
+        // Expected from CREATE TABLE/INDEX IF NOT EXISTS on every fresh connection in dev.
+        if (notice.code === '42P07') return;
+        console.warn('[postgres]', notice);
+      },
     });
   }
   return _sql;
