@@ -14,6 +14,7 @@ import { readKB } from './knowledge-base';
 import { resolveUserTimezone } from '@/lib/calendar/user-time';
 import { formatRejectedKbPatchesForAgent } from '@/lib/profile/memory-hygiene';
 import { getEvalHarnessContext } from '@/lib/eval/eval-context';
+import { writeLatestBrief } from '@/lib/storage';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
 export interface BootstrapOptions {
@@ -144,8 +145,33 @@ export async function bootstrapEntity(
   };
 
   if (config.rootAgentId === 'daily-orchestrator') {
-    await kickstartDailyOrchestrator(rootAgent, ctx, spawnFn);
-    await finalizeDailyBrief(rootAgent, ctx, spawnFn);
+    try {
+      await kickstartDailyOrchestrator(rootAgent, ctx, spawnFn);
+      await finalizeDailyBrief(rootAgent, ctx, spawnFn);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (ctx.state.data.dailyKickstartComplete && !ctx.state.data.morning_brief) {
+        try {
+          await finalizeDailyBrief(rootAgent, ctx, spawnFn);
+        } catch {
+          // best-effort partial brief
+        }
+      }
+      if (!ctx.state.data.morning_brief) {
+        state.status = 'error';
+        state.data.lastError = message;
+        if (!skipPersist) await persistEntityState(state);
+        send({
+          type: 'entity_error',
+          sessionId,
+          entityId,
+          data: { error: message, cost: cost.snapshot() },
+          timestamp: new Date().toISOString(),
+        });
+        throw err;
+      }
+      state.data.lastError = message;
+    }
   } else {
     try {
       await runAgentLoop(rootAgent, ctx);
@@ -184,11 +210,23 @@ export async function bootstrapEntity(
   state.status = 'complete';
   if (!skipPersist) await persistEntityState(state);
 
+  const morningBrief = state.data.morning_brief;
+  if (
+    morningBrief
+    && typeof morningBrief === 'object'
+    && (config.rootAgentId === 'daily-orchestrator' || config.rootAgentId === 'daily-lite-briefer')
+  ) {
+    await writeLatestBrief(morningBrief as Record<string, unknown>).catch(() => undefined);
+  }
+
   send({
     type: 'entity_complete',
     sessionId,
     entityId,
-    data: { cost: cost.snapshot() },
+    data: {
+      cost: cost.snapshot(),
+      ...(state.data.lastError ? { partial: true, note: String(state.data.lastError) } : {}),
+    },
     timestamp: new Date().toISOString(),
   });
 

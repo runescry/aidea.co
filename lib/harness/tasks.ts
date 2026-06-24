@@ -295,6 +295,7 @@ export function entityStateToTask(entity: EntityState): TaskItem {
         : 'done';
 
   const preview = artifactPreviewFromEntityData(entity.data);
+  const lastError = typeof entity.data.lastError === 'string' ? entity.data.lastError.trim() : '';
   let title: string;
   if (status === 'running') {
     title = `${entity.entityName} — in progress`;
@@ -304,14 +305,19 @@ export function entityStateToTask(entity: EntityState): TaskItem {
     title = preview ?? `${entity.entityName} — complete`;
   }
 
+  let subtitle = preview && status === 'done' ? `${typeLabel} · deliverable` : `${typeLabel} run`;
+  if (status === 'failed' && lastError) {
+    subtitle = lastError.length > 120 ? `${lastError.slice(0, 117)}…` : lastError;
+  }
+
   return {
     id: `entity-${entity.entityId}`,
     source: 'session',
     status,
     entityId: entity.entityId,
     title,
-    subtitle: preview && status === 'done' ? `${typeLabel} · deliverable` : `${typeLabel} run`,
-    preview: status === 'done' ? preview : undefined,
+    subtitle,
+    preview: status === 'done' ? preview : lastError || preview,
     createdAt: entity.updatedAt,
   };
 }
@@ -319,27 +325,47 @@ export function entityStateToTask(entity: EntityState): TaskItem {
 const RECENT_ENTITY_MS = 7 * 24 * 60 * 60 * 1000;
 /** Runs left "running" after disconnect/timeout — treat as failed in Work feed. */
 export const STALE_RUNNING_ENTITY_MS = 45 * 60 * 1000;
+/** Full Daily OS (five parallel agents) may run longer than a single-agent session. */
+export const STALE_DAILY_ENTITY_MS = 90 * 60 * 1000;
 /** Runs that never wrote artifacts — likely a dropped SSE / killed function. */
 export const STALE_EMPTY_RUN_MS = 5 * 60 * 1000;
 
 const BOOTSTRAP_DATA_KEYS = new Set([
   'currentDate', 'currentTime', 'dayOfWeek', 'command', 'conversationHistory',
+  'dailyKickstartComplete', 'lastError',
 ]);
 
+function entityHasMorningBrief(entity: EntityState): boolean {
+  const brief = entity.data.morning_brief;
+  return brief != null && typeof brief === 'object';
+}
+
 function entityHasRunProgress(entity: EntityState): boolean {
+  if (entityHasMorningBrief(entity)) return true;
   return Object.keys(entity.data).some(key => !BOOTSTRAP_DATA_KEYS.has(key));
 }
 
 export function isStaleRunningEntity(entity: EntityState, now = Date.now()): boolean {
   if (entity.status !== 'running' && entity.status !== 'paused') return false;
   const age = now - new Date(entity.updatedAt).getTime();
-  if (!entityHasRunProgress(entity) && age > STALE_EMPTY_RUN_MS) return true;
-  return age > STALE_RUNNING_ENTITY_MS;
+  if (!entityHasRunProgress(entity)) return age > STALE_EMPTY_RUN_MS;
+  const limit = entity.entityType === 'daily' ? STALE_DAILY_ENTITY_MS : STALE_RUNNING_ENTITY_MS;
+  return age > limit;
 }
 
 export function normalizeEntityForFeed(entity: EntityState, now = Date.now()): EntityState {
+  if (entityHasMorningBrief(entity) && entity.status !== 'complete') {
+    return { ...entity, status: 'complete' };
+  }
   if (!isStaleRunningEntity(entity, now)) return entity;
-  return { ...entity, status: 'error' };
+  return {
+    ...entity,
+    status: 'error',
+    data: {
+      ...entity.data,
+      lastError: entity.data.lastError ?? 'Run timed out or was interrupted before finishing',
+    },
+  };
 }
 
 export function buildUnifiedTaskFeed(input: {

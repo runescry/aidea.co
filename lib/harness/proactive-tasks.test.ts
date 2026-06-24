@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   buildProactiveTasks,
   readProactiveHygiene,
@@ -11,6 +11,10 @@ import type { KnowledgeBase } from '@/types/knowledge-base';
 import type { EntityState } from './types';
 
 describe('buildProactiveTasks', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('surfaces stale job application next actions', () => {
     const kb: KnowledgeBase = {
       work: {
@@ -27,6 +31,8 @@ describe('buildProactiveTasks', () => {
   });
 
   it('surfaces finance subscription renewals', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-20T12:00:00.000Z'));
     const kb: KnowledgeBase = {
       finance: {
         subscriptions: [{ name: 'Netflix', renewsOn: '2026-06-23', amount: 15, cadence: 'monthly' }],

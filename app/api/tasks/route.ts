@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listActionsForFeed, scrubQueuePayloadBloat } from '@/lib/harness/queue-feed';
-import { buildUnifiedTaskFeed, isStaleRunningEntity } from '@/lib/harness/tasks';
+import { buildUnifiedTaskFeed, isStaleRunningEntity, normalizeEntityForFeed } from '@/lib/harness/tasks';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB } from '@/lib/harness/knowledge-base';
 import { countPendingQueuedActions, loadEntityStates, readLatestBrief, readProfile, saveEntityState } from '@/lib/storage';
@@ -61,15 +61,23 @@ export async function GET(req: NextRequest) {
   if (stale.length > 0) {
     void Promise.all(
       stale.map(entity =>
-        saveEntityState({ ...entity, status: 'error', updatedAt: new Date().toISOString() }),
+        saveEntityState({
+          ...entity,
+          status: 'error',
+          updatedAt: new Date().toISOString(),
+          data: {
+            ...entity.data,
+            lastError: entity.data.lastError ?? 'Run timed out or was interrupted before finishing',
+          },
+        }),
       ),
     );
   }
-  const entities = rawEntities.map(entity =>
+  const entities = rawEntities.map(entity => normalizeEntityForFeed(
     isStaleRunningEntity(entity)
-      ? { ...entity, status: 'error' as const, updatedAt: new Date().toISOString() }
+      ? { ...entity, updatedAt: new Date().toISOString() }
       : entity,
-  );
+  ));
   const kbTyped = kb as KnowledgeBase;
   const { tasks, needsYou, suggestions, timeline, autonomy } = buildUnifiedTaskFeed({
     actions,

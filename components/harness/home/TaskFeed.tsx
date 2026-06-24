@@ -408,7 +408,7 @@ function TaskDetail({
           </div>
         )}
 
-        {task.source === 'session' && (
+        {task.source === 'session' && task.status === 'running' && (
           <div className="space-y-3">
             <p className="text-sm text-foreground-muted leading-relaxed">
               Agents are working in Studio. Open it to watch progress, inspect artifacts, and debug.
@@ -416,6 +416,19 @@ function TaskDetail({
             {onOpenStudio && (
               <button type="button" onClick={onOpenStudio} className="btn-primary text-sm">
                 Open Studio
+              </button>
+            )}
+          </div>
+        )}
+
+        {task.source === 'session' && task.status === 'failed' && (
+          <div className="space-y-3">
+            <p className="text-sm text-foreground-muted leading-relaxed">
+              {task.subtitle ?? task.preview ?? 'The run ended before a morning brief was saved.'}
+            </p>
+            {onOpenStudio && (
+              <button type="button" onClick={onOpenStudio} className="btn-primary text-sm">
+                Retry in Studio
               </button>
             )}
           </div>
