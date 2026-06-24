@@ -1,5 +1,6 @@
 /** Gmail rows cached from gmail_read — source of truth for triage attribution. */
 import { gmailMessageUrl } from '@/lib/gmail/message-url';
+import { bundleSchoolTriage } from './school-roundup';
 
 export interface CachedGmail {
   id: string;
@@ -22,6 +23,7 @@ export interface InboxTriagePayload {
   urgent?: unknown[];
   actionRequired?: unknown[];
   fyi?: unknown[];
+  schoolRoundups?: unknown[];
   profileUpdatesQueued?: number;
   profileUpdatesApplied?: number;
   draftsQueued?: number;
@@ -251,12 +253,12 @@ export function sanitizeInboxTriage(
   const sanitizeList = (list: unknown[] | undefined) =>
     (list ?? []).map(item => sanitizeTriageItem(item, cache, attachmentCache));
 
-  return {
+  return bundleSchoolTriage({
     ...src,
     urgent: sanitizeList(src.urgent as unknown[] | undefined),
     actionRequired: sanitizeList(src.actionRequired as unknown[] | undefined),
     fyi: sanitizeList(src.fyi as unknown[] | undefined),
-  };
+  }, cache);
 }
 
 export function cacheGmailRead(

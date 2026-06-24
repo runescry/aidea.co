@@ -144,7 +144,11 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
 
   const urgent = (inbox?.urgent as unknown[]) ?? [];
   const actionRequired = (inbox?.actionRequired as unknown[]) ?? [];
-  const mustDoSource = [...urgent, ...actionRequired].slice(0, 8);
+  const schoolRoundups = (inbox?.schoolRoundups as unknown[]) ?? [];
+  const actionRows = actionRequired.filter(
+    item => !(item && typeof item === 'object' && (item as Record<string, unknown>).kind === 'school_roundup'),
+  );
+  const mustDoSource = [...schoolRoundups, ...urgent, ...actionRows].slice(0, 8);
 
   const mustDo = mustDoSource.map((item, i) => {
     if (typeof item === 'string') {
@@ -152,6 +156,26 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
     }
     if (item && typeof item === 'object') {
       const o = item as Record<string, unknown>;
+      if (o.school && o.child && Array.isArray(o.needsYou)) {
+        const needsYou = (o.needsYou as Array<Record<string, unknown>>)
+          .map(row => String(row.action ?? row.reason ?? row.subject ?? '').trim())
+          .filter(Boolean);
+        const fyi = (o.fyi as Array<Record<string, unknown>> | undefined)
+          ?.map(row => String(row.subject ?? '').trim())
+          .filter(Boolean) ?? [];
+        const detailLines = [
+          ...needsYou.map(line => `• ${line}`),
+          ...(fyi.length ? [`FYI: ${fyi.slice(0, 3).join('; ')}`] : []),
+        ];
+        return {
+          priority: i + 1,
+          action: `${o.school} — ${o.child} (${o.emailCount ?? '?'} school emails)`,
+          context: String(o.school ?? ''),
+          detail: detailLines.join('\n'),
+          source: 'school',
+          urgency: needsYou.length > 0 ? 'HIGH' : 'NORMAL',
+        };
+      }
       const subject = String(o.subject ?? o.summary ?? 'Review item');
       const from = String(o.from ?? o.context ?? '');
       const snippet = String(o.snippet ?? '');

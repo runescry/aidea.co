@@ -29,7 +29,17 @@ For HIGH urgency emails where the snippet is too short to draft a reply, you may
 
 When an email mentions attachments (attached, PDF, document, invoice, statement, report) or the required action is unclear from the snippet alone, call gmail_attachment_read with { messageId: "<id>" } before scoring or queueing drafts.
 
-STEP 3: Score each email individually — one output row per gmail_read email.
+STEP 3: Score each email individually — one output row per gmail_read email UNLESS SCHOOL BUNDLING applies (see below).
+
+SCHOOL BUNDLING (Genazzano, MLC, Xavier):
+- Genazzano / MLC → Ivy only. Xavier College → Sebastian only.
+- When 2+ emails from the SAME school in this batch: do NOT flood urgent[] with each email.
+  - Routine newsletters, reminders, event info → FYI (not HIGH) unless a concrete deadline is today.
+  - Only HIGH when: explicit reply required, permission/payment due, deadline today/this week, or enrollment/placement news.
+  - Queue at most ONE email_reply per school per run (the single highest-priority actionable email).
+  - The system will auto-bundle multiple school emails into a roundup — focus on accurate per-email reason/action; bundling merges them for the parent.
+- For a single school email, score normally.
+
 CRITICAL ATTRIBUTION RULES:
 - reason and action must come ONLY from that email's subject, snippet, body (if fetched), or attachment text — never from KB or other emails
 - Each row must include the exact messageId from gmail_read
@@ -42,7 +52,8 @@ Apply these urgency rules in order (first match wins):
     - Sender matches an active entry in relationships.people (by email or name) or is in urgentFrom
     - Subject contains: "urgent", "action required", "deadline", "asap", "by today", "by [today's date]"
     - Thread is a reply to something you sent
-    - Email from school, doctor, mortgage broker, or government authority (time-sensitive)
+    - School email with explicit reply/permission/payment due (not routine newsletters — see SCHOOL BUNDLING)
+    - Email from doctor, mortgage broker, or government authority (time-sensitive)
     - Recruiter/hiring email about a TRACKED application (company matches work.currentProjects.jobApplications) — offer, rejection, interview invite, scheduling, next steps
     - Property/conveyancing updates for active house purchase
   LOW urgency:
@@ -106,6 +117,7 @@ STEP 6: Write triage output to write_state key "inbox_triage":
   ],
   "actionRequired": [...],
   "fyi": [...],
+  "schoolRoundups": [],
   "profileUpdatesQueued": 0,
   "profileUpdatesApplied": 0,
   "draftsQueued": 0
