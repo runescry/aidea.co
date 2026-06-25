@@ -1,10 +1,14 @@
 'use client';
 
+import { decodeBriefText, mustDoHeadline } from '@/lib/harness/morning-brief-must-do';
+
 interface MustDoItem {
   priority: number;
   action: string;
+  subject?: string;
   context: string;
   detail?: string;
+  snippet?: string;
   source: string;
   urgency?: string;
   queueActionId?: string;
@@ -100,7 +104,9 @@ export default function MorningBriefRenderer({ data }: { data: MorningBriefData 
 
       <Section title="Must do today" empty={!data.mustDo?.length}>
         <div className="space-y-2">
-          {data.mustDo?.map((item, i) => (
+          {data.mustDo?.map((item, i) => {
+            const headline = decodeBriefText(mustDoHeadline(item as unknown as Record<string, unknown>));
+            return (
             <div key={i} className="card p-3 space-y-1.5">
               <div className="flex items-start gap-3">
                 <span className="text-foreground-muted font-mono text-xs mt-0.5 w-4 shrink-0">{item.priority}.</span>
@@ -112,12 +118,10 @@ export default function MorningBriefRenderer({ data }: { data: MorningBriefData 
                       rel="noopener noreferrer"
                       className="text-sm text-accent font-medium hover:underline"
                     >
-                      {item.action?.trim() || item.detail?.trim().slice(0, 120) || 'Review item'}
+                      {headline}
                     </a>
                   ) : (
-                    <div className="text-sm text-foreground font-medium">
-                      {item.action?.trim() || item.detail?.trim().slice(0, 120) || 'Review item'}
-                    </div>
+                    <div className="text-sm text-foreground font-medium">{headline}</div>
                   )}
                   {item.context && <div className="text-xs text-foreground-muted">{item.context}</div>}
                 </div>
@@ -136,7 +140,8 @@ export default function MorningBriefRenderer({ data }: { data: MorningBriefData 
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </Section>
 

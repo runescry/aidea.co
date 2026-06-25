@@ -1,21 +1,20 @@
 'use client';
 
 import type { TaskItem } from '@/lib/harness/tasks';
+import { decodeBriefText, mustDoHeadline } from '@/lib/harness/morning-brief-must-do';
 
 interface MustDoItem {
   priority?: number;
   action?: string;
+  subject?: string;
   context?: string;
   detail?: string;
+  snippet?: string;
   gmailUrl?: string;
 }
 
 function mustDoLabel(item: MustDoItem): string {
-  const action = item.action?.trim();
-  if (action) return action;
-  const detail = item.detail?.trim().replace(/\s+/g, ' ');
-  if (detail) return detail.length > 120 ? `${detail.slice(0, 119)}…` : detail;
-  return '';
+  return decodeBriefText(mustDoHeadline(item as Record<string, unknown>));
 }
 
 export default function MorningBriefCard({

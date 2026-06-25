@@ -1,5 +1,5 @@
 /** Gmail rows cached from gmail_read — source of truth for triage attribution. */
-import { gmailMessageUrl } from '@/lib/gmail/message-url';
+import { gmailMessageUrl, gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
 import { bundleSchoolTriage } from './school-roundup';
 
 export interface CachedGmail {
@@ -113,7 +113,7 @@ function applyEmailToRow(row: InboxSummaryRow, email: CachedGmail): InboxSummary
     subject: row.subject ?? email.subject,
     snippet: row.snippet ?? email.snippet,
     messageId: email.id,
-    gmailUrl: gmailMessageUrl(email.id),
+    gmailUrl: gmailMessageUrlFromEmail(email),
   };
 }
 
@@ -159,6 +159,7 @@ export function sanitizeTriageItem(
     out.messageId = email.id;
     out.snippet = email.snippet;
     if (email.account) out.account = email.account;
+    if (email.threadId) out.threadId = email.threadId;
   }
 
   const messageIdForSource = email?.id ?? (raw.messageId ? String(raw.messageId) : '');
@@ -186,7 +187,11 @@ export function sanitizeTriageItem(
   }
 
   const messageId = out.messageId ? String(out.messageId) : '';
-  if (messageId) out.gmailUrl = gmailMessageUrl(messageId);
+  if (messageId) out.gmailUrl = gmailMessageUrlFromEmail({
+    id: messageId,
+    threadId: email?.threadId ?? (raw.threadId ? String(raw.threadId) : undefined),
+    account: email?.account ?? (raw.account ? String(raw.account) : undefined),
+  });
 
   return out;
 }
@@ -218,7 +223,12 @@ export function enrichInboxSummary(
     const messageId = out.messageId ?? (raw.messageId ? String(raw.messageId) : '');
     if (messageId) {
       out.messageId = messageId;
-      out.gmailUrl = gmailMessageUrl(messageId);
+      const cached = cache.get(messageId);
+      out.gmailUrl = gmailMessageUrlFromEmail({
+        id: messageId,
+        threadId: cached?.threadId,
+        account: cached?.account,
+      });
     }
     return out;
   });

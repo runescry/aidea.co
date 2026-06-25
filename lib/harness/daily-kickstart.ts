@@ -6,9 +6,9 @@ import { eventDateYmd } from '@/lib/calendar/dates';
 import { userDateYmd, resolveUserTimezone } from '@/lib/calendar/user-time';
 import { getGmailCache, resolveTriageRowEmail } from './inbox-sanitize';
 import { filterTriageListForMustDo } from './inbox-window';
-import { finalizeMustDoList, nonEmpty, snippetHeadline } from './morning-brief-must-do';
+import { finalizeMustDoList, mustDoHeadline, nonEmpty } from './morning-brief-must-do';
 import { roundupToMustDoItems, schoolFromSender, type SchoolRoundup } from './school-roundup';
-import { gmailMessageUrl } from '@/lib/gmail/message-url';
+import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
 
 const PARALLEL_ROLES = [
   'inbox-triage',
@@ -200,8 +200,10 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
       const snippet = nonEmpty(o.snippet, resolved?.snippet, o.reason);
       const nextStep = nonEmpty(o.action, o.nextStep, o.reason);
       const messageId = resolved?.id ?? nonEmpty(o.messageId);
+      const threadId = resolved?.threadId ?? nonEmpty(o.threadId);
+      const account = resolved?.account ?? nonEmpty(o.account);
       const school = schoolFromSender(from);
-      const action = nonEmpty(nextStep, subject, snippetHeadline(snippet), 'Review email');
+      const action = mustDoHeadline({ subject, action: nextStep, snippet, nextStep });
       const context = nonEmpty(
         school ? `${school.school} · ${school.child}` : '',
         from,
@@ -211,13 +213,18 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
       return [{
         priority: i + 1,
         action,
+        subject: subject || undefined,
         context,
         detail,
         source: 'email',
         urgency: String(o.urgency ?? ''),
         queueActionId: o.queueActionId ? String(o.queueActionId) : undefined,
         messageId: messageId || undefined,
-        gmailUrl: messageId ? gmailMessageUrl(messageId) : undefined,
+        threadId: threadId || undefined,
+        account: account || undefined,
+        gmailUrl: messageId
+          ? gmailMessageUrlFromEmail({ id: messageId, threadId: threadId || undefined, account: account || undefined })
+          : undefined,
         snippet: snippet || undefined,
       }];
     }

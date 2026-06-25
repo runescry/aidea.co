@@ -18,7 +18,7 @@ describe('enrichInboxSummary', () => {
       cache,
     );
     expect(rows[0]?.messageId).toBe('msg-1');
-    expect(rows[0]?.gmailUrl).toBe(gmailMessageUrl('msg-1'));
+    expect(rows[0]?.gmailUrl).toBe(gmailMessageUrl('msg-1', { accountIndex: 0 }));
     expect(rows[0]?.snippet).toBe('Your card was declined');
   });
 
@@ -27,7 +27,7 @@ describe('enrichInboxSummary', () => {
       [{ messageId: 'msg-99', subject: 'Unknown' }],
       cache,
     );
-    expect(rows[0]?.gmailUrl).toBe(gmailMessageUrl('msg-99'));
+    expect(rows[0]?.gmailUrl).toBe(gmailMessageUrl('msg-99', { accountIndex: 0 }));
   });
 
   it('matches when subject differs by Re: prefix', () => {

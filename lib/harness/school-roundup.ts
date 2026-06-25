@@ -1,6 +1,6 @@
 import type { CachedGmail } from './inbox-sanitize';
 import type { InboxTriagePayload } from './inbox-sanitize';
-import { gmailMessageUrl } from '@/lib/gmail/message-url';
+import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
 
 const SCHOOL_SENDERS: Array<{ match: RegExp; school: string; child: string }> = [
   { match: /genazzano/i, school: 'Genazzano', child: 'Ivy' },
@@ -69,7 +69,13 @@ function toRoundupItem(
     reason: String(row.reason ?? row.snippet ?? cached?.snippet ?? '').trim(),
     action: row.action ? String(row.action) : undefined,
     messageId,
-    gmailUrl: messageId ? gmailMessageUrl(messageId) : undefined,
+    gmailUrl: messageId
+      ? gmailMessageUrlFromEmail({
+          id: messageId,
+          threadId: row.threadId ? String(row.threadId) : cached?.threadId,
+          account: row.account ? String(row.account) : cached?.account,
+        })
+      : undefined,
     queueActionId: row.queueActionId ? String(row.queueActionId) : undefined,
   };
 }
