@@ -76,6 +76,70 @@ function toRoundupItem(
 
 type TaggedRow = { list: 'urgent' | 'actionRequired' | 'fyi'; index: number; row: Record<string, unknown> };
 
+export function roundupToMustDoItems(
+  roundup: SchoolRoundup,
+  startPriority: number,
+): Array<{
+  priority: number;
+  action: string;
+  context: string;
+  detail?: string;
+  source: 'school';
+  urgency: string;
+  messageId?: string;
+  gmailUrl?: string;
+  queueActionId?: string;
+}> {
+  const context = `${roundup.school} · ${roundup.child}`;
+  const items: Array<{
+    priority: number;
+    action: string;
+    context: string;
+    detail?: string;
+    source: 'school';
+    urgency: string;
+    messageId?: string;
+    gmailUrl?: string;
+    queueActionId?: string;
+  }> = [];
+  let priority = startPriority;
+
+  for (const row of roundup.needsYou) {
+    const action = row.action?.trim() || row.subject;
+    const detail =
+      row.reason.trim() && row.reason.trim() !== action ? row.reason.trim() : row.subject;
+    items.push({
+      priority: priority++,
+      action,
+      context,
+      detail: detail !== action ? detail : undefined,
+      source: 'school',
+      urgency: 'HIGH',
+      messageId: row.messageId,
+      gmailUrl: row.gmailUrl,
+      queueActionId: row.queueActionId,
+    });
+  }
+
+  for (const row of roundup.fyi) {
+    items.push({
+      priority: priority++,
+      action: row.subject,
+      context,
+      detail:
+        row.reason.trim() && row.reason.trim() !== row.subject
+          ? row.reason.trim()
+          : 'FYI — no action required',
+      source: 'school',
+      urgency: 'NORMAL',
+      messageId: row.messageId,
+      gmailUrl: row.gmailUrl,
+    });
+  }
+
+  return items;
+}
+
 /** Collapse 2+ same-school emails into schoolRoundups + one actionRequired summary row. */
 export function bundleSchoolTriage(
   triage: InboxTriagePayload,
@@ -159,9 +223,25 @@ export function bundleSchoolTriage(
       item => item.action?.trim() || item.reason || item.subject,
     );
     const fyiLines = roundup.fyi.map(item => item.subject);
+    const headline = needsYouLines[0] ?? fyiLines[0] ?? 'School updates';
     const actionParts = [
-      ...needsYouLines.map(line => `• ${line}`),
-      ...(fyiLines.length > 0 ? [`FYI: ${fyiLines.slice(0, 4).join('; ')}${fyiLines.length > 4 ? '…' : ''}`] : []),
+      ...roundup.needsYou.map(item => ({
+        subject: item.subject,
+        action: item.action?.trim() || item.reason || item.subject,
+        reason: item.reason,
+        messageId: item.messageId,
+        gmailUrl: item.gmailUrl,
+        queueActionId: item.queueActionId,
+        tier: 'needs_you' as const,
+      })),
+      ...roundup.fyi.map(item => ({
+        subject: item.subject,
+        action: item.subject,
+        reason: item.reason,
+        messageId: item.messageId,
+        gmailUrl: item.gmailUrl,
+        tier: 'fyi' as const,
+      })),
     ];
     const hasQueue = roundup.needsYou.some(item => item.queueActionId);
     return {
@@ -170,10 +250,11 @@ export function bundleSchoolTriage(
       child: roundup.child,
       emailCount: roundup.emailCount,
       from: `${roundup.school} (${roundup.child})`,
-      subject: `${roundup.school} — ${roundup.child} (${roundup.emailCount} school emails)`,
+      subject: `${roundup.school} — ${roundup.child}: ${headline}`,
       urgency: roundup.needsYou.length > 0 ? 'HIGH' : 'NORMAL',
-      reason: `${roundup.emailCount} emails from ${roundup.school} for ${roundup.child}`,
-      action: actionParts.join('\n'),
+      reason: `${roundup.emailCount} emails — tap each item below for detail`,
+      action: needsYouLines.map(line => `• ${line}`).join('\n'),
+      concerns: actionParts,
       messageIds: roundup.messageIds,
       queueActionId: roundup.needsYou.find(item => item.queueActionId)?.queueActionId,
       ...(hasQueue ? {} : {}),

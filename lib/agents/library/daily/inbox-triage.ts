@@ -22,8 +22,11 @@ Call kb_read with keys: ["relationships.people", "work.urgentFrom", "work.skipFr
 - skipFrom: newsletters, automated tools, promotional — always low priority
 - currentProjects: job applications and personal builds — match hiring/property/school emails to these
 
-STEP 2: Fetch unread email (once only — do not call gmail_read again later in the run).
-Call gmail_read with { query: "is:unread", maxResults: 20 }
+STEP 2: Fetch email from the past fortnight only (once — do not call gmail_read again later in the run).
+Call gmail_read with { query: "newer_than:14d", maxResults: 20 }
+Only score messages returned by that call — each row needs the exact messageId from gmail_read.
+Judge urgency from the outer message (subject, date, snippet/body). Ignore embedded "Begin forwarded message" quotes older than 14 days.
+Do not invent inbox rows from kb_read or memory — KB is for contact/project context only.
 
 For HIGH urgency emails where the snippet is too short to draft a reply, you may call gmail_read again with { messageIds: ["<id>"], includeBody: true } for that message only.
 

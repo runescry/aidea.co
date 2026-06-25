@@ -26,7 +26,7 @@ STEP 1: Load personal context.
 Call kb_read with keys: ["identity", "preferences.briefingTime", "work.currentProjects", "health"]
 
 STEP 2: Gather today's signals (use tools that are available; skip gracefully if a tool errors).
-- gmail_read: unread inbox — note urgent threads and actions required today
+- gmail_read with { query: "newer_than:14d", maxResults: 15 } — only genuine actions from mail in the past fortnight; ignore old forwarded quotes inside a body
 - calendar_read: today and tomorrow — build schedule[], logistics flags, tomorrowPreview[]
 - news_search: top 3–5 headlines relevant to work.currentProjects and personal interests
 

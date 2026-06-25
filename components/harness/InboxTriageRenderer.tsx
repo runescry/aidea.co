@@ -1,5 +1,15 @@
 'use client';
 
+interface SchoolRoundupConcern {
+  subject: string;
+  action: string;
+  reason?: string;
+  messageId?: string;
+  gmailUrl?: string;
+  queueActionId?: string;
+  tier: 'needs_you' | 'fyi';
+}
+
 interface EmailItem {
   from?: string;
   subject?: string;
@@ -15,6 +25,7 @@ interface EmailItem {
   school?: string;
   child?: string;
   emailCount?: number;
+  concerns?: SchoolRoundupConcern[];
 }
 
 interface SchoolRoundupItem {
@@ -81,7 +92,35 @@ function EmailCard({ item, showAction }: { item: EmailItem; showAction?: boolean
       {item.attributionWarning && (
         <p className="text-[11px] text-warning">{item.attributionWarning}</p>
       )}
-      {showAction && item.action && (
+      {isRoundup && item.concerns && item.concerns.length > 0 ? (
+        <ul className="space-y-2 text-xs">
+          {item.concerns.map((concern, ci) => (
+            <li
+              key={`${concern.messageId ?? concern.subject}-${ci}`}
+              className={`border-l-2 pl-2 ${
+                concern.tier === 'needs_you' ? 'border-danger/40' : 'border-border'
+              }`}
+            >
+              {concern.gmailUrl ? (
+                <a
+                  href={concern.gmailUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-accent hover:underline"
+                >
+                  {concern.subject}
+                </a>
+              ) : (
+                <span className="font-medium text-foreground">{concern.subject}</span>
+              )}
+              <div className="text-foreground-muted mt-0.5">
+                {concern.action?.trim() || concern.reason}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {showAction && item.action && !isRoundup && (
         <div className="text-xs text-foreground border-l-2 border-accent pl-2 whitespace-pre-wrap">
           {item.action}
         </div>
@@ -193,9 +232,10 @@ export default function InboxTriageRenderer({ data }: { data: InboxTriageData })
           </div>
         </div>
       )}
-      {roundupSummaries.map((item, i) => (
-        <EmailCard key={`rollup-${i}`} item={item} showAction />
-      ))}
+      {roundups.length === 0 &&
+        roundupSummaries.map((item, i) => (
+          <EmailCard key={`rollup-${i}`} item={item} showAction />
+        ))}
       <Section title="Urgent" items={data.urgent ?? []} showAction />
       <Section title="Action required" items={data.actionRequired ?? []} showAction />
       <Section title="FYI" items={data.fyi ?? []} />

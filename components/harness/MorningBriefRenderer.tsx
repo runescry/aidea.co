@@ -9,6 +9,7 @@ interface MustDoItem {
   urgency?: string;
   queueActionId?: string;
   messageId?: string;
+  gmailUrl?: string;
 }
 
 interface ScheduleItem {
@@ -104,7 +105,18 @@ export default function MorningBriefRenderer({ data }: { data: MorningBriefData 
               <div className="flex items-start gap-3">
                 <span className="text-foreground-muted font-mono text-xs mt-0.5 w-4 shrink-0">{item.priority}.</span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-foreground font-medium">{item.action}</div>
+                  {item.gmailUrl ? (
+                    <a
+                      href={item.gmailUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-accent font-medium hover:underline"
+                    >
+                      {item.action}
+                    </a>
+                  ) : (
+                    <div className="text-sm text-foreground font-medium">{item.action}</div>
+                  )}
                   {item.context && <div className="text-xs text-foreground-muted">{item.context}</div>}
                 </div>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${SOURCE_BADGE[item.source] ?? 'bg-surface-subtle text-foreground-subtle'}`}>
@@ -112,7 +124,7 @@ export default function MorningBriefRenderer({ data }: { data: MorningBriefData 
                 </span>
               </div>
               {item.detail && (
-                <div className="text-xs text-foreground border-l-2 border-accent pl-2 ml-7">
+                <div className="text-xs text-foreground border-l-2 border-accent pl-2 ml-7 whitespace-pre-wrap">
                   {item.detail}
                 </div>
               )}

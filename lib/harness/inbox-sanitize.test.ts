@@ -114,4 +114,26 @@ describe('sanitizeInboxTriage', () => {
       attributionWarning: expect.any(String),
     });
   });
+
+  it('sanitize keeps triage rows; must-do filter is applied at brief assembly', () => {
+    const recentCache = new Map([
+      ['recent-1', {
+        id: 'recent-1',
+        from: 'Zoe <z@example.com>',
+        subject: 'Fwd: company setup',
+        snippet: 'See below',
+        date: 'Mon, 22 Jun 2026 09:00:00 +1000',
+        bodyText: 'Begin forwarded message:\nDate: 29 June 2020 at 22:21:57 SGT\nSubject: Re: set up of company',
+      }],
+    ]);
+
+    const out = sanitizeInboxTriage({
+      urgent: [
+        { messageId: 'recent-1', reason: 'Begin forwarded message: Date: 29 June 2020', action: 'Reply' },
+        { subject: 'Invented row with no id', action: 'Do something' },
+      ],
+    }, recentCache);
+
+    expect(out.urgent).toHaveLength(2);
+  });
 });

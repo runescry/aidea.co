@@ -46,6 +46,12 @@ import { readHealthSyncSnapshot, weekTrainingSummary } from '@/lib/health/sync';
 import { readPlaidStub } from '@/lib/finance/plaid-stub';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { classifyAgentWait } from './agent-wait';
+import {
+  appendInboxWindowToGmailQuery,
+  defaultInboxTriageGmailQuery,
+  inboxTriageAgentRoles,
+  isEmailClearlyOutsideInboxWindow,
+} from './inbox-window';
 
 // ── Tool Catalog ──────────────────────────────────────────────────────────────
 
@@ -990,6 +996,11 @@ export async function executeHarnessTool(
         maxResults = Math.min(maxResults, 10);
         if (!messageIds?.length) includeBody = false;
       }
+      if (inboxTriageAgentRoles().has(callerAgent.role) && !messageIds?.length) {
+        query = /^is:unread$/i.test(query.trim())
+          ? defaultInboxTriageGmailQuery()
+          : appendInboxWindowToGmailQuery(query);
+      }
       try {
         const result = await readGmailMessages({
           query,
@@ -998,7 +1009,9 @@ export async function executeHarnessTool(
           includeBody,
           messageIds,
         });
-        const emails = result.emails.map(e => ({
+        const emails = result.emails
+          .filter(e => messageIds?.length || !isEmailClearlyOutsideInboxWindow(e.date))
+          .map(e => ({
           id: e.id,
           from: e.from,
           subject: e.subject,
@@ -1012,7 +1025,9 @@ export async function executeHarnessTool(
           ...(e.bodyText ? { bodyText: e.bodyText, bodyTruncated: e.bodyTruncated } : {}),
         }));
         cacheGmailRead(ctx.state.data, emails as CachedGmail[]);
-        await syncContactSignalsFromEmails(result.emails).catch(() => undefined);
+        await syncContactSignalsFromEmails(
+          result.emails.filter(e => messageIds?.length || !isEmailClearlyOutsideInboxWindow(e.date)),
+        ).catch(() => undefined);
         return { ...result, emails };
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) };

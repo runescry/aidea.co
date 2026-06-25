@@ -4,6 +4,10 @@ import { setStateKey } from './state';
 import { executeHarnessTool } from './tools';
 import { eventDateYmd } from '@/lib/calendar/dates';
 import { userDateYmd, resolveUserTimezone } from '@/lib/calendar/user-time';
+import { getGmailCache } from './inbox-sanitize';
+import { filterTriageListForMustDo } from './inbox-window';
+import { roundupToMustDoItems, type SchoolRoundup } from './school-roundup';
+import { gmailMessageUrl } from '@/lib/gmail/message-url';
 
 const PARALLEL_ROLES = [
   'inbox-triage',
@@ -141,47 +145,39 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
   const health = ctx.state.data.health_brief as Record<string, unknown> | undefined;
   const news = ctx.state.data.news_brief as Record<string, unknown> | undefined;
   const work = ctx.state.data.work_prep as Record<string, unknown> | undefined;
+  const gmailCache = getGmailCache(ctx.state.data);
 
-  const urgent = (inbox?.urgent as unknown[]) ?? [];
+  const urgent = filterTriageListForMustDo(
+    (inbox?.urgent as Record<string, unknown>[] | undefined) ?? [],
+    gmailCache,
+  );
   const actionRequired = (inbox?.actionRequired as unknown[]) ?? [];
   const schoolRoundups = (inbox?.schoolRoundups as unknown[]) ?? [];
-  const actionRows = actionRequired.filter(
-    item => !(item && typeof item === 'object' && (item as Record<string, unknown>).kind === 'school_roundup'),
+  const actionRows = filterTriageListForMustDo(
+    actionRequired.filter(
+      item => !(item && typeof item === 'object' && (item as Record<string, unknown>).kind === 'school_roundup'),
+    ) as Record<string, unknown>[],
+    gmailCache,
   );
   const mustDoSource = [...schoolRoundups, ...urgent, ...actionRows].slice(0, 8);
 
-  const mustDo = mustDoSource.map((item, i) => {
+  const mustDo = mustDoSource.flatMap((item, i) => {
     if (typeof item === 'string') {
-      return { priority: i + 1, action: item, context: '', source: 'email' };
+      return [{ priority: i + 1, action: item, context: '', source: 'email' }];
     }
     if (item && typeof item === 'object') {
       const o = item as Record<string, unknown>;
       if (o.school && o.child && Array.isArray(o.needsYou)) {
-        const needsYou = (o.needsYou as Array<Record<string, unknown>>)
-          .map(row => String(row.action ?? row.reason ?? row.subject ?? '').trim())
-          .filter(Boolean);
-        const fyi = (o.fyi as Array<Record<string, unknown>> | undefined)
-          ?.map(row => String(row.subject ?? '').trim())
-          .filter(Boolean) ?? [];
-        const detailLines = [
-          ...needsYou.map(line => `• ${line}`),
-          ...(fyi.length ? [`FYI: ${fyi.slice(0, 3).join('; ')}`] : []),
-        ];
-        return {
-          priority: i + 1,
-          action: `${o.school} — ${o.child} (${o.emailCount ?? '?'} school emails)`,
-          context: String(o.school ?? ''),
-          detail: detailLines.join('\n'),
-          source: 'school',
-          urgency: needsYou.length > 0 ? 'HIGH' : 'NORMAL',
-        };
+        const roundup = o as unknown as SchoolRoundup;
+        return roundupToMustDoItems(roundup, i + 1);
       }
       const subject = String(o.subject ?? o.summary ?? 'Review item');
       const from = String(o.from ?? o.context ?? '');
       const snippet = String(o.snippet ?? '');
       const nextStep = String(o.action ?? o.nextStep ?? '');
       const reason = String(o.reason ?? '');
-      return {
+      const messageId = o.messageId ? String(o.messageId) : undefined;
+      return [{
         priority: i + 1,
         action: subject,
         context: from,
@@ -189,12 +185,13 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
         source: 'email',
         urgency: String(o.urgency ?? ''),
         queueActionId: o.queueActionId ? String(o.queueActionId) : undefined,
-        messageId: o.messageId ? String(o.messageId) : undefined,
+        messageId,
+        gmailUrl: messageId ? gmailMessageUrl(messageId) : undefined,
         snippet: snippet || undefined,
-      };
+      }];
     }
-    return { priority: i + 1, action: String(item), context: '', source: 'email' };
-  }).slice(0, 5);
+    return [{ priority: i + 1, action: String(item), context: '', source: 'email' }];
+  }).slice(0, 8);
 
   const rawSchedule = (calendar?.todaySchedule as unknown[])
     ?? (calendar?.todayEvents as unknown[])

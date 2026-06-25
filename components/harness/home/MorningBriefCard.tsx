@@ -5,6 +5,8 @@ import type { TaskItem } from '@/lib/harness/tasks';
 interface MustDoItem {
   priority?: number;
   action?: string;
+  context?: string;
+  gmailUrl?: string;
 }
 
 export default function MorningBriefCard({
@@ -43,7 +45,21 @@ export default function MorningBriefCard({
         <ol className="space-y-1 pl-4 list-decimal marker:text-foreground-subtle">
           {topItems.map((item, i) => (
             <li key={i} className="text-[12px] text-foreground-muted leading-snug">
-              {item.action ?? 'Priority item'}
+              {item.gmailUrl ? (
+                <a
+                  href={item.gmailUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  {item.action ?? 'Priority item'}
+                </a>
+              ) : (
+                item.action ?? 'Priority item'
+              )}
+              {item.context ? (
+                <span className="text-foreground-subtle"> · {item.context}</span>
+              ) : null}
             </li>
           ))}
         </ol>
