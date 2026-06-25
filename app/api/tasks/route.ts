@@ -3,7 +3,7 @@ import { listActionsForFeed, scrubQueuePayloadBloat } from '@/lib/harness/queue-
 import { buildUnifiedTaskFeed, isStaleRunningEntity, normalizeEntityForFeed } from '@/lib/harness/tasks';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB } from '@/lib/harness/knowledge-base';
-import { countPendingQueuedActions, loadEntityStates, readLatestBrief, readProfile, saveEntityState } from '@/lib/storage';
+import { countPendingQueuedActions, loadEntityStates, readLatestBrief, readProfile, saveEntityState, writeLatestBrief } from '@/lib/storage';
 import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { readProactiveHygiene, autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
 import { listQueueAudit } from '@/lib/harness/queue-audit';
@@ -15,7 +15,7 @@ import {
 } from '@/lib/harness/domain-autonomy';
 import { getDevTasksCache, invalidateDevTasksCache, setDevTasksCache } from '@/lib/harness/tasks-cache';
 import { enrichBriefMustDoFromGmail } from '@/lib/harness/morning-brief-enrich';
-import { normalizeMorningBrief } from '@/lib/harness/morning-brief-must-do';
+import { normalizeMorningBrief, nonEmpty } from '@/lib/harness/morning-brief-must-do';
 
 export const runtime = 'nodejs';
 
@@ -61,6 +61,16 @@ export async function GET(req: NextRequest) {
 
   const briefEnriched = briefRaw ? await enrichBriefMustDoFromGmail(briefRaw) : null;
   const brief = briefEnriched ? normalizeMorningBrief(briefEnriched) : null;
+
+  if (brief && briefRaw && Array.isArray(brief.mustDo) && Array.isArray(briefRaw.mustDo)) {
+    const gainedSubject = (brief.mustDo as Record<string, unknown>[]).some((row, i) => {
+      const prior = (briefRaw.mustDo as Record<string, unknown>[])[i];
+      return nonEmpty(row.subject) && !nonEmpty(prior?.subject);
+    });
+    if (gainedSubject) {
+      void writeLatestBrief(brief).catch(() => undefined);
+    }
+  }
 
   const stale = rawEntities.filter(isStaleRunningEntity);
   if (stale.length > 0) {

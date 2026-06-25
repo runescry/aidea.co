@@ -135,18 +135,18 @@ export async function readGmailMessagesByIds(options: {
 }): Promise<GmailMessage[]> {
   const { messageIds, connectionId, includeBody = true } = options;
   const connections = await resolveGmailConnections(connectionId);
-  const results: GmailMessage[] = [];
 
-  for (const messageId of messageIds) {
-    let found: GmailMessage | null = null;
-    for (const conn of connections) {
-      found = await fetchGmailMessageById(conn, messageId, includeBody);
-      if (found) break;
-    }
-    if (found) results.push(found);
-  }
+  const found = await Promise.all(
+    messageIds.map(async messageId => {
+      for (const conn of connections) {
+        const email = await fetchGmailMessageById(conn, messageId, includeBody);
+        if (email) return email;
+      }
+      return null;
+    }),
+  );
 
-  return results;
+  return found.filter((email): email is GmailMessage => email != null);
 }
 
 export async function enrichGmailMessagesWithBodies(emails: GmailMessage[]): Promise<GmailMessage[]> {

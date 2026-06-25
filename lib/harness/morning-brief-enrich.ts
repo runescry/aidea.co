@@ -1,7 +1,7 @@
 import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
 import { readGmailMessagesByIds } from '@/lib/nango/gmail';
 import { hasNangoConnections } from '@/lib/nango/connections';
-import { looksLikeBadHeadline, nonEmpty } from './morning-brief-must-do';
+import { nonEmpty } from './morning-brief-must-do';
 
 export function applyGmailMetadataToMustDo(
   items: Record<string, unknown>[],
@@ -42,18 +42,7 @@ export async function enrichBriefMustDoFromGmail(
 
   const items = brief.mustDo as Record<string, unknown>[];
   const ids = [
-    ...new Set(
-      items
-        .filter(item => {
-          const id = nonEmpty(item.messageId);
-          if (!id) return false;
-          const subject = nonEmpty(item.subject);
-          const headline = nonEmpty(item.action);
-          return !subject || looksLikeBadHeadline(headline);
-        })
-        .map(item => nonEmpty(item.messageId))
-        .filter(Boolean),
-    ),
+    ...new Set(items.map(item => nonEmpty(item.messageId)).filter(Boolean)),
   ];
   if (ids.length === 0) return brief;
 

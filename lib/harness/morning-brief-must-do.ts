@@ -26,7 +26,7 @@ export function snippetHeadline(text: string, max = 100): string {
   return sentence.length > max ? `${sentence.slice(0, max - 1)}…` : sentence;
 }
 
-const GENERIC_ACTION = /^(review this email|read email|check email)$/i;
+const GENERIC_ACTION = /^(review(\s+this)?\s+email|read email|check email)$/i;
 const BODY_GREETING = /^(hi|hey|dear|hello)\s+/i;
 const SIGNATURE_HINT = /\b(kind regards|best regards|regards|sincerely|cheers|yours faithfully)\b/i;
 const PHONE_HINT = /\b[tm]:\s*\+?\d/;
@@ -66,6 +66,19 @@ export function inferHeadlineFromSnippet(snippet: string): string {
   return '';
 }
 
+/** Permissive fallback when Gmail subject is unavailable — strip greetings/signatures only. */
+export function fallbackHeadlineFromSnippet(snippet: string): string {
+  let clean = decodeBriefText(snippet).replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  clean = clean.replace(/\s*\b(kind regards|best regards|yours faithfully)\b[\s\S]*$/i, '').trim();
+  if (BODY_GREETING.test(clean)) {
+    clean = clean.replace(/^(hi|hey|dear|hello)\s+[A-Za-z.]+[\s,]+/i, '').trim();
+  }
+  if (!clean) return '';
+  if (SIGNATURE_HINT.test(clean) && PHONE_HINT.test(clean)) return '';
+  return snippetHeadline(clean, 120);
+}
+
 export function mustDoHeadline(item: Record<string, unknown>): string {
   const subject = nonEmpty(item.subject);
   const snippet = nonEmpty(item.snippet, item.detail);
@@ -76,10 +89,17 @@ export function mustDoHeadline(item: Record<string, unknown>): string {
   if (step) return step;
   const inferred = inferHeadlineFromSnippet(snippet);
   if (inferred) return inferred;
-  const context = nonEmpty(item.context, item.from);
+  const fallback = fallbackHeadlineFromSnippet(snippet);
+  if (fallback) return fallback;
+  const context = nonEmpty(item.context, item.from, senderFromSnippet(snippet));
   const label = senderLabel(context);
   if (label) return label;
-  return 'Review email';
+  return fallback || snippetHeadline(snippet) || 'Open in Gmail';
+}
+
+function senderFromSnippet(snippet: string): string {
+  const match = decodeBriefText(snippet).match(/\bFrom:\s*([^\n]+)/i);
+  return match?.[1]?.trim() ?? '';
 }
 
 function senderLabel(context: string): string {

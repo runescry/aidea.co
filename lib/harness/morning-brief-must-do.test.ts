@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  fallbackHeadlineFromSnippet,
   finalizeMustDoList,
   inferHeadlineFromSnippet,
   mustDoHeadline,
@@ -16,12 +17,20 @@ describe('morning-brief-must-do', () => {
     })).toBe('Confirm your phone number');
   });
 
-  it('does not use body fragments when they look like signatures', () => {
+  it('uses permissive fallback when subject is missing', () => {
+    expect(fallbackHeadlineFromSnippet(
+      'Hey Marcus, Great news, we are keen to make you an offer to join us in Australia!',
+    )).toContain('Great news');
+    expect(fallbackHeadlineFromSnippet(
+      'Hi Marcus Thank you – can you provide your telephone number please. Kind regards Leonie Spragg Office Manager',
+    )).toContain('telephone number');
+  });
+
+  it('treats stored Review email action as generic', () => {
     expect(mustDoHeadline({
-      action: 'Kind regards Leonie Spragg Office Manager for Gateley Middle East',
-      snippet: 'Hi Marcus Thank you – can you provide your telephone number',
-      from: 'Leonie Spragg <office@gateley.com>',
-    })).toBe('Email from Leonie Spragg');
+      action: 'Review email',
+      snippet: 'Hey Marcus, Great news, we are keen to make you an offer to join us in Australia!',
+    })).toContain('Great news');
   });
 
   it('extracts school notification title from snippet', () => {
