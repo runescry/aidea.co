@@ -28,9 +28,24 @@ export function snippetHeadline(text: string, max = 100): string {
 
 const GENERIC_ACTION = /^(review this email|read email|check email)$/i;
 const BODY_GREETING = /^(hi|hey|dear|hello)\s+/i;
+const SIGNATURE_HINT = /\b(kind regards|best regards|regards|sincerely|cheers|yours faithfully)\b/i;
+const PHONE_HINT = /\b[tm]:\s*\+?\d/;
+const ROLE_SIGNATURE = /\b(office manager|operations manager|sent from my iphone)\b/i;
 
 export function looksLikeBodyOpen(text: string): boolean {
   return BODY_GREETING.test(decodeBriefText(text).trim());
+}
+
+/** Snippet/signature fragments that should never be used as the brief headline. */
+export function looksLikeBadHeadline(text: string): boolean {
+  const clean = decodeBriefText(text).replace(/\s+/g, ' ').trim();
+  if (!clean || clean.length < 4) return true;
+  if (looksLikeBodyOpen(clean)) return true;
+  if (SIGNATURE_HINT.test(clean)) return true;
+  if (PHONE_HINT.test(clean)) return true;
+  if (ROLE_SIGNATURE.test(clean) && clean.length > 32) return true;
+  if (/^(thank you|thanks|just tried|great news|please confirm|hi |hey )/i.test(clean)) return true;
+  return false;
 }
 
 /** Pull a title from school-app / notification snippets when subject is missing. */
@@ -43,10 +58,11 @@ export function inferHeadlineFromSnippet(snippet: string): string {
 
   const withoutGreeting = clean.replace(/^(hi|hey|dear|hello)\s+[^,!.?]+[,.!?]\s*/i, '');
   if (withoutGreeting !== clean && withoutGreeting.length >= 12) {
-    return snippetHeadline(withoutGreeting);
+    const candidate = snippetHeadline(withoutGreeting);
+    if (!looksLikeBadHeadline(candidate)) return candidate;
   }
 
-  if (!looksLikeBodyOpen(clean)) return snippetHeadline(clean);
+  if (!looksLikeBodyOpen(clean) && !looksLikeBadHeadline(clean)) return snippetHeadline(clean);
   return '';
 }
 
@@ -54,13 +70,15 @@ export function mustDoHeadline(item: Record<string, unknown>): string {
   const subject = nonEmpty(item.subject);
   const snippet = nonEmpty(item.snippet, item.detail);
   const rawStep = nonEmpty(item.action, item.nextStep);
-  const step = GENERIC_ACTION.test(rawStep) ? '' : rawStep;
+  const step = GENERIC_ACTION.test(rawStep) || looksLikeBadHeadline(rawStep) ? '' : rawStep;
 
-  if (subject && (!rawStep || looksLikeBodyOpen(rawStep) || rawStep === snippet)) return subject;
-  if (step && !looksLikeBodyOpen(step)) return step;
   if (subject) return subject;
+  if (step) return step;
   const inferred = inferHeadlineFromSnippet(snippet);
   if (inferred) return inferred;
+  const context = nonEmpty(item.context, item.from);
+  const label = senderLabel(context);
+  if (label) return label;
   return 'Review email';
 }
 

@@ -14,6 +14,8 @@ import {
   type AutonomyDomain,
 } from '@/lib/harness/domain-autonomy';
 import { getDevTasksCache, invalidateDevTasksCache, setDevTasksCache } from '@/lib/harness/tasks-cache';
+import { enrichBriefMustDoFromGmail } from '@/lib/harness/morning-brief-enrich';
+import { normalizeMorningBrief } from '@/lib/harness/morning-brief-must-do';
 
 export const runtime = 'nodejs';
 
@@ -48,7 +50,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(cached);
   }
 
-  const [actions, rawEntities, kb, brief, profile, audit] = await Promise.all([
+  const [actions, rawEntities, kb, briefRaw, profile, audit] = await Promise.all([
     listActionsForFeed(),
     loadEntityStates(),
     readAllKB(),
@@ -56,6 +58,9 @@ export async function GET(req: NextRequest) {
     readProfile(),
     listQueueAudit(200),
   ]);
+
+  const briefEnriched = briefRaw ? await enrichBriefMustDoFromGmail(briefRaw) : null;
+  const brief = briefEnriched ? normalizeMorningBrief(briefEnriched) : null;
 
   const stale = rawEntities.filter(isStaleRunningEntity);
   if (stale.length > 0) {

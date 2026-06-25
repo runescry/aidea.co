@@ -16,10 +16,12 @@ describe('morning-brief-must-do', () => {
     })).toBe('Confirm your phone number');
   });
 
-  it('strips greeting when subject is missing', () => {
-    expect(inferHeadlineFromSnippet(
-      'Hey Marcus, Great news, we are keen to make you an offer to join us in Australia!',
-    )).toContain('Great news');
+  it('does not use body fragments when they look like signatures', () => {
+    expect(mustDoHeadline({
+      action: 'Kind regards Leonie Spragg Office Manager for Gateley Middle East',
+      snippet: 'Hi Marcus Thank you – can you provide your telephone number',
+      from: 'Leonie Spragg <office@gateley.com>',
+    })).toBe('Email from Leonie Spragg');
   });
 
   it('extracts school notification title from snippet', () => {
