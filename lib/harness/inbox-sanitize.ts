@@ -53,6 +53,15 @@ function senderAddress(from: string): string {
   return (match?.[1] ?? from).trim().toLowerCase();
 }
 
+export function resolveTriageRowEmail(
+  item: Record<string, unknown>,
+  cache: Map<string, CachedGmail>,
+): CachedGmail | undefined {
+  const messageId = item.messageId ? String(item.messageId) : '';
+  if (messageId && cache.has(messageId)) return cache.get(messageId);
+  return findCachedEmail(item, cache);
+}
+
 function findCachedEmail(
   item: Record<string, unknown>,
   cache: Map<string, CachedGmail>,

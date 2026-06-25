@@ -4,9 +4,10 @@ import { setStateKey } from './state';
 import { executeHarnessTool } from './tools';
 import { eventDateYmd } from '@/lib/calendar/dates';
 import { userDateYmd, resolveUserTimezone } from '@/lib/calendar/user-time';
-import { getGmailCache } from './inbox-sanitize';
+import { getGmailCache, resolveTriageRowEmail } from './inbox-sanitize';
 import { filterTriageListForMustDo } from './inbox-window';
-import { roundupToMustDoItems, type SchoolRoundup } from './school-roundup';
+import { finalizeMustDoList, nonEmpty, snippetHeadline } from './morning-brief-must-do';
+import { roundupToMustDoItems, schoolFromSender, type SchoolRoundup } from './school-roundup';
 import { gmailMessageUrl } from '@/lib/gmail/message-url';
 
 const PARALLEL_ROLES = [
@@ -153,13 +154,19 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
   );
   const actionRequired = (inbox?.actionRequired as unknown[]) ?? [];
   const schoolRoundups = (inbox?.schoolRoundups as unknown[]) ?? [];
+  const schoolRollupFallback =
+    schoolRoundups.length === 0
+      ? actionRequired.filter(
+          item => item && typeof item === 'object' && (item as Record<string, unknown>).kind === 'school_roundup',
+        )
+      : [];
   const actionRows = filterTriageListForMustDo(
     actionRequired.filter(
       item => !(item && typeof item === 'object' && (item as Record<string, unknown>).kind === 'school_roundup'),
     ) as Record<string, unknown>[],
     gmailCache,
   );
-  const mustDoSource = [...schoolRoundups, ...urgent, ...actionRows].slice(0, 8);
+  const mustDoSource = [...schoolRoundups, ...schoolRollupFallback, ...urgent, ...actionRows].slice(0, 8);
 
   const mustDo = mustDoSource.flatMap((item, i) => {
     if (typeof item === 'string') {
@@ -169,29 +176,54 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
       const o = item as Record<string, unknown>;
       if (o.school && o.child && Array.isArray(o.needsYou)) {
         const roundup = o as unknown as SchoolRoundup;
-        return roundupToMustDoItems(roundup, i + 1);
+        const expanded = roundupToMustDoItems(roundup, i + 1);
+        if (expanded.length > 0) return expanded;
       }
-      const subject = String(o.subject ?? o.summary ?? 'Review item');
-      const from = String(o.from ?? o.context ?? '');
-      const snippet = String(o.snippet ?? '');
-      const nextStep = String(o.action ?? o.nextStep ?? '');
-      const reason = String(o.reason ?? '');
-      const messageId = o.messageId ? String(o.messageId) : undefined;
+      if (o.kind === 'school_roundup' && Array.isArray(o.concerns) && o.concerns.length > 0) {
+        const context =
+          o.school && o.child ? `${o.school} · ${o.child}` : String(o.from ?? 'School');
+        return (o.concerns as Record<string, unknown>[]).map((concern, j) => ({
+          priority: i + 1 + j,
+          action: String(concern.action ?? concern.subject ?? 'Review'),
+          context,
+          detail: concern.reason ? String(concern.reason) : undefined,
+          source: 'school' as const,
+          urgency: concern.tier === 'needs_you' ? 'HIGH' : 'NORMAL',
+          messageId: concern.messageId ? String(concern.messageId) : undefined,
+          gmailUrl: concern.gmailUrl ? String(concern.gmailUrl) : undefined,
+          queueActionId: concern.queueActionId ? String(concern.queueActionId) : undefined,
+        }));
+      }
+      const resolved = resolveTriageRowEmail(o, gmailCache);
+      const subject = nonEmpty(o.subject, o.summary, resolved?.subject);
+      const from = nonEmpty(o.from, o.context, resolved?.from);
+      const snippet = nonEmpty(o.snippet, resolved?.snippet, o.reason);
+      const nextStep = nonEmpty(o.action, o.nextStep, o.reason);
+      const messageId = resolved?.id ?? nonEmpty(o.messageId);
+      const school = schoolFromSender(from);
+      const action = nonEmpty(nextStep, subject, snippetHeadline(snippet), 'Review email');
+      const context = nonEmpty(
+        school ? `${school.school} · ${school.child}` : '',
+        from,
+      );
+      const detailRaw = nonEmpty(snippet, o.reason);
+      const detail = detailRaw && detailRaw !== action ? detailRaw : undefined;
       return [{
         priority: i + 1,
-        action: subject,
-        context: from,
-        detail: snippet || reason || nextStep,
+        action,
+        context,
+        detail,
         source: 'email',
         urgency: String(o.urgency ?? ''),
         queueActionId: o.queueActionId ? String(o.queueActionId) : undefined,
-        messageId,
+        messageId: messageId || undefined,
         gmailUrl: messageId ? gmailMessageUrl(messageId) : undefined,
         snippet: snippet || undefined,
       }];
     }
     return [{ priority: i + 1, action: String(item), context: '', source: 'email' }];
-  }).slice(0, 8);
+  });
+  const mustDoFinal = finalizeMustDoList(mustDo as Record<string, unknown>[]);
 
   const rawSchedule = (calendar?.todaySchedule as unknown[])
     ?? (calendar?.todayEvents as unknown[])
@@ -215,7 +247,7 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
     date: todayDate,
     dayOfWeek: ctx.state.data.dayOfWeek ?? '',
     generatedAt: new Date().toISOString(),
-    mustDo,
+    mustDo: mustDoFinal,
     schedule,
     logistics,
     tomorrowPreview,

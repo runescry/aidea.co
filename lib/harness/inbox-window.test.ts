@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { CachedGmail } from './inbox-sanitize';
 import {
   appendInboxWindowToGmailQuery,
   defaultInboxTriageGmailQuery,
@@ -40,8 +41,12 @@ describe('inbox-window', () => {
 
   it('keeps recent rows even when the body contains an old forward quote', () => {
     const now = new Date('2026-06-24T12:00:00Z');
-    const cache = new Map([
+    const cache = new Map<string, CachedGmail>([
       ['m1', {
+        id: 'm1',
+        from: 'Zoe <z@example.com>',
+        subject: 'Fwd: company setup',
+        snippet: 'See below',
         date: 'Mon, 22 Jun 2026 09:00:00 +1000',
         bodyText: 'Begin forwarded message:\nDate: 29 June 2020 at 22:21:57 SGT',
       }],
@@ -54,7 +59,10 @@ describe('inbox-window', () => {
   });
 
   it('drops rows when the agent summary cites the stale forward', () => {
-    const cache = new Map([['m1', { date: 'Mon, 22 Jun 2026 09:00:00 +1000' }]]);
+    const cache = new Map<string, CachedGmail>([[
+      'm1',
+      { id: 'm1', from: 'a@x.com', subject: 'Fwd', snippet: 'x', date: 'Mon, 22 Jun 2026 09:00:00 +1000' },
+    ]]);
     expect(triageRowEligibleForMustDo({
       messageId: 'm1',
       reason: 'Begin forwarded message: Date: 29 June 2020',
@@ -62,8 +70,8 @@ describe('inbox-window', () => {
   });
 
   it('filters urgent/action lists', () => {
-    const cache = new Map([
-      ['m1', { date: 'Mon, 20 Jun 2026 10:00:00 +1000' }],
+    const cache = new Map<string, CachedGmail>([
+      ['m1', { id: 'm1', from: 'a@x.com', subject: 'Invoice', snippet: 'Due Friday', date: 'Mon, 20 Jun 2026 10:00:00 +1000' }],
     ]);
     const out = filterTriageListForMustDo([
       { messageId: 'm1', subject: 'OK' },
@@ -71,5 +79,27 @@ describe('inbox-window', () => {
     ], cache, new Date('2026-06-24T12:00:00Z'));
     expect(out).toHaveLength(1);
     expect(out[0].messageId).toBe('m1');
+  });
+
+  it('matches triage rows by subject when messageId is missing or wrong', () => {
+    const cache = new Map<string, CachedGmail>([
+      ['real-id', {
+        id: 'real-id',
+        from: 'Xavier College',
+        subject: 'PE kit reminder',
+        snippet: 'Sports day Friday',
+        date: 'Mon, 22 Jun 2026 09:00:00 +1000',
+      }],
+    ]);
+    expect(triageRowEligibleForMustDo({
+      messageId: 'wrong-id',
+      subject: 'PE kit reminder',
+      action: 'Pack sports kit',
+    }, cache, new Date('2026-06-24T12:00:00Z'))).toBe(true);
+    expect(triageRowEligibleForMustDo({
+      subject: 'PE kit reminder',
+      from: 'Xavier College',
+      action: 'Pack sports kit',
+    }, cache, new Date('2026-06-24T12:00:00Z'))).toBe(true);
   });
 });

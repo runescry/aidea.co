@@ -1,3 +1,5 @@
+import { resolveTriageRowEmail, type CachedGmail } from './inbox-sanitize';
+
 /** Default lookback for Daily OS inbox triage and morning brief must-do. */
 export const INBOX_LOOKBACK_DAYS = 14;
 
@@ -48,23 +50,19 @@ export function textReferencesStaleForward(text: string, now = new Date()): bool
 export interface InboxTriageRowRef {
   messageId?: unknown;
   subject?: unknown;
+  from?: unknown;
   reason?: unknown;
   action?: unknown;
   snippet?: unknown;
 }
 
-export interface InboxEmailRef {
-  date?: string;
-}
-
 export function triageRowEligibleForMustDo(
   row: InboxTriageRowRef,
-  cache: Map<string, InboxEmailRef>,
+  cache: Map<string, CachedGmail>,
   now = new Date(),
 ): boolean {
-  const messageId = row.messageId ? String(row.messageId) : '';
-  if (!messageId || !cache.has(messageId)) return false;
-  const email = cache.get(messageId)!;
+  const email = resolveTriageRowEmail(row as Record<string, unknown>, cache);
+  if (!email) return false;
   if (email.date && isEmailClearlyOutsideInboxWindow(email.date, now)) return false;
   const rowText = [row.subject, row.reason, row.action, row.snippet]
     .map(part => String(part ?? ''))
@@ -75,7 +73,7 @@ export function triageRowEligibleForMustDo(
 
 export function filterTriageListForMustDo<T extends InboxTriageRowRef>(
   list: T[] | undefined,
-  cache: Map<string, InboxEmailRef>,
+  cache: Map<string, CachedGmail>,
   now = new Date(),
 ): T[] {
   return (list ?? []).filter(row => triageRowEligibleForMustDo(row, cache, now));

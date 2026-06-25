@@ -19,6 +19,7 @@ import { readKB } from './knowledge-base';
 import { resolveUserTimezone } from '@/lib/calendar/user-time';
 import { formatRejectedKbPatchesForAgent } from '@/lib/profile/memory-hygiene';
 import { getEvalHarnessContext } from '@/lib/eval/eval-context';
+import { normalizeMorningBrief } from '@/lib/harness/morning-brief-must-do';
 import { writeLatestBrief } from '@/lib/storage';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
@@ -228,7 +229,9 @@ export async function bootstrapEntity(
     && typeof morningBrief === 'object'
     && (config.rootAgentId === 'daily-orchestrator' || config.rootAgentId === 'daily-lite-briefer')
   ) {
-    await writeLatestBrief(morningBrief as Record<string, unknown>).catch(() => undefined);
+    await writeLatestBrief(
+      normalizeMorningBrief(morningBrief as Record<string, unknown>),
+    ).catch(() => undefined);
   }
 
   send({

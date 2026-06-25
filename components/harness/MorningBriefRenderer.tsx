@@ -112,10 +112,12 @@ export default function MorningBriefRenderer({ data }: { data: MorningBriefData 
                       rel="noopener noreferrer"
                       className="text-sm text-accent font-medium hover:underline"
                     >
-                      {item.action}
+                      {item.action?.trim() || item.detail?.trim().slice(0, 120) || 'Review item'}
                     </a>
                   ) : (
-                    <div className="text-sm text-foreground font-medium">{item.action}</div>
+                    <div className="text-sm text-foreground font-medium">
+                      {item.action?.trim() || item.detail?.trim().slice(0, 120) || 'Review item'}
+                    </div>
                   )}
                   {item.context && <div className="text-xs text-foreground-muted">{item.context}</div>}
                 </div>

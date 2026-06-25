@@ -7,6 +7,7 @@ import { buildProactiveTasks, type UserAutonomyPreference, type ProactiveHygiene
 import { buildYesterdayTimeline, timelineToTaskItems, type TimelineEntry } from './timeline';
 import { detectScheduleConflicts, conflictsToTaskItems, type ScheduleConflict } from './conflicts';
 import type { QueueAuditEntry } from './queue-audit';
+import { finalizeMustDoList } from './morning-brief-must-do';
 import { isUserLocalSameDay, resolveUserTimezone, userDateYmd } from '@/lib/calendar/user-time';
 
 export type TaskStatus = 'needs_you' | 'suggestion' | 'running' | 'done' | 'failed';
@@ -95,7 +96,8 @@ export function latestBriefToTask(
   const tz = timeZone ?? resolveUserTimezone(null);
   if (!brief || typeof brief !== 'object' || !isTodayBrief(brief, now, tz)) return null;
 
-  const mustDo = Array.isArray(brief.mustDo) ? brief.mustDo : [];
+  const mustDoRaw = Array.isArray(brief.mustDo) ? brief.mustDo as Record<string, unknown>[] : [];
+  const mustDo = finalizeMustDoList(mustDoRaw);
   const priorityCount = mustDo.length;
   const generatedAt =
     typeof brief.generatedAt === 'string' && !Number.isNaN(new Date(brief.generatedAt).getTime())
@@ -136,7 +138,7 @@ export function latestBriefToTask(
     subtitle: priorityCount > 0 ? `${priorityCount} priorit${priorityCount === 1 ? 'y' : 'ies'} today` : 'Daily brief',
     preview,
     createdAt: generatedAt,
-    brief,
+    brief: { ...brief, mustDo },
   };
 }
 
