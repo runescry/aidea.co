@@ -9,5 +9,7 @@ data/action-queue.json
 data/profile-import.json
 data/memory.json
 data/artifacts/
+data/action-audit.json
+data/chat/
 *.tsbuildinfo
 .vercel

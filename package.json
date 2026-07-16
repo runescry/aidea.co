@@ -19,6 +19,7 @@
     "test:e2e:inbox": "npm run test:integration:e2e",
     "test:e2e:all": "RUN_INTEGRATION=1 vitest run --config vitest.integration.config.ts tests/integration/profile-memory-e2e.test.ts tests/integration/platform.test.ts && npm run test:integration:e2e",
     "reset:activity": "npx tsx scripts/reset-activity.mts",
+    "seed": "npx tsx scripts/seed-sample-data.mts",
     "test:all": "vitest run",
     "test:watch": "vitest"
   },
