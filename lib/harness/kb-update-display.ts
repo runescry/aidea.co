@@ -1,4 +1,4 @@
-import type { KnowledgeBase } from '@/types/knowledge-base';
+import type { KnowledgeBase, ProfilePersonStatus } from '@/types/knowledge-base';
 
 export interface JobApplicationPatch {
   company: string;
@@ -8,9 +8,22 @@ export interface JobApplicationPatch {
   priority?: number;
 }
 
+export interface PersonPatch {
+  id?: string;
+  name: string;
+  email?: string;
+  emails?: string[];
+  phones?: string[];
+  company?: string;
+  relationship?: string;
+  notes?: string;
+  status?: ProfilePersonStatus;
+}
+
 export interface KbPatchInput {
   updates?: Partial<KnowledgeBase>;
   jobApplication?: JobApplicationPatch;
+  person?: PersonPatch;
   key?: string;
   value?: unknown;
   summary?: string;
@@ -66,6 +79,13 @@ export function formatKbPatchSummary(input: KbPatchInput): string {
     if (j.nextAction) parts.push(`(${j.nextAction})`);
     return parts.join(' ');
   }
+  if (input.person) {
+    const p = input.person;
+    const parts = [p.name];
+    if (p.status === 'removed') parts.push('→ removed');
+    else if (p.relationship) parts.push(`(${p.relationship})`);
+    return parts.join(' ');
+  }
   if (input.key) return `Set ${input.key}`;
   if (input.updates) return `Update ${Object.keys(input.updates).join(', ')}`;
   return 'Profile update';
@@ -94,7 +114,7 @@ export function sanitizeQueueSummary(summary: string): string {
 
 export function kbPatchInputFromPayload(payload: Record<string, unknown>): KbPatchInput | null {
   const raw = payload.input as KbPatchInput | undefined;
-  if (raw && (raw.jobApplication?.company || raw.updates || raw.key !== undefined)) {
+  if (raw && (raw.jobApplication?.company || raw.person?.name || raw.updates || raw.key !== undefined)) {
     return normalizeKbPatchInput(raw);
   }
 
@@ -143,6 +163,19 @@ export function buildKbUpdatePreview(action: {
     if (j.role) fields.push({ label: 'Role', value: j.role });
     if (j.status) fields.push({ label: 'Status', value: j.status });
     if (j.nextAction) fields.push({ label: 'Next action', value: j.nextAction });
+    return {
+      headline: formatKbPatchSummary(input),
+      reason,
+      fields,
+    };
+  }
+
+  if (input?.person) {
+    const p = input.person;
+    fields.push({ label: 'Person', value: p.name });
+    if (p.email) fields.push({ label: 'Email', value: p.email });
+    if (p.status) fields.push({ label: 'Status', value: p.status });
+    if (p.relationship) fields.push({ label: 'Relationship', value: p.relationship });
     return {
       headline: formatKbPatchSummary(input),
       reason,

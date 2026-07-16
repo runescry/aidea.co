@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { KnowledgeBase, ChildProfile } from '@/types/knowledge-base';
+import type { KnowledgeBase, ChildProfile, PersonContact } from '@/types/knowledge-base';
 import { formatProjectSummary } from '../ProjectsEditor';
 import { WORKOUT_DAYS, TIMEZONES, PRONOUNS, COMPANY_STAGES } from '@/types/knowledge-base';
 import { Label, TextField, TextArea, TextArrayInput, SelectField } from '../forms';
 import PersonListEditor from './PersonListEditor';
 import ProjectsEditor from '../ProjectsEditor';
 import { GoalsSection, RoutinesSection, PreferencesSection } from '../profile/ProfileSections';
+import { activePeopleCount, applyContactListToPeople, peopleContactsForEditor } from '@/lib/profile/people';
 
 const STEPS = [
   { id: 'welcome', title: 'Welcome', subtitle: 'Build your chief of staff' },
@@ -38,7 +39,7 @@ interface Props {
 const INITIAL: KnowledgeBase = {
   identity: {},
   work: { keyContacts: [], directReports: [] },
-  relationships: { mentors: [], collaborators: [], innerCircle: [], friends: [], reviewFrequency: 21 },
+  relationships: { people: [], reviewFrequency: 21 },
   goals: {},
   family: { children: [] },
   health: { workoutSchedule: {} },
@@ -64,6 +65,11 @@ export default function OnboardingWizard({ onComplete }: Props) {
       ...d,
       [section]: { ...(d[section] as object ?? {}), ...updates } as KnowledgeBase[K],
     }));
+  };
+
+  const syncPeopleList = (contacts: PersonContact[], relationship: string) => {
+    const next = applyContactListToPeople(data, contacts, relationship);
+    u('relationships', { people: next.relationships?.people });
   };
 
   const canContinue = (): boolean => {
@@ -344,8 +350,8 @@ export default function OnboardingWizard({ onComplete }: Props) {
               <PersonListEditor
                 label="Key contacts"
                 hint="Always worth reading — investors, co-founders, board, key clients"
-                people={data.work?.keyContacts ?? []}
-                onChange={v => u('work', { keyContacts: v })}
+                people={peopleContactsForEditor(data, 'contact')}
+                onChange={v => syncPeopleList(v, 'contact')}
                 showCompany
                 addLabel="+ Add key contact"
               />
@@ -453,10 +459,10 @@ export default function OnboardingWizard({ onComplete }: Props) {
           {current.id === 'relationships' && (
             <>
               <StepIntro text="Relationship monitor tracks these people and nudges you before connections go cold." />
-              <PersonListEditor label="Mentors & advisors" people={data.relationships?.mentors ?? []} onChange={v => u('relationships', { mentors: v })} showCompany addLabel="+ Add mentor" />
-              <PersonListEditor label="Key collaborators" people={data.relationships?.collaborators ?? []} onChange={v => u('relationships', { collaborators: v })} showCompany addLabel="+ Add collaborator" />
-              <PersonListEditor label="Inner circle" people={data.relationships?.innerCircle ?? []} onChange={v => u('relationships', { innerCircle: v })} addLabel="+ Add person" />
-              <PersonListEditor label="Friends to stay close to" people={data.relationships?.friends ?? []} onChange={v => u('relationships', { friends: v })} addLabel="+ Add friend" />
+              <PersonListEditor label="Mentors & advisors" people={peopleContactsForEditor(data, 'mentor')} onChange={v => syncPeopleList(v, 'mentor')} showCompany addLabel="+ Add mentor" />
+              <PersonListEditor label="Key collaborators" people={peopleContactsForEditor(data, 'collaborator')} onChange={v => syncPeopleList(v, 'collaborator')} showCompany addLabel="+ Add collaborator" />
+              <PersonListEditor label="Inner circle" people={peopleContactsForEditor(data, 'inner circle')} onChange={v => syncPeopleList(v, 'inner circle')} addLabel="+ Add person" />
+              <PersonListEditor label="Friends to stay close to" people={peopleContactsForEditor(data, 'friend')} onChange={v => syncPeopleList(v, 'friend')} addLabel="+ Add friend" />
               <div>
                 <Label>Relationship check-in frequency (days)</Label>
                 <TextField type="number" value={String(data.relationships?.reviewFrequency ?? 21)} onChange={v => u('relationships', { reviewFrequency: Number(v) || 21 })} placeholder="21" />
@@ -669,8 +675,8 @@ export default function OnboardingWizard({ onComplete }: Props) {
                 <SummaryRow label="Name" value={data.identity?.name} />
                 <SummaryRow label="Role" value={data.work?.role || data.identity?.role} />
                 <SummaryRow label="Projects" value={formatProjectSummary(data.work?.currentProjects)} />
-                <SummaryRow label="Key contacts" value={`${data.work?.keyContacts?.length ?? 0} people`} />
-                <SummaryRow label="Relationships" value={`${(data.relationships?.mentors?.length ?? 0) + (data.relationships?.collaborators?.length ?? 0)} tracked`} />
+                <SummaryRow label="Key contacts" value={`${peopleContactsForEditor(data, 'contact').length} people`} />
+                <SummaryRow label="Relationships" value={`${activePeopleCount(data)} tracked`} />
                 <SummaryRow label="Brief time" value={data.preferences?.briefingTime || 'Not set'} />
               </div>
             </div>

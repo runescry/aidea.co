@@ -1,6 +1,6 @@
 # aidea — agent instructions
 
-Personal AI chief-of-staff platform — unified context across mail, calendar, health, contacts, KB, and connected services. Active UI: `HarnessDashboard` → **Home** (chat + **Inbox**), Agents, Studio, Context, Settings.
+Personal AI chief-of-staff platform — unified context across mail, calendar, health, contacts, KB, and connected services. Active UI: `HarnessDashboard` → **Home** (chat + **Inbox**), Agents, Studio, Profile, Settings.
 
 **Production:** [aidea-co.vercel.app](https://aidea-co.vercel.app) · **Local:** `http://localhost:3000`
 
@@ -193,8 +193,11 @@ For custom error handling (e.g. Agent Library), manage errors locally; still pre
 | `mergeProfile` | `lib/storage` | Merge top-level or dot-key updates into profile |
 | `writeManyKB` | `lib/harness/knowledge-base.ts` | Batch KB writes — delegates to `mergeProfile` |
 | `readKB` / `readAllKB` | `lib/harness/knowledge-base.ts` | Profile reads (15s in-process cache; invalidated on write) |
+| `upsertPerson`, `setPersonStatus`, `isContactBlocked` | `lib/profile/people.ts` | Canonical people CRUD + tombstones |
+| `ensurePeopleStore` | `lib/profile/people-migrate.ts` | Legacy list backfill on read |
+| `dismissPulseId`, `buildKbPatchRejectionUpdate` | `lib/profile/memory-hygiene.ts` | Pulse dismiss; kb reject feedback |
 
-Do not reimplement read-merge-write against `readProfile`/`writeProfile`.
+Do not reimplement read-merge-write against `readProfile`/`writeProfile`. Agents should write contacts via `update_kb` **`person`** patch into `relationships.people[]`, not legacy mentor/keyContacts lists.
 
 ---
 
@@ -222,7 +225,7 @@ Agent definitions live in `lib/agents/library/`. User overrides persist at `prof
 - **Onboarding** = 3-step `QuickStartOnboarding` on first launch; full `OnboardingWizard` from Context → Re-run onboarding
 - **Studio** = `RunStudio` (harness debug + entity runs); Reset session = in-memory only
 - **Agents** = `AgentLibrary` (view/customize workforce); Reset = agent overrides only
-- **Context** = `KnowledgeBaseEditor` (+ contact/health lenses from P7.4)
+- **Profile** = narrative control center (`ProfilePage`) — chapter, priorities, people band; domain sheets for full edits; re-run onboarding from Profile
 - **Settings** = API keys, Google connect/disconnect, per-domain autonomy (P7.4), queue activity audit, **Danger zone** (activity reset)
 - **Home Yesterday tab** = cross-domain timeline (`HomeScreen.tsx`)
 - Reuse `components/harness/forms.tsx` for inputs (`Label`, `TextField`, `TextArea`, `Section`, etc.)
@@ -258,7 +261,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs **typecheck → unit tests → 
 | Layer | Location | Purpose |
 |-------|----------|---------|
 | Unit | `lib/**/*.test.ts` | Pure logic, no network |
-| Contract | `app/api/**/*.contract.test.ts` | Handler status + JSON shape |
+| Contract | `app/api/**/*.contract.test.ts` | Handler status + JSON shape (`kb`, `queue`, `tasks`, …) |
 | Integration | `tests/integration/**/*.test.ts` | Multi-step API scenarios (opt-in) |
 
 Do not merge behavior or API changes without updating the relevant tests.
@@ -300,20 +303,42 @@ INTEGRATION_GMAIL=1 npm run test:inbox-triage:run
 
 Validation logic: `lib/harness/inbox-triage-validate.ts`. Runner: `lib/harness/inbox-triage-harness.ts`.
 
+### Profile memory E2E (people store + queue hygiene)
+
+Opt-in — **not** part of default CI. No Gmail or LLM required; uses local `data/` profile (or Postgres if `DATABASE_URL` is set).
+
+```bash
+# Profile people + platform scenarios (handler mode)
+npm run test:e2e:profile
+
+# Profile + platform (default test:e2e)
+npm run test:e2e
+
+# Live Gmail inbox approve (separate — needs Nango + LLM)
+npm run test:e2e:inbox
+
+# Everything
+npm run test:e2e:all
+```
+
+Scenarios in `tests/integration/profile-memory-e2e.test.ts`: seed person → archive/restore → remove + sync blocklist → approve `kb_update` person patch → reject → `rejectedKbPatches` → pulse dismiss.
+
+Helpers: `tests/integration/profile-e2e-helpers.ts`. Contract: `app/api/kb/kb.contract.test.ts`.
+
 ### Inbox approve E2E (live Gmail + queue execute)
 
 Opt-in only — **not** part of default CI or `npm test`. Full path: **send real mail to self → inbox triage harness → approve `email_reply` (Gmail send)** → approve **seeded** `calendar_event` (Google Calendar when connected) and **seeded** `kb_update` (profile merge).
 
 ```bash
-# Handler mode — calls route handlers directly (no dev server)
-npm run test:integration:e2e
+# Live Gmail + calendar — NOT the default test:e2e
+npm run test:e2e:inbox
 
-# alias
-npm run test:e2e
+# same as:
+npm run test:integration:e2e
 
 # HTTP mode — against a running app
 npm run dev   # separate terminal
-TEST_BASE_URL=http://localhost:3000 npm run test:integration:e2e
+TEST_BASE_URL=http://localhost:3000 npm run test:e2e:inbox
 ```
 
 | Env / setup | Purpose |

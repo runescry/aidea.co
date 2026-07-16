@@ -1,0 +1,277 @@
+import type { CachedGmail } from './inbox-sanitize';
+import type { InboxTriagePayload } from './inbox-sanitize';
+import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
+
+const SCHOOL_SENDERS: Array<{ match: RegExp; school: string; child: string }> = [
+  { match: /genazzano/i, school: 'Genazzano', child: 'Ivy' },
+  { match: /xavier/i, school: 'Xavier College', child: 'Sebastian' },
+];
+
+const ACTION_HINT = /\b(reply|confirm|return|submit|sign|pay|rsvp|permission|deadline|by \w+day|asap|urgent|action required)\b/i;
+const GENERIC_ACTION = /^(review this email|read email|check email)$/i;
+
+export interface SchoolRoundupItem {
+  subject: string;
+  reason: string;
+  action?: string;
+  messageId?: string;
+  gmailUrl?: string;
+  queueActionId?: string;
+}
+
+export interface SchoolRoundup {
+  school: string;
+  child: string;
+  emailCount: number;
+  needsYou: SchoolRoundupItem[];
+  fyi: SchoolRoundupItem[];
+  messageIds: string[];
+}
+
+export function schoolFromSender(from: string): { school: string; child: string } | null {
+  for (const { match, school, child } of SCHOOL_SENDERS) {
+    if (match.test(from)) return { school, child };
+  }
+  return null;
+}
+
+function asRow(item: unknown): Record<string, unknown> | null {
+  return item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
+}
+
+function rowSchoolKey(row: Record<string, unknown>, cache: Map<string, CachedGmail>): string | null {
+  const from = String(row.from ?? '');
+  const messageId = row.messageId ? String(row.messageId) : '';
+  const cached = messageId ? cache.get(messageId) : undefined;
+  const header = `${from} ${cached?.from ?? ''}`;
+  const match = schoolFromSender(header);
+  return match ? `${match.school}:${match.child}` : null;
+}
+
+function isActionableSchoolRow(row: Record<string, unknown>): boolean {
+  if (row.queueActionId) return true;
+  const urgency = String(row.urgency ?? '').toUpperCase();
+  if (urgency === 'HIGH') return true;
+  const action = String(row.action ?? '').trim();
+  if (action && !GENERIC_ACTION.test(action)) return true;
+  const text = `${row.subject ?? ''} ${row.reason ?? ''} ${row.snippet ?? ''}`;
+  return ACTION_HINT.test(text);
+}
+
+function toRoundupItem(
+  row: Record<string, unknown>,
+  cache: Map<string, CachedGmail>,
+): SchoolRoundupItem {
+  const messageId = row.messageId ? String(row.messageId) : undefined;
+  const cached = messageId ? cache.get(messageId) : undefined;
+  return {
+    subject: String(row.subject ?? cached?.subject ?? 'School email'),
+    reason: String(row.reason ?? row.snippet ?? cached?.snippet ?? '').trim(),
+    action: row.action ? String(row.action) : undefined,
+    messageId,
+    gmailUrl: messageId
+      ? gmailMessageUrlFromEmail({
+          id: messageId,
+          threadId: row.threadId ? String(row.threadId) : cached?.threadId,
+          account: row.account ? String(row.account) : cached?.account,
+        })
+      : undefined,
+    queueActionId: row.queueActionId ? String(row.queueActionId) : undefined,
+  };
+}
+
+type TaggedRow = { list: 'urgent' | 'actionRequired' | 'fyi'; index: number; row: Record<string, unknown> };
+
+export function roundupToMustDoItems(
+  roundup: SchoolRoundup,
+  startPriority: number,
+): Array<{
+  priority: number;
+  action: string;
+  context: string;
+  detail?: string;
+  source: 'school';
+  urgency: string;
+  messageId?: string;
+  gmailUrl?: string;
+  queueActionId?: string;
+}> {
+  const context = `${roundup.school} · ${roundup.child}`;
+  const items: Array<{
+    priority: number;
+    action: string;
+    context: string;
+    detail?: string;
+    source: 'school';
+    urgency: string;
+    messageId?: string;
+    gmailUrl?: string;
+    queueActionId?: string;
+  }> = [];
+  let priority = startPriority;
+
+  for (const row of roundup.needsYou) {
+    const action = row.action?.trim() || row.subject;
+    const detail =
+      row.reason.trim() && row.reason.trim() !== action ? row.reason.trim() : row.subject;
+    items.push({
+      priority: priority++,
+      action,
+      context,
+      detail: detail !== action ? detail : undefined,
+      source: 'school',
+      urgency: 'HIGH',
+      messageId: row.messageId,
+      gmailUrl: row.gmailUrl,
+      queueActionId: row.queueActionId,
+    });
+  }
+
+  for (const row of roundup.fyi) {
+    items.push({
+      priority: priority++,
+      action: row.subject,
+      context,
+      detail:
+        row.reason.trim() && row.reason.trim() !== row.subject
+          ? row.reason.trim()
+          : 'FYI — no action required',
+      source: 'school',
+      urgency: 'NORMAL',
+      messageId: row.messageId,
+      gmailUrl: row.gmailUrl,
+    });
+  }
+
+  return items;
+}
+
+/** Collapse 2+ same-school emails into schoolRoundups + one actionRequired summary row. */
+export function bundleSchoolTriage(
+  triage: InboxTriagePayload,
+  cache: Map<string, CachedGmail>,
+  minEmails = 2,
+): InboxTriagePayload {
+  const urgent = [...(triage.urgent ?? [])];
+  const actionRequired = [...(triage.actionRequired ?? [])];
+  const fyi = [...(triage.fyi ?? [])];
+
+  const tagged: TaggedRow[] = [];
+  urgent.forEach((item, index) => {
+    const row = asRow(item);
+    if (row) tagged.push({ list: 'urgent', index, row });
+  });
+  actionRequired.forEach((item, index) => {
+    const row = asRow(item);
+    if (row) tagged.push({ list: 'actionRequired', index, row });
+  });
+  fyi.forEach((item, index) => {
+    const row = asRow(item);
+    if (row) tagged.push({ list: 'fyi', index, row });
+  });
+
+  const bySchool = new Map<string, TaggedRow[]>();
+  for (const entry of tagged) {
+    const key = rowSchoolKey(entry.row, cache);
+    if (!key) continue;
+    const list = bySchool.get(key) ?? [];
+    list.push(entry);
+    bySchool.set(key, list);
+  }
+
+  const schoolRoundups: SchoolRoundup[] = [];
+  const removeSets = {
+    urgent: new Set<number>(),
+    actionRequired: new Set<number>(),
+    fyi: new Set<number>(),
+  };
+
+  for (const [, entries] of bySchool) {
+    if (entries.length < minEmails) continue;
+
+    const meta = schoolFromSender(
+      String(entries[0]!.row.from ?? cache.get(String(entries[0]!.row.messageId ?? ''))?.from ?? ''),
+    );
+    if (!meta) continue;
+
+    const needsYou: SchoolRoundupItem[] = [];
+    const fyiItems: SchoolRoundupItem[] = [];
+    const messageIds: string[] = [];
+
+    for (const { row } of entries) {
+      const item = toRoundupItem(row, cache);
+      if (item.messageId) messageIds.push(item.messageId);
+      if (isActionableSchoolRow(row)) needsYou.push(item);
+      else fyiItems.push(item);
+    }
+
+    schoolRoundups.push({
+      school: meta.school,
+      child: meta.child,
+      emailCount: entries.length,
+      needsYou,
+      fyi: fyiItems,
+      messageIds,
+    });
+
+    for (const { list, index } of entries) {
+      removeSets[list].add(index);
+    }
+  }
+
+  if (schoolRoundups.length === 0) return triage;
+
+  const filterList = (list: unknown[], removed: Set<number>) =>
+    list.filter((_, i) => !removed.has(i));
+
+  const rollupRows = schoolRoundups.map(roundup => {
+    const needsYouLines = roundup.needsYou.map(
+      item => item.action?.trim() || item.reason || item.subject,
+    );
+    const fyiLines = roundup.fyi.map(item => item.subject);
+    const headline = needsYouLines[0] ?? fyiLines[0] ?? 'School updates';
+    const actionParts = [
+      ...roundup.needsYou.map(item => ({
+        subject: item.subject,
+        action: item.action?.trim() || item.reason || item.subject,
+        reason: item.reason,
+        messageId: item.messageId,
+        gmailUrl: item.gmailUrl,
+        queueActionId: item.queueActionId,
+        tier: 'needs_you' as const,
+      })),
+      ...roundup.fyi.map(item => ({
+        subject: item.subject,
+        action: item.subject,
+        reason: item.reason,
+        messageId: item.messageId,
+        gmailUrl: item.gmailUrl,
+        tier: 'fyi' as const,
+      })),
+    ];
+    const hasQueue = roundup.needsYou.some(item => item.queueActionId);
+    return {
+      kind: 'school_roundup',
+      school: roundup.school,
+      child: roundup.child,
+      emailCount: roundup.emailCount,
+      from: `${roundup.school} (${roundup.child})`,
+      subject: `${roundup.school} — ${roundup.child}: ${headline}`,
+      urgency: roundup.needsYou.length > 0 ? 'HIGH' : 'NORMAL',
+      reason: `${roundup.emailCount} emails — tap each item below for detail`,
+      action: needsYouLines.map(line => `• ${line}`).join('\n'),
+      concerns: actionParts,
+      messageIds: roundup.messageIds,
+      queueActionId: roundup.needsYou.find(item => item.queueActionId)?.queueActionId,
+      ...(hasQueue ? {} : {}),
+    };
+  });
+
+  return {
+    ...triage,
+    urgent: filterList(urgent, removeSets.urgent),
+    actionRequired: [...filterList(actionRequired, removeSets.actionRequired), ...rollupRows],
+    fyi: filterList(fyi, removeSets.fyi),
+    schoolRoundups,
+  };
+}

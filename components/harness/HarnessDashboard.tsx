@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, type Dispatch, type SetStateAction } from 'react';
 import { useHarnessSession } from '@/hooks/useHarnessSession';
 import { ChatProvider, useChatConversations } from '@/hooks/useChatConversations';
+import { ConfirmProvider } from '@/hooks/useConfirm';
 import { WorkFeedProvider, useWorkFeed } from '@/hooks/useWorkFeed';
 import { readOnboardingCache, writeOnboardingCache } from '@/lib/client/onboarding-cache';
 import AppSidebar, { type MainView } from './AppSidebar';
@@ -10,7 +11,7 @@ import MobileBottomNav from './MobileBottomNav';
 import ConversationDrawer from './sidebar/ConversationDrawer';
 import HomeScreen from './home/HomeScreen';
 import RunStudio from './RunStudio';
-import KnowledgeBaseEditor from './KnowledgeBaseEditor';
+import ProfilePage from './ProfilePage';
 import SettingsPanel from './SettingsPanel';
 import AgentLibrary from './AgentLibrary';
 import OnboardingWizard from './onboarding/OnboardingWizard';
@@ -63,12 +64,14 @@ export default function HarnessDashboard() {
   }
 
   return (
-    <ChatProvider>
-      <DashboardBody
-        setShowOnboarding={setShowOnboarding}
-        setOnboardingMode={setOnboardingMode}
-      />
-    </ChatProvider>
+    <ConfirmProvider>
+      <ChatProvider>
+        <DashboardBody
+          setShowOnboarding={setShowOnboarding}
+          setOnboardingMode={setOnboardingMode}
+        />
+      </ChatProvider>
+    </ConfirmProvider>
   );
 }
 
@@ -93,6 +96,7 @@ function DashboardBody({
   return (
     <WorkFeedProvider
       homeActive={view === 'home'}
+      profileActive={view === 'profile'}
       agentsRunning={agentsRunning}
       chatStreaming={chatStreaming}
       refreshKey={taskRefreshKey}
@@ -144,6 +148,7 @@ function DashboardChrome({
 }) {
   const { needsYou, refresh: refreshWorkFeed } = useWorkFeed();
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+  const [homeChatPrefill, setHomeChatPrefill] = useState<string | null>(null);
 
   const activeAgents = Object.values(state.agents).filter(a => a.status === 'running').length;
   const agentsRunning = state.status === 'running' || state.status === 'starting';
@@ -157,8 +162,14 @@ function DashboardChrome({
   const navigate = (next: MainView) => {
     setView(next);
     setChatDrawerOpen(false);
-    if (next === 'context') setTaskRefreshKey(k => k + 1);
+    if (next === 'profile') setTaskRefreshKey(k => k + 1);
   };
+
+  const openChatWithDraft = useCallback((draft: string) => {
+    setHomeChatPrefill(draft);
+    setView('home');
+    setChatDrawerOpen(false);
+  }, [setView]);
 
   return (
     <div className="h-[100dvh] bg-surface-muted text-foreground flex overflow-hidden">
@@ -203,6 +214,8 @@ function DashboardChrome({
             runInProgress={agentsRunning}
             onTaskRefresh={bumpWorkFeed}
             humanInputPending={humanInputPending}
+            chatPrefill={homeChatPrefill}
+            onChatPrefillApplied={() => setHomeChatPrefill(null)}
           />
         )}
 
@@ -212,16 +225,15 @@ function DashboardChrome({
           <RunStudio state={state} startSession={startSession} reset={reset} />
         )}
 
-        {view === 'context' && (
-          <div className="flex-1 overflow-y-auto p-4 md:p-6">
-            <KnowledgeBaseEditor
-              refreshKey={taskRefreshKey}
-              onRestartOnboarding={() => {
-                setOnboardingMode('full');
-                setShowOnboarding(true);
-              }}
-            />
-          </div>
+        {view === 'profile' && (
+          <ProfilePage
+            refreshKey={taskRefreshKey}
+            onOpenChat={openChatWithDraft}
+            onRestartOnboarding={() => {
+              setOnboardingMode('full');
+              setShowOnboarding(true);
+            }}
+          />
         )}
 
         {view === 'settings' && (

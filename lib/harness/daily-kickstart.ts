@@ -3,6 +3,12 @@ import { getAgentByRole, setAgentStatus } from './registry';
 import { setStateKey } from './state';
 import { executeHarnessTool } from './tools';
 import { eventDateYmd } from '@/lib/calendar/dates';
+import { userDateYmd, resolveUserTimezone } from '@/lib/calendar/user-time';
+import { getGmailCache, resolveTriageRowEmail } from './inbox-sanitize';
+import { filterTriageListForMustDo } from './inbox-window';
+import { finalizeMustDoList, mustDoHeadline, nonEmpty } from './morning-brief-must-do';
+import { roundupToMustDoItems, schoolFromSender, type SchoolRoundup } from './school-roundup';
+import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
 
 const PARALLEL_ROLES = [
   'inbox-triage',
@@ -131,42 +137,100 @@ function filterLogisticsForToday(flags: unknown[], schedule: Record<string, unkn
 }
 
 function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
-  const todayDate = String(ctx.state.data.currentDate ?? new Date().toISOString().split('T')[0]);
+  const tz = String(ctx.state.data.userTimezone ?? resolveUserTimezone(null));
+  const todayDate = String(
+    ctx.state.data.currentDate ?? userDateYmd(new Date(), tz),
+  );
   const inbox = ctx.state.data.inbox_triage as Record<string, unknown> | undefined;
   const calendar = ctx.state.data.calendar_brief as Record<string, unknown> | undefined;
   const health = ctx.state.data.health_brief as Record<string, unknown> | undefined;
   const news = ctx.state.data.news_brief as Record<string, unknown> | undefined;
   const work = ctx.state.data.work_prep as Record<string, unknown> | undefined;
+  const gmailCache = getGmailCache(ctx.state.data);
 
-  const urgent = (inbox?.urgent as unknown[]) ?? [];
+  const urgent = filterTriageListForMustDo(
+    (inbox?.urgent as Record<string, unknown>[] | undefined) ?? [],
+    gmailCache,
+  );
   const actionRequired = (inbox?.actionRequired as unknown[]) ?? [];
-  const mustDoSource = [...urgent, ...actionRequired].slice(0, 8);
+  const schoolRoundups = (inbox?.schoolRoundups as unknown[]) ?? [];
+  const schoolRollupFallback =
+    schoolRoundups.length === 0
+      ? actionRequired.filter(
+          item => item && typeof item === 'object' && (item as Record<string, unknown>).kind === 'school_roundup',
+        )
+      : [];
+  const actionRows = filterTriageListForMustDo(
+    actionRequired.filter(
+      item => !(item && typeof item === 'object' && (item as Record<string, unknown>).kind === 'school_roundup'),
+    ) as Record<string, unknown>[],
+    gmailCache,
+  );
+  const mustDoSource = [...schoolRoundups, ...schoolRollupFallback, ...urgent, ...actionRows].slice(0, 8);
 
-  const mustDo = mustDoSource.map((item, i) => {
+  const mustDo = mustDoSource.flatMap((item, i) => {
     if (typeof item === 'string') {
-      return { priority: i + 1, action: item, context: '', source: 'email' };
+      return [{ priority: i + 1, action: item, context: '', source: 'email' }];
     }
     if (item && typeof item === 'object') {
       const o = item as Record<string, unknown>;
-      const subject = String(o.subject ?? o.summary ?? 'Review item');
-      const from = String(o.from ?? o.context ?? '');
-      const snippet = String(o.snippet ?? '');
-      const nextStep = String(o.action ?? o.nextStep ?? '');
-      const reason = String(o.reason ?? '');
-      return {
+      if (o.school && o.child && Array.isArray(o.needsYou)) {
+        const roundup = o as unknown as SchoolRoundup;
+        const expanded = roundupToMustDoItems(roundup, i + 1);
+        if (expanded.length > 0) return expanded;
+      }
+      if (o.kind === 'school_roundup' && Array.isArray(o.concerns) && o.concerns.length > 0) {
+        const context =
+          o.school && o.child ? `${o.school} · ${o.child}` : String(o.from ?? 'School');
+        return (o.concerns as Record<string, unknown>[]).map((concern, j) => ({
+          priority: i + 1 + j,
+          action: String(concern.action ?? concern.subject ?? 'Review'),
+          context,
+          detail: concern.reason ? String(concern.reason) : undefined,
+          source: 'school' as const,
+          urgency: concern.tier === 'needs_you' ? 'HIGH' : 'NORMAL',
+          messageId: concern.messageId ? String(concern.messageId) : undefined,
+          gmailUrl: concern.gmailUrl ? String(concern.gmailUrl) : undefined,
+          queueActionId: concern.queueActionId ? String(concern.queueActionId) : undefined,
+        }));
+      }
+      const resolved = resolveTriageRowEmail(o, gmailCache);
+      const subject = nonEmpty(o.subject, o.summary, resolved?.subject);
+      const from = nonEmpty(o.from, o.context, resolved?.from);
+      const snippet = nonEmpty(o.snippet, resolved?.snippet, o.reason);
+      const nextStep = nonEmpty(o.action, o.nextStep, o.reason);
+      const messageId = resolved?.id ?? nonEmpty(o.messageId);
+      const threadId = resolved?.threadId ?? nonEmpty(o.threadId);
+      const account = resolved?.account ?? nonEmpty(o.account);
+      const school = schoolFromSender(from);
+      const action = mustDoHeadline({ subject, action: nextStep, snippet, nextStep });
+      const context = nonEmpty(
+        school ? `${school.school} · ${school.child}` : '',
+        from,
+      );
+      const detailRaw = nonEmpty(snippet, o.reason);
+      const detail = detailRaw && detailRaw !== action ? detailRaw : undefined;
+      return [{
         priority: i + 1,
-        action: subject,
-        context: from,
-        detail: snippet || reason || nextStep,
+        action,
+        subject: subject || undefined,
+        context,
+        detail,
         source: 'email',
         urgency: String(o.urgency ?? ''),
         queueActionId: o.queueActionId ? String(o.queueActionId) : undefined,
-        messageId: o.messageId ? String(o.messageId) : undefined,
+        messageId: messageId || undefined,
+        threadId: threadId || undefined,
+        account: account || undefined,
+        gmailUrl: messageId
+          ? gmailMessageUrlFromEmail({ id: messageId, threadId: threadId || undefined, account: account || undefined })
+          : undefined,
         snippet: snippet || undefined,
-      };
+      }];
     }
-    return { priority: i + 1, action: String(item), context: '', source: 'email' };
-  }).slice(0, 5);
+    return [{ priority: i + 1, action: String(item), context: '', source: 'email' }];
+  });
+  const mustDoFinal = finalizeMustDoList(mustDo as Record<string, unknown>[]);
 
   const rawSchedule = (calendar?.todaySchedule as unknown[])
     ?? (calendar?.todayEvents as unknown[])
@@ -190,7 +254,7 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
     date: todayDate,
     dayOfWeek: ctx.state.data.dayOfWeek ?? '',
     generatedAt: new Date().toISOString(),
-    mustDo,
+    mustDo: mustDoFinal,
     schedule,
     logistics,
     tomorrowPreview,
@@ -231,21 +295,24 @@ export async function finalizeDailyBrief(
     orchestrator,
     ctx,
     spawnFn,
-  ) as { status?: string; roles?: string[] };
+  ) as { status?: string; roles?: string[]; failed?: string[] };
 
   const brief = assembleMorningBrief(ctx);
-  if (waitResult?.status === 'timeout') {
-    brief.partial = true;
-    brief.note = 'Some sub-agents did not finish in time — brief assembled from available data';
-  }
-
-  const failedAgents = PARALLEL_ROLES.filter(role => {
+  const failedAgents = waitResult?.failed ?? PARALLEL_ROLES.filter(role => {
     const agent = getAgentByRole(ctx.registry, role);
     return agent?.status === 'error';
   });
-  if (failedAgents.length > 0) {
+
+  if (waitResult?.status === 'timeout') {
+    brief.partial = true;
+    brief.note = 'Some sub-agents did not finish in time — brief assembled from available data';
+  } else if (waitResult?.status === 'partial' || failedAgents.length > 0) {
+    brief.partial = true;
     brief.agentErrors = failedAgents;
-    brief.note = `Sub-agents failed (${failedAgents.join(', ')}) — check AI API keys in Vercel settings`;
+    const failedLabels = failedAgents.map(role => role.replace(/-/g, ' ')).join(', ');
+    brief.note = failedAgents.includes('news-curator')
+      ? `News step unavailable (${failedLabels}) — brief assembled without headlines`
+      : `Some sections unavailable (${failedLabels}) — brief assembled from available data`;
   }
 
   await emitTool(

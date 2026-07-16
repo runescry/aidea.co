@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { HarnessEvent } from '@/lib/harness/types';
 import { bootstrapEntity } from '@/lib/harness/bootstrap';
-import { dailyEntityConfig, dailyLiteEntityConfig } from '@/lib/entities/daily';
+import { dailyEntityConfig, dailyLiteEntityConfig, inboxLiteEntityConfig } from '@/lib/entities/daily';
 import { hasApiKey } from '@/lib/ai/provider';
 import { writeLatestBrief } from '@/lib/storage';
+import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { recordRelationshipMonitorSignals } from '@/lib/contacts/sync-signals';
 
 export const runtime = 'nodejs';
@@ -50,10 +51,12 @@ export async function GET(req: NextRequest) {
     const config =
       name === 'daily'
         ? dailyLiteEntityConfig
-        : {
-            ...dailyEntityConfig,
-            rootAgentId: MONITORS[name],
-          };
+        : name === 'inbox'
+          ? inboxLiteEntityConfig
+          : {
+              ...dailyEntityConfig,
+              rootAgentId: MONITORS[name],
+            };
     const state = await bootstrapEntity(config, {}, send, sessionId);
 
     if (name === 'daily' && state.data.morning_brief) {
@@ -65,6 +68,10 @@ export async function GET(req: NextRequest) {
         coolingRelationships?: Array<{ name?: string; email?: string; weeksSince?: number }>;
       };
       await recordRelationshipMonitorSignals(monitor.coolingRelationships ?? []).catch(() => undefined);
+    }
+
+    if (name === 'inbox') {
+      await collapsePendingQueueDuplicates().catch(() => undefined);
     }
 
     return NextResponse.json({ ok: true, eventCount: events.length });

@@ -12,6 +12,9 @@ import {
   insertBriefTask,
   latestHealthBriefToTask,
   insertHealthTask,
+  normalizeEntityForFeed,
+  isStaleRunningEntity,
+  STALE_DAILY_ENTITY_MS,
 } from './tasks';
 import type { QueuedAction } from './queue-types';
 import type { EntityState } from './types';
@@ -252,6 +255,13 @@ describe('latestBriefToTask', () => {
     expect(task?.subtitle).toBe('2 priorities today');
     expect(isTodayBrief({ generatedAt: '2026-06-01T06:30:00.000Z' }, new Date('2026-06-01T12:00:00.000Z'))).toBe(true);
   });
+
+  it('uses user timezone for brief.date not UTC midnight', () => {
+    const now = new Date('2026-06-21T22:00:00.000Z'); // 08:00 AEST on 22 June
+    expect(isTodayBrief({ date: '2026-06-22' }, now, 'Australia/Sydney')).toBe(true);
+    expect(isTodayBrief({ date: '2026-06-21' }, now, 'Australia/Sydney')).toBe(false);
+    expect(isTodayBrief({ date: '2026-06-21' }, now, 'UTC')).toBe(true);
+  });
 });
 
 describe('latestHealthBriefToTask', () => {
@@ -384,6 +394,37 @@ describe('taskToChatPrompt', () => {
     expect(prompt).toContain('Why did you draft this?');
     expect(prompt).toContain('Reply to Sarah');
     expect(prompt).toContain('Draft body here');
+  });
+});
+
+describe('normalizeEntityForFeed', () => {
+  it('marks entity complete when morning_brief exists but status is running', () => {
+    const entity: EntityState = {
+      entityId: 'e1',
+      entityType: 'daily',
+      entityName: 'Daily OS',
+      status: 'running',
+      data: { morning_brief: { date: '2026-06-01', mustDo: [] } },
+      decisions: [],
+      createdAt: '2026-06-01T06:00:00.000Z',
+      updatedAt: '2026-06-01T06:30:00.000Z',
+    };
+    expect(normalizeEntityForFeed(entity).status).toBe('complete');
+  });
+
+  it('allows longer running window for daily entities with progress', () => {
+    const now = new Date('2026-06-01T12:00:00.000Z').getTime();
+    const entity: EntityState = {
+      entityId: 'e1',
+      entityType: 'daily',
+      entityName: 'Daily OS',
+      status: 'running',
+      data: { dailyKickstartComplete: true, inbox_triage: { urgent: [] } },
+      decisions: [],
+      createdAt: '2026-06-01T06:00:00.000Z',
+      updatedAt: new Date(now - STALE_DAILY_ENTITY_MS + 60_000).toISOString(),
+    };
+    expect(isStaleRunningEntity(entity, now)).toBe(false);
   });
 });
 

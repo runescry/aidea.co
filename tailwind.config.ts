@@ -30,6 +30,12 @@ const config: Config = {
         success: 'rgb(var(--success) / <alpha-value>)',
         warning: 'rgb(var(--warning) / <alpha-value>)',
         danger: 'rgb(var(--danger) / <alpha-value>)',
+        domain: {
+          inbox: 'rgb(var(--domain-inbox) / <alpha-value>)',
+          people: 'rgb(var(--domain-people) / <alpha-value>)',
+          health: 'rgb(var(--domain-health) / <alpha-value>)',
+          profile: 'rgb(var(--domain-profile) / <alpha-value>)',
+        },
       },
       borderColor: {
         DEFAULT: 'rgb(var(--border) / <alpha-value>)',

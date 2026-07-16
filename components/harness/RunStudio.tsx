@@ -26,10 +26,24 @@ const PANELS: Array<{ id: Panel; label: string }> = [
 
 function CostBar({ cost }: { cost?: CostSnapshot }) {
   if (!cost) return null;
+  const topAgents = cost.agentUsage
+    ? Object.values(cost.agentUsage).sort((a, b) => b.totalTokens - a.totalTokens).slice(0, 2)
+    : [];
   return (
-    <div className="flex items-center gap-3 text-[11px] text-foreground-subtle tabular-nums">
-      <span>${cost.estimatedUSD.toFixed(4)}</span>
-      <span>{(cost.inputTokens + cost.outputTokens).toLocaleString()} tok</span>
+    <div className="flex flex-col items-end gap-0.5 text-[11px] text-foreground-subtle tabular-nums">
+      <div className="flex items-center gap-3">
+        <span>${cost.estimatedUSD.toFixed(4)}</span>
+        <span>{(cost.inputTokens + cost.outputTokens).toLocaleString()} tok</span>
+      </div>
+      {topAgents.length > 0 && (
+        <div className="flex flex-wrap justify-end gap-x-2 gap-y-0.5 text-micro">
+          {topAgents.map(a => (
+            <span key={a.agentRole}>
+              {a.agentRole}: {a.totalTokens.toLocaleString()}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -42,6 +56,7 @@ interface Props {
 
 export default function RunStudio({ state, startSession, reset }: Props) {
   const [entity, setEntity] = useState<EntityType>('daily');
+  const [dailyMode, setDailyMode] = useState<'lite' | 'full'>('full');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [panel, setPanel] = useState<Panel>('artifacts');
 
@@ -60,6 +75,9 @@ export default function RunStudio({ state, startSession, reset }: Props) {
 
   const handleStart = () => {
     const input: Record<string, unknown> = {};
+    if (entity === 'daily') {
+      input.mode = dailyMode;
+    }
     for (const f of meta.fields) {
       if (fields[f.key]) input[f.key] = f.type === 'number' ? Number(fields[f.key]) : fields[f.key];
     }
@@ -216,8 +234,10 @@ export default function RunStudio({ state, startSession, reset }: Props) {
         <StudioLaunchPanel
           entity={entity}
           fields={fields}
+          dailyMode={dailyMode}
           starting={state.status === 'starting'}
           onFieldChange={handleSetField}
+          onDailyModeChange={setDailyMode}
           onStart={handleStart}
           error={state.status === 'error' ? state.error : undefined}
         />

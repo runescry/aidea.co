@@ -6,6 +6,35 @@ export interface PersonContact {
   company?: string;
 }
 
+export type ProfilePersonStatus = 'active' | 'archived' | 'removed';
+
+export type ProfilePersonSource = 'manual' | 'agent' | 'gmail' | 'calendar' | 'monitor';
+
+export interface ProfilePerson {
+  id: string;
+  name: string;
+  /** Primary email — kept in sync with first entry in `emails` when present. */
+  email?: string;
+  /** Additional emails for the same person (work, personal, etc.). */
+  emails?: string[];
+  phones?: string[];
+  company?: string;
+  relationship?: string;
+  notes?: string;
+  status: ProfilePersonStatus;
+  removedAt?: string;
+  sources?: ProfilePersonSource[];
+}
+
+export interface MemoryHygiene {
+  dismissedPulseIds?: string[];
+  rejectedKbPatches?: Array<{
+    at: string;
+    summary: string;
+    agentRole?: string;
+  }>;
+}
+
 export interface ChildProfile {
   name?: string;
   age?: string;
@@ -103,6 +132,8 @@ export interface KnowledgeBase {
     skipFrom?: string[];
   };
   relationships?: {
+    people?: ProfilePerson[];
+    removedKeys?: string[];
     mentors?: PersonContact[];
     collaborators?: PersonContact[];
     innerCircle?: PersonContact[];
@@ -156,6 +187,8 @@ export interface KnowledgeBase {
     commute?: string;
   };
   goals?: {
+    /** Narrative “life chapter” shown on Profile summary (editable). */
+    currentChapter?: string;
     lifePriorities?: string[];
     shortTerm?: string[];
     longTerm?: string[];
@@ -189,6 +222,14 @@ export interface KnowledgeBase {
     notificationPreferences?: string;
     onboardingComplete?: boolean;
     onboardingMode?: 'quick' | 'full';
+    memoryHygiene?: MemoryHygiene;
+    harnessCost?: {
+      enforceTokenBudget?: boolean;
+      maxTokensPerRun?: number;
+      costMode?: 'standard' | 'strict';
+      maxTokensPerAgent?: number;
+      maxAgentTokensByRole?: Record<string, number>;
+    };
   };
   _notes?: string[];
 }

@@ -1,18 +1,34 @@
+import type { AgentOverridesMap } from '@/types/agent-overrides';
 import type { EntityConfig, EntityInput, HarnessContext, EntityState, SenderFn } from './types';
 import { DEFAULT_COST_CONFIG } from './types';
 import { createRegistry, registerAgent } from './registry';
 import { createEntityState, persistEntityState } from './state';
 import { createMessageBus } from './bus';
 import { createCostTracker } from './cost';
+import {
+  readHarnessCostPreferences,
+  resolveHarnessCostConfig,
+  shouldApplyUserCostPrefs,
+} from './cost-preferences';
 import { buildHarnessAgent, spawnChildAgent } from './spawn';
 import { runAgentLoop } from './executor';
 import { loadAgentOverrides, resolveLibraryAgent } from '@/lib/agents/resolve';
 import { hasNangoConnections } from '@/lib/nango/connections';
 import { kickstartDailyOrchestrator, finalizeDailyBrief } from './daily-kickstart';
+import { readKB } from './knowledge-base';
+import { resolveUserTimezone } from '@/lib/calendar/user-time';
+import { formatRejectedKbPatchesForAgent } from '@/lib/profile/memory-hygiene';
+import { getEvalHarnessContext } from '@/lib/eval/eval-context';
+import { enrichBriefMustDoFromGmail } from '@/lib/harness/morning-brief-enrich';
+import { normalizeMorningBrief } from '@/lib/harness/morning-brief-must-do';
+import { writeLatestBrief } from '@/lib/storage';
+import type { KnowledgeBase } from '@/types/knowledge-base';
 
 export interface BootstrapOptions {
   /** When set, use this mode and skip auto-upgrade to auto when Nango is connected. */
   realWorldMode?: import('./types').CostConfig['realWorldToolMode'];
+  /** When set, use these overrides instead of loading from profile. */
+  agentOverrides?: AgentOverridesMap;
 }
 
 export async function bootstrapEntity(
@@ -23,7 +39,20 @@ export async function bootstrapEntity(
   options?: BootstrapOptions,
 ): Promise<EntityState> {
   const entityId = crypto.randomUUID();
-  const initialData = config.buildInitialContext(input);
+  const kbSlice = await readKB(['identity', 'preferences']).catch(() => ({} as Record<string, unknown>));
+  const identity = kbSlice.identity as KnowledgeBase['identity'] | undefined;
+  const kbForRejection = {
+    identity,
+    preferences: kbSlice.preferences as KnowledgeBase['preferences'],
+  } as KnowledgeBase;
+  const rejectionMemory = formatRejectedKbPatchesForAgent(kbForRejection);
+  const enrichedInput: EntityInput = {
+    ...input,
+    kb: { identity },
+    timezone: resolveUserTimezone({ identity }),
+    ...(rejectionMemory ? { rejectionMemory } : {}),
+  };
+  const initialData = config.buildInitialContext(enrichedInput);
   const state = createEntityState(entityId, config.type, config.name, initialData);
 
   send({
@@ -43,14 +72,19 @@ export async function bootstrapEntity(
   const registry = createRegistry(entityId);
   const bus = createMessageBus();
 
-  const [nangoConnected, agentOverrides] = await Promise.all([
-    hasNangoConnections(),
-    loadAgentOverrides(),
-  ]);
+  const evalCtx = getEvalHarnessContext();
+  const skipPersist = evalCtx?.skipPersist ?? false;
 
-  if (!config.deferStatePersist) {
+  if (!config.deferStatePersist && !skipPersist) {
     await persistEntityState(state);
   }
+
+  const [nangoConnected, agentOverrides] = await Promise.all([
+    hasNangoConnections(),
+    options?.agentOverrides != null
+      ? Promise.resolve(options.agentOverrides)
+      : loadAgentOverrides(),
+  ]);
 
   let realWorldMode =
     options?.realWorldMode
@@ -60,16 +94,23 @@ export async function bootstrapEntity(
     realWorldMode = 'auto';
   }
 
+  const harnessCostPrefs = readHarnessCostPreferences(kbForRejection);
+  const applyUserCostPrefs = shouldApplyUserCostPrefs(config, enrichedInput);
+
   const effectiveConfig: EntityConfig = {
     ...config,
-    costConfig: {
-      ...DEFAULT_COST_CONFIG,
-      ...config.costConfig,
-      realWorldToolMode: realWorldMode,
-    },
+    costConfig: resolveHarnessCostConfig(
+      {
+        ...DEFAULT_COST_CONFIG,
+        ...config.costConfig,
+        realWorldToolMode: realWorldMode,
+      },
+      harnessCostPrefs,
+      applyUserCostPrefs,
+    ),
   };
 
-  const cost = createCostTracker(effectiveConfig.costConfig!, realWorldMode);
+  const cost = createCostTracker(effectiveConfig.costConfig!);
 
   const ctx: HarnessContext = {
     entityId,
@@ -84,7 +125,7 @@ export async function bootstrapEntity(
   };
 
   const rootDef = resolveLibraryAgent(config.rootAgentId, agentOverrides);
-  const taskSpec = config.buildInitialTask(input);
+  const taskSpec = config.buildInitialTask(enrichedInput);
   const rootAgent = buildHarnessAgent(rootDef, entityId, null, 0, taskSpec.description);
   rootAgent.stateReadKeys = [...rootDef.stateReadKeys, ...taskSpec.contextKeys];
 
@@ -102,7 +143,7 @@ export async function bootstrapEntity(
     timestamp: new Date().toISOString(),
   });
 
-  if (config.deferStatePersist) {
+  if (config.deferStatePersist && !skipPersist) {
     await persistEntityState(state);
   }
 
@@ -118,15 +159,57 @@ export async function bootstrapEntity(
   };
 
   if (config.rootAgentId === 'daily-orchestrator') {
-    await kickstartDailyOrchestrator(rootAgent, ctx, spawnFn);
-    await finalizeDailyBrief(rootAgent, ctx, spawnFn);
+    try {
+      await kickstartDailyOrchestrator(rootAgent, ctx, spawnFn);
+      await finalizeDailyBrief(rootAgent, ctx, spawnFn);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (ctx.state.data.dailyKickstartComplete && !ctx.state.data.morning_brief) {
+        try {
+          await finalizeDailyBrief(rootAgent, ctx, spawnFn);
+        } catch {
+          // best-effort partial brief
+        }
+      }
+      if (!ctx.state.data.morning_brief) {
+        state.status = 'error';
+        state.data.lastError = message;
+        if (!skipPersist) await persistEntityState(state);
+        send({
+          type: 'entity_error',
+          sessionId,
+          entityId,
+          data: { error: message, cost: cost.snapshot() },
+          timestamp: new Date().toISOString(),
+        });
+        throw err;
+      }
+      state.data.lastError = message;
+    }
   } else {
     try {
       await runAgentLoop(rootAgent, ctx);
       await waitForAllAgents(registry, ctx);
     } catch (err) {
+      const wroteBrief = config.rootAgentId === 'daily-lite-briefer' && ctx.state.data.morning_brief;
+      if (wroteBrief) {
+        state.status = 'complete';
+        if (!skipPersist) await persistEntityState(state);
+        send({
+          type: 'entity_complete',
+          sessionId,
+          entityId,
+          data: {
+            cost: cost.snapshot(),
+            partial: true,
+            note: 'Morning brief written but the run ended with errors in optional sections',
+          },
+          timestamp: new Date().toISOString(),
+        });
+        return state;
+      }
       state.status = 'error';
-      await persistEntityState(state);
+      if (!skipPersist) await persistEntityState(state);
       send({
         type: 'entity_error',
         sessionId,
@@ -139,13 +222,28 @@ export async function bootstrapEntity(
   }
 
   state.status = 'complete';
-  await persistEntityState(state);
+  if (!skipPersist) await persistEntityState(state);
+
+  const morningBrief = state.data.morning_brief;
+  if (
+    morningBrief
+    && typeof morningBrief === 'object'
+    && (config.rootAgentId === 'daily-orchestrator' || config.rootAgentId === 'daily-lite-briefer')
+  ) {
+    const enriched = await enrichBriefMustDoFromGmail(morningBrief as Record<string, unknown>);
+    await writeLatestBrief(
+      normalizeMorningBrief((enriched ?? morningBrief) as Record<string, unknown>),
+    ).catch(() => undefined);
+  }
 
   send({
     type: 'entity_complete',
     sessionId,
     entityId,
-    data: { cost: cost.snapshot() },
+    data: {
+      cost: cost.snapshot(),
+      ...(state.data.lastError ? { partial: true, note: String(state.data.lastError) } : {}),
+    },
     timestamp: new Date().toISOString(),
   });
 

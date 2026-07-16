@@ -8,6 +8,9 @@ import { getModel, formatLlmError } from '@/lib/ai/provider';
 import { buildAiSdkTools } from '@/lib/ai/tools';
 import { formatConversationHistory } from '@/lib/chat/history';
 import type { ChatHistoryEntry } from '@/types/chat';
+import { formatDispatchChatSummary, hasStructuredDispatchOutput } from './dispatch-summary';
+import { enrichDispatchResponse } from './inbox-sanitize';
+import { compactToolResultForLlm } from './tool-result-truncate';
 
 function buildAgentPrompt(agent: HarnessAgent, ctx: HarnessContext): string {
   const stateContext = getStateKeys(ctx.state, agent.stateReadKeys);
@@ -38,17 +41,15 @@ function buildAgentSummary(
   ctx: HarnessContext,
   resultText: string,
 ): string {
+  const stateVal = agent.stateWriteKey
+    ? enrichDispatchResponse(ctx.state.data[agent.stateWriteKey], ctx.state.data)
+    : null;
+  const fromState = formatDispatchChatSummary(stateVal);
+  if (hasStructuredDispatchOutput(stateVal)) return fromState || 'Done.';
+
   const fromText = resultText.trim();
   if (fromText) return fromText;
-
-  const stateVal = agent.stateWriteKey ? ctx.state.data[agent.stateWriteKey] : null;
-  if (stateVal && typeof stateVal === 'object' && stateVal !== null && 'summary' in stateVal) {
-    const s = (stateVal as { summary?: unknown }).summary;
-    if (typeof s === 'string' && s.trim()) return s.trim();
-  }
-  if (typeof stateVal === 'string' && stateVal.trim()) return stateVal.trim();
-
-  return 'Done.';
+  return fromState || 'Done.';
 }
 
 interface ToolCallRecord { name: string; inputHash: string }
@@ -58,6 +59,7 @@ const IDEMPOTENT_READ_TOOLS = new Set([
   'read_state',
   'kb_read',
   'gmail_read',
+  'gmail_attachment_read',
   'calendar_read',
   'contacts_read',
   'web_search',
@@ -91,7 +93,9 @@ function completeAgent(
       stateWriteKey: agent.stateWriteKey,
       tokensUsed: ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0,
       summary: buildAgentSummary(agent, ctx, resultText).slice(0, 8000),
-      structured: agent.stateWriteKey ? ctx.state.data[agent.stateWriteKey] : undefined,
+      structured: agent.stateWriteKey
+        ? enrichDispatchResponse(ctx.state.data[agent.stateWriteKey], ctx.state.data)
+        : undefined,
     },
     timestamp: new Date().toISOString(),
   });
@@ -164,8 +168,8 @@ export async function runAgentLoop(
     while (iterations < MAX_ITERATIONS) {
       iterations++;
 
-      if (ctx.cost.isOverBudget()) {
-        throw new Error('Token budget exceeded mid-loop');
+      if (ctx.cost.isOverBudget(agent.id, agent.role)) {
+        throw new Error(`Token budget exceeded for ${agent.role} — stopping this agent to protect the run`);
       }
 
       const kickstarted = agent.role === 'daily-orchestrator' && ctx.state.data.dailyKickstartComplete;
@@ -208,15 +212,18 @@ export async function runAgentLoop(
       ctx.cost.recordUsage(
         result.usage?.promptTokens ?? 0,
         result.usage?.completionTokens ?? 0,
-        0,
-        0,
+        {
+          agentId: agent.id,
+          agentRole: agent.role,
+          model: agent.model,
+        },
       );
 
       patchAgent(ctx.registry, agent.id, {
         tokensUsed: (ctx.registry.agents.get(agent.id)?.tokensUsed ?? 0) + (result.usage?.completionTokens ?? 0),
       });
 
-      if (ctx.cost.isNearBudget()) {
+      if (ctx.cost.isNearBudget(agent.id, agent.role)) {
         ctx.send({
           type: 'cost_warning',
           sessionId: ctx.sessionId,
@@ -311,7 +318,7 @@ export async function runAgentLoop(
             type: 'tool-result',
             toolCallId: tc.toolCallId,
             toolName: tc.toolName,
-            result: toolResult,
+            result: compactToolResultForLlm(tc.toolName, toolResult),
           });
         }
 

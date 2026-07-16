@@ -1,10 +1,20 @@
 'use client';
 
 import type { TaskItem } from '@/lib/harness/tasks';
+import { decodeBriefText, mustDoHeadline } from '@/lib/harness/morning-brief-must-do';
 
 interface MustDoItem {
   priority?: number;
   action?: string;
+  subject?: string;
+  context?: string;
+  detail?: string;
+  snippet?: string;
+  gmailUrl?: string;
+}
+
+function mustDoLabel(item: MustDoItem): string {
+  return decodeBriefText(mustDoHeadline(item as Record<string, unknown>));
 }
 
 export default function MorningBriefCard({
@@ -17,7 +27,10 @@ export default function MorningBriefCard({
   const mustDo = Array.isArray(task.brief?.mustDo)
     ? (task.brief!.mustDo as MustDoItem[])
     : [];
-  const topItems = mustDo.slice(0, 3);
+  const topItems = mustDo
+    .map(item => ({ item, label: mustDoLabel(item) }))
+    .filter(({ label }) => label.length > 0)
+    .slice(0, 3);
 
   return (
     <div className="shrink-0 rounded-xl border border-border bg-surface-subtle/60 p-3 space-y-2">
@@ -41,9 +54,23 @@ export default function MorningBriefCard({
       </div>
       {topItems.length > 0 && (
         <ol className="space-y-1 pl-4 list-decimal marker:text-foreground-subtle">
-          {topItems.map((item, i) => (
+          {topItems.map(({ item, label }, i) => (
             <li key={i} className="text-[12px] text-foreground-muted leading-snug">
-              {item.action ?? 'Priority item'}
+              {item.gmailUrl ? (
+                <a
+                  href={item.gmailUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  {label}
+                </a>
+              ) : (
+                label
+              )}
+              {item.context ? (
+                <span className="text-foreground-subtle"> · {item.context}</span>
+              ) : null}
             </li>
           ))}
         </ol>

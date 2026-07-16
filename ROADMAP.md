@@ -10,9 +10,9 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
-**Phase:** P8 — harden & extend (P8.0–P8.3 complete; P8.4 blocked)  
+**Phase:** P9 complete — Profile memory & people graph  
 **Next up:** [P8.4 — Platform](./docs/PLAN.md#p84--platform) — auth/multi-user blocked pending provider choice  
-**Recent:** P8.3 finance subscription nudges + Plaid env stub  
+**Recent:** P9 People UI + memory hygiene; profile E2E suite; onboarding → `people[]`; agent `person` queue fix  
 **Git:** `main` ahead of `origin/main` (docs + P8.0)
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
@@ -136,6 +136,19 @@ Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkb
 
 ---
 
+## P9 — Profile memory & people graph (see [docs/PLAN.md](./docs/PLAN.md#p9--profile-memory--people-graph))
+
+Profile as the living control plane: canonical `relationships.people[]`, tombstones + sync blocklist, unified People UI, agent write path, memory hygiene.
+
+- [x] **P9.1 Data model + graph** — `ProfilePerson`, `removedKeys`, `lib/profile/people.ts`, migration, graph/sync blocklist
+- [x] **P9.2 People UI** — Unified list + person sheet on Profile; archive/remove/restore; legacy editor collapsed
+- [x] **P9.3 Agent KB writes** — `person` patch in `kb-updates`; dispatcher/inbox-triage remove instructions
+- [x] **P9.4 Memory hygiene** — Pulse dismiss; job remove row; kb_update reject → `rejectedKbPatches`
+- [x] **P9.5 Docs** — PLAN, ROADMAP, VISION D5, ARCHITECTURE profile section
+- [x] **P9 follow-up** — Agent `person` queue payload; onboarding → `people[]`; archived restore UI; profile E2E + `/api/kb` contract
+
+---
+
 ## Done
 
 - [x] Home: chat left + Work feed right
@@ -174,3 +187,5 @@ Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkb
 - 2026-06-21 — P8.2 rich contact graph — mail/calendar signal sync, relationship-monitor persist
 - 2026-06-21 — P8.3 finance spike — KB subscription nudges in Inbox, Plaid env stub, finance_read tool
 - 2026-06-21 — P8.4 platform — **BLOCKED** auth/multi-user (no session middleware path chosen); mobile secondary surfaces deferred
+- 2026-06-21 — P9 profile memory — canonical people store, tombstones, People UI, pulse dismiss, kb reject feedback
+- 2026-06-21 — P9 follow-up — profile E2E suite, kb contract, onboarding→people[], agent person queue round-trip

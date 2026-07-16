@@ -19,6 +19,33 @@ export interface InboxTriageValidation {
 
 const LIMITS = { urgent: 5, actionRequired: 5, fyi: 3 } as const;
 
+const ATTACHMENT_KEYWORDS = /\b(attach(ed|ment)?|pdf|document|invoice|statement|report|enclosed|see attached)\b/i;
+
+function emailMentionsAttachments(
+  triage: InboxTriagePayload,
+  cache: Map<string, { snippet: string; subject: string; bodyText?: string }>,
+): boolean {
+  const rows = [
+    ...(triage.urgent as unknown[] | undefined ?? []),
+    ...(triage.actionRequired as unknown[] | undefined ?? []),
+    ...(triage.fyi as unknown[] | undefined ?? []),
+  ].filter((item): item is Record<string, unknown> => !!item && typeof item === 'object');
+
+  for (const row of rows) {
+    const messageId = row.messageId ? String(row.messageId) : '';
+    const cached = messageId ? cache.get(messageId) : undefined;
+    const text = [
+      String(row.subject ?? ''),
+      String(row.snippet ?? ''),
+      cached?.subject ?? '',
+      cached?.snippet ?? '',
+      cached?.bodyText ?? '',
+    ].join(' ');
+    if (ATTACHMENT_KEYWORDS.test(text)) return true;
+  }
+  return false;
+}
+
 function triageLists(triage: InboxTriagePayload): {
   urgent: Record<string, unknown>[];
   actionRequired: Record<string, unknown>[];
@@ -138,6 +165,13 @@ export function validateInboxTriageRun(
   const attributionWarnings = [...urgent, ...actionRequired, ...fyi].filter(
     item => Boolean(item.attributionWarning),
   ).length;
+
+  if (
+    emailMentionsAttachments(triage, getGmailCache(stateData))
+    && !toolsCalled.includes('gmail_attachment_read')
+  ) {
+    warnings.push('Emails mention attachments but gmail_attachment_read was not called');
+  }
 
   if (gmailIds.size === 0) {
     warnings.push('gmail_read returned no cached emails');

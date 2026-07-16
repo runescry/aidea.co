@@ -77,9 +77,15 @@ export async function getTasks(): Promise<Response> {
   return GET(new NextRequest('http://localhost/api/tasks'));
 }
 
-export async function patchQueue(body: { id: string; intent?: string; status?: string }): Promise<Response> {
+export async function patchQueue(body: {
+  id: string;
+  intent?: 'approve' | 'reject' | 'save';
+  status?: string;
+  edits?: Record<string, unknown>;
+}): Promise<Response> {
   const intent = body.intent ?? (body.status === 'rejected' ? 'reject' : body.status === 'approved' ? 'approve' : undefined);
-  const payload = { id: body.id, intent };
+  const payload: Record<string, unknown> = { id: body.id, intent };
+  if (body.edits) payload.edits = body.edits;
   if (testBaseUrl()) {
     return httpFetch('/api/queue', {
       method: 'PATCH',
@@ -89,6 +95,28 @@ export async function patchQueue(body: { id: string; intent?: string; status?: s
   }
   const { PATCH } = await import('@/app/api/queue/route');
   return PATCH(jsonRequest('/api/queue', 'PATCH', payload));
+}
+
+export async function getKb(): Promise<Response> {
+  if (testBaseUrl()) return httpFetch('/api/kb');
+  const { GET } = await import('@/app/api/kb/route');
+  return GET();
+}
+
+export async function postKb(body: {
+  updates?: Record<string, unknown>;
+  key?: string;
+  value?: unknown;
+}): Promise<Response> {
+  if (testBaseUrl()) {
+    return httpFetch('/api/kb', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+  const { POST } = await import('@/app/api/kb/route');
+  return POST(jsonRequest('/api/kb', 'POST', body));
 }
 
 export async function postMessage(

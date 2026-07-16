@@ -1,12 +1,16 @@
+import { randomUUID } from 'node:crypto';
 import type { HarnessTool, HarnessAgent, HarnessContext, ToolInput } from './types';
 import { getAgentByRole } from './registry';
 import { setStateKey, getStateKeys } from './state';
 import { readKB, readAllKB, writeKB } from './knowledge-base';
 import { enqueueAction, enqueueActionWithAutonomy } from './queue';
+import { enrichEmailQueuePayload, validateEmailQueueEnqueue } from './enrich-email-queue';
 import { runConsensus } from './consensus';
 import { awaitHumanInput, markPendingInput } from './pending-inputs';
 import { getSetting } from '@/lib/settings';
 import { readGmailMessages, sendGmailMessage } from '@/lib/nango/gmail';
+import { fetchGmailAttachments } from '@/lib/nango/gmail-attachments';
+import { extractTextFromBuffer } from '@/lib/documents/extract-text';
 import { readCalendarEvents, createCalendarEvent } from '@/lib/nango/calendar';
 import { getNango, gmailIntegrationId } from '@/lib/nango/client';
 import { listGmailConnections } from '@/lib/nango/connections';
@@ -21,15 +25,18 @@ import {
 } from './kb-updates';
 import { autonomyForAction } from './domain-autonomy';
 import { emitChatAgentResponse } from './chat-events';
+import { isEvalHarnessActive } from '@/lib/eval/eval-context';
 import { addCalendarDays } from '@/lib/calendar/dates';
 import {
   cacheGmailRead,
+  cacheGmailAttachmentText,
+  enrichDispatchResponse,
   getGmailCache,
   getGmailConnectionForMessage,
   sanitizeInboxTriage,
   type CachedGmail,
 } from './inbox-sanitize';
-import { buildContactGraph, findContactEntry } from '@/lib/contacts/interaction-graph';
+import { buildVisibleContactGraph, findContactEntry } from '@/lib/contacts/interaction-graph';
 import { recordCalendarCreated, recordEmailSent } from '@/lib/contacts/record-from-action';
 import {
   syncContactSignalsFromCalendar,
@@ -38,6 +45,13 @@ import {
 import { readHealthSyncSnapshot, weekTrainingSummary } from '@/lib/health/sync';
 import { readPlaidStub } from '@/lib/finance/plaid-stub';
 import type { KnowledgeBase } from '@/types/knowledge-base';
+import { classifyAgentWait } from './agent-wait';
+import {
+  appendInboxWindowToGmailQuery,
+  defaultInboxTriageGmailQuery,
+  inboxTriageAgentRoles,
+  isEmailClearlyOutsideInboxWindow,
+} from './inbox-window';
 
 // ── Tool Catalog ──────────────────────────────────────────────────────────────
 
@@ -198,6 +212,22 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
           },
           required: ['company'],
         },
+        person: {
+          type: 'object',
+          description: 'Add, update, archive, or remove a person in relationships.people',
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            email: { type: 'string' },
+            emails: { type: 'array', items: { type: 'string' }, description: 'Additional emails for the same person' },
+            phones: { type: 'array', items: { type: 'string' }, description: 'Phone numbers for the same person' },
+            company: { type: 'string' },
+            relationship: { type: 'string' },
+            notes: { type: 'string' },
+            status: { type: 'string', enum: ['active', 'archived', 'removed'] },
+          },
+          required: ['name'],
+        },
         key: { type: 'string', description: 'Dot-notation key for a single-field update' },
         value: { description: 'Value when using key' },
         priority: { type: 'string', enum: ['high', 'normal', 'low'] },
@@ -296,7 +326,7 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
   gmail_read: {
     key: 'gmail_read',
     name: 'gmail_read',
-    description: 'Read emails from Gmail. Returns sender, subject, snippet, and date.',
+    description: 'Read emails from Gmail. Returns sender, subject, snippet, and date. Optionally include full body text.',
     requiresApproval: false,
     realWorld: true,
     inputSchema: {
@@ -305,8 +335,30 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
         query: { type: 'string', description: 'Gmail search query (e.g. "is:unread", "from:boss@company.com")' },
         maxResults: { type: 'number', description: 'Max emails to return per account (default: 5)' },
         connectionId: { type: 'string', description: 'Optional — one connected Gmail account; omit for all' },
+        includeBody: { type: 'boolean', description: 'Fetch full MIME body for returned emails (default: false)' },
+        messageIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional Gmail message IDs to fetch (with body when includeBody is true)',
+        },
       },
       required: [],
+    },
+  },
+
+  gmail_attachment_read: {
+    key: 'gmail_attachment_read',
+    name: 'gmail_attachment_read',
+    description: 'Download and extract text from Gmail attachments (PDF, plain text, HTML). Max 2 attachments per call; skips files over 5MB.',
+    requiresApproval: false,
+    realWorld: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        messageId: { type: 'string', description: 'Gmail message ID' },
+        connectionId: { type: 'string', description: 'Connection ID from gmail_read (optional if cached)' },
+      },
+      required: ['messageId'],
     },
   },
 
@@ -439,7 +491,7 @@ export const HARNESS_TOOLS: Record<string, HarnessTool> = {
   contact_graph_read: {
     key: 'contact_graph_read',
     name: 'contact_graph_read',
-    description: 'Read the KB contact interaction graph — last touch, channels, and interaction history merged with relationship contacts.',
+    description: 'Read active profile contacts — last touch, channels, and interaction history. Excludes removed tombstones and archived people.',
     requiresApproval: false,
     realWorld: false,
     inputSchema: {
@@ -517,11 +569,26 @@ export async function executeHarnessTool(
         from: e.from,
         subject: e.subject,
         snippet: e.snippet.slice(0, 220),
+        bodyText: e.bodyText,
         connectionId: e.connectionId,
         account: e.account,
       }));
       cacheGmailRead(ctx.state.data, emails);
       return { ...(mock as object), emails };
+    }
+    if (toolName === 'gmail_attachment_read' && mock && typeof mock === 'object') {
+      const { messageId, attachments } = mock as {
+        messageId: string;
+        attachments: Array<{ filename: string; text: string }>;
+      };
+      const combined = attachments.map(a => `[${a.filename}]\n${a.text}`).join('\n\n');
+      cacheGmailAttachmentText(
+        ctx.state.data,
+        messageId,
+        combined,
+        attachments.map(a => a.filename),
+      );
+      return mock;
     }
     return mock;
   }
@@ -566,14 +633,18 @@ export async function executeHarnessTool(
       const { timeoutMs = 120_000 } = raw;
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
-        const allDone = roles.every(role => getAgentByRole(ctx.registry, role)?.status === 'complete');
-        if (allDone) {
+        const wait = classifyAgentWait(roles, role => getAgentByRole(ctx.registry, role)?.status);
+        if (wait.allTerminal) {
           const outputs: Record<string, unknown> = {};
           for (const role of roles) {
             const agent = getAgentByRole(ctx.registry, role);
             if (agent?.stateWriteKey) outputs[role] = ctx.state.data[agent.stateWriteKey] ?? null;
           }
-          return { status: 'complete', outputs };
+          return {
+            status: wait.failed.length === 0 ? 'complete' : 'partial',
+            outputs,
+            failed: wait.failed.length > 0 ? wait.failed : undefined,
+          };
         }
         await new Promise(r => setTimeout(r, 500));
       }
@@ -583,8 +654,13 @@ export async function executeHarnessTool(
     case 'write_state': {
       const { key, value } = input as { key: string; value: unknown };
       let valueToWrite = value;
-      if (key === 'inbox_triage' && value && typeof value === 'object') {
-        valueToWrite = sanitizeInboxTriage(value, getGmailCache(ctx.state.data));
+      if (value && typeof value === 'object') {
+        const obj = value as Record<string, unknown>;
+        if (key === 'inbox_triage' && valueToWrite && typeof valueToWrite === 'object') {
+          valueToWrite = sanitizeInboxTriage(valueToWrite, getGmailCache(ctx.state.data), ctx.state.data);
+        } else {
+          valueToWrite = enrichDispatchResponse(valueToWrite, ctx.state.data);
+        }
       }
       await setStateKey(ctx.state, key, valueToWrite, {
         persist: !ctx.config.deferStatePersist,
@@ -648,6 +724,9 @@ export async function executeHarnessTool(
 
     case 'kb_write': {
       const { key, value } = input as { key: string; value: unknown };
+      if (isEvalHarnessActive()) {
+        return { ok: true, key, evalStub: true };
+      }
       await writeKB(key, value);
       return { ok: true, key };
     }
@@ -662,14 +741,25 @@ export async function executeHarnessTool(
 
       const normalized = normalizeKbPatchInput(patchInput);
       const patch = await buildKbPatch(normalized);
-      if (Object.keys(patch).length === 0 && normalized.key === undefined) {
+      if (Object.keys(patch).length === 0 && normalized.key === undefined && !normalized.person?.name) {
         return {
-          error: 'No profile fields to update — pass jobApplication, updates, or key/value',
+          error: 'No profile fields to update — pass jobApplication, person, updates, or key/value',
         };
       }
       const kb = await readAllKB() as KnowledgeBase;
       const autonomy = autonomyForAction(kb, 'kb_update') ?? 'semi-autonomous';
       const autoApply = shouldAutoApplyKb(autonomy, patchInput.requireApproval);
+
+      if (isEvalHarnessActive()) {
+        return {
+          ok: true,
+          queued: false,
+          evalStub: true,
+          summary: formatKbPatchSummary(normalized) !== 'Profile update'
+            ? formatKbPatchSummary(normalized)
+            : sanitizeQueueSummary(patchInput.summary ?? 'Profile update'),
+        };
+      }
 
       if (autoApply) {
         await applyKbPatch(normalized);
@@ -695,6 +785,7 @@ export async function executeHarnessTool(
         payload: {
           input: {
             jobApplication: normalized.jobApplication,
+            person: normalized.person,
             updates: normalized.updates,
             key: normalized.key,
             value: normalized.value,
@@ -745,8 +836,34 @@ export async function executeHarnessTool(
         if (cached) payload = { ...payload, connectionId: cached };
       }
 
+      payload = await enrichEmailQueuePayload(ctx.state.data, payload, raw.summary);
+
+      const validation = validateEmailQueueEnqueue({
+        type: raw.type,
+        payload,
+        detail: draftBody,
+      });
+      if (!validation.ok) {
+        return { error: validation.error, summary: raw.summary };
+      }
+
       const tool = raw.tool
         ?? (raw.type === 'email_reply' || raw.type === 'email_send' ? 'gmail_send' : 'generic');
+
+      if (isEvalHarnessActive()) {
+        const stubId = `eval-${randomUUID()}`;
+        ctx.send({
+          type: 'state_updated',
+          sessionId: ctx.sessionId,
+          entityId: ctx.entityId,
+          agentId: callerAgent.id,
+          agentRole: callerAgent.role,
+          data: { queuedActionId: stubId, summary: raw.summary, evalStub: true },
+          timestamp: new Date().toISOString(),
+        });
+        return { ok: true, actionId: stubId, summary: raw.summary, evalStub: true };
+      }
+
       const action = await enqueueActionWithAutonomy({
         type: raw.type,
         summary: raw.type === 'kb_update'
@@ -828,29 +945,73 @@ export async function executeHarnessTool(
     case 'news_search': {
       const { topics, maxPerTopic = 3 } = input as { topics: string[]; maxPerTopic?: number };
       const apiKey = getSetting('braveSearchApiKey');
-      if (!apiKey) return { error: 'Brave Search API key not configured — add it in Settings' };
+      if (!apiKey) return { error: 'Brave Search API key not configured — add it in Settings', results: [] };
       const allResults: Array<{ topic: string; title: string; url: string; snippet: string }> = [];
+      const errors: string[] = [];
       for (const topic of topics) {
         const url = `https://api.search.brave.com/res/v1/news/search?q=${encodeURIComponent(topic)}&count=${maxPerTopic}&freshness=pd`;
-        const res = await fetch(url, { headers: { 'Accept': 'application/json', 'X-Subscription-Token': apiKey } });
-        if (!res.ok) continue;
+        const res = await fetch(url, { headers: { Accept: 'application/json', 'X-Subscription-Token': apiKey } });
+        if (!res.ok) {
+          const paymentOrQuota = res.status === 402 || res.status === 429;
+          errors.push(
+            paymentOrQuota
+              ? `Brave news API payment/quota issue (${res.status}) for "${topic}"`
+              : `Brave news API error ${res.status} for "${topic}"`,
+          );
+          continue;
+        }
         const data = await res.json() as { results?: Array<{ title: string; url: string; description: string }> };
         for (const r of data.results ?? []) {
           allResults.push({ topic, title: r.title, url: r.url, snippet: r.description });
         }
       }
-      return { results: allResults };
+      if (allResults.length === 0 && errors.length > 0) {
+        return {
+          results: [],
+          error: errors[0],
+          errors,
+          skipped: true,
+        };
+      }
+      return { results: allResults, ...(errors.length > 0 ? { errors } : {}) };
     }
 
     // ── Gmail ─────────────────────────────────────────────────────────────────
 
     case 'gmail_read': {
-      const { query = 'is:unread', maxResults = 5, connectionId } = input as {
-        query?: string; maxResults?: number; connectionId?: string;
+      let {
+        query = 'is:unread',
+        maxResults = 5,
+        connectionId,
+        includeBody = false,
+        messageIds,
+      } = input as {
+        query?: string;
+        maxResults?: number;
+        connectionId?: string;
+        includeBody?: boolean;
+        messageIds?: string[];
       };
+      if (ctx.config.inboxTriageMode === 'lite') {
+        maxResults = Math.min(maxResults, 10);
+        if (!messageIds?.length) includeBody = false;
+      }
+      if (inboxTriageAgentRoles().has(callerAgent.role) && !messageIds?.length) {
+        query = /^is:unread$/i.test(query.trim())
+          ? defaultInboxTriageGmailQuery()
+          : appendInboxWindowToGmailQuery(query);
+      }
       try {
-        const result = await readGmailMessages({ query, maxResults, connectionId });
-        const emails = result.emails.map(e => ({
+        const result = await readGmailMessages({
+          query,
+          maxResults,
+          connectionId,
+          includeBody,
+          messageIds,
+        });
+        const emails = result.emails
+          .filter(e => messageIds?.length || !isEmailClearlyOutsideInboxWindow(e.date))
+          .map(e => ({
           id: e.id,
           from: e.from,
           subject: e.subject,
@@ -859,10 +1020,50 @@ export async function executeHarnessTool(
           isUnread: e.isUnread,
           account: e.account,
           connectionId: e.connectionId,
+          ...(e.threadId ? { threadId: e.threadId } : {}),
+          ...(e.replyTo ? { replyTo: e.replyTo } : {}),
+          ...(e.bodyText ? { bodyText: e.bodyText, bodyTruncated: e.bodyTruncated } : {}),
         }));
         cacheGmailRead(ctx.state.data, emails as CachedGmail[]);
-        await syncContactSignalsFromEmails(result.emails).catch(() => undefined);
+        await syncContactSignalsFromEmails(
+          result.emails.filter(e => messageIds?.length || !isEmailClearlyOutsideInboxWindow(e.date)),
+        ).catch(() => undefined);
         return { ...result, emails };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+
+    case 'gmail_attachment_read': {
+      if (ctx.config.inboxTriageMode === 'lite') {
+        return { error: 'gmail_attachment_read disabled in inbox lite mode — use full triage for PDFs' };
+      }
+      const { messageId, connectionId: inputConnectionId } = input as {
+        messageId: string;
+        connectionId?: string;
+      };
+      const connectionId = inputConnectionId ?? getGmailConnectionForMessage(ctx.state.data, messageId);
+      if (!connectionId) {
+        return { error: 'connectionId required — pass from gmail_read or include in cache' };
+      }
+      try {
+        const { attachments, skipped } = await fetchGmailAttachments({
+          messageId,
+          connectionId,
+          extractText: extractTextFromBuffer,
+        });
+        if (attachments.length > 0) {
+          const combined = attachments
+            .map(a => `[${a.filename}]\n${a.text}`)
+            .join('\n\n');
+          cacheGmailAttachmentText(
+            ctx.state.data,
+            messageId,
+            combined,
+            attachments.map(a => a.filename),
+          );
+        }
+        return { messageId, connectionId, attachments, skipped };
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) };
       }
@@ -1000,7 +1201,7 @@ export async function executeHarnessTool(
     case 'contact_graph_read': {
       const { query } = input as { query?: string };
       const kb = await readAllKB() as KnowledgeBase;
-      const graph = buildContactGraph(kb);
+      const graph = buildVisibleContactGraph(kb);
       if (query?.trim()) {
         const entry = findContactEntry(graph, query);
         return entry ? { entry, count: 1 } : { entry: null, count: 0, query };
@@ -1030,20 +1231,13 @@ export async function executeHarnessTool(
       const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AideaBot/1.0)' } });
       if (!res.ok) return { error: `HTTP ${res.status}`, url };
       const contentType = res.headers.get('content-type') ?? '';
-      let text: string;
-      if (contentType.includes('pdf')) {
-        // PDF: return raw bytes as base64 won't help — return a note
-        return { error: 'PDF parsing requires a dedicated library. Fetch the URL in a browser and paste the text.', url };
+      const bytes = Buffer.from(await res.arrayBuffer());
+      try {
+        const { text, truncated } = await extractTextFromBuffer(bytes, contentType, url);
+        return { url, text, focus: focus ?? 'general', truncated };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err), url };
       }
-      const html = await res.text();
-      text = html
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[\s\S]*?<\/style>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s{2,}/g, ' ')
-        .trim()
-        .slice(0, 8000);
-      return { url, text, focus: focus ?? 'general', truncated: html.length > 8000 };
     }
 
     default:
@@ -1072,7 +1266,8 @@ function getDryRunResponse(toolName: string, input: ToolInput): unknown {
           { topic, title: `[DRY RUN] ${topic} headline 2`, url: 'https://example.com/news/2', snippet: 'Another mock news snippet.' },
         ])),
       };
-    case 'gmail_read':
+    case 'gmail_read': {
+      const includeBody = Boolean((input as { includeBody?: boolean }).includeBody);
       return {
         emails: [
           {
@@ -1081,6 +1276,10 @@ function getDryRunResponse(toolName: string, input: ToolInput): unknown {
             subject: '[DRY RUN] Interview availability — Solutions Architect',
             date: new Date().toISOString(),
             snippet: 'Please share your availability for the next interview round this week.',
+            ...(includeBody ? {
+              bodyText: 'Hi Zoe,\n\nPlease share your availability for the next interview round this week. We have slots Tue–Thu.\n\nThanks,\nCamden',
+              bodyTruncated: false,
+            } : {}),
             isUnread: true,
             connectionId: 'dry-run-gmail',
           },
@@ -1090,6 +1289,15 @@ function getDryRunResponse(toolName: string, input: ToolInput): unknown {
             subject: '[DRY RUN] Ivy first semester report',
             date: new Date().toISOString(),
             snippet: 'Ivy will receive a partial first semester report next week.',
+            isUnread: true,
+            connectionId: 'dry-run-gmail',
+          },
+          {
+            id: 'mock-mortgage-1',
+            from: 'Macquarie Broker <broker@macquarie.com>',
+            subject: '[DRY RUN] Settlement documents attached',
+            date: new Date().toISOString(),
+            snippet: 'Please review the attached settlement statement and finance approval letter.',
             isUnread: true,
             connectionId: 'dry-run-gmail',
           },
@@ -1106,6 +1314,22 @@ function getDryRunResponse(toolName: string, input: ToolInput): unknown {
         query: (input as { query?: string }).query ?? 'is:unread',
         connections: ['dry-run-gmail'],
       };
+    }
+    case 'gmail_attachment_read': {
+      const messageId = (input as { messageId: string }).messageId;
+      return {
+        messageId,
+        connectionId: 'dry-run-gmail',
+        attachments: [{
+          filename: 'settlement-statement.pdf',
+          mimeType: 'application/pdf',
+          size: 120_000,
+          text: '[DRY RUN] Settlement statement excerpt: settlement date 15 July; funds required $1,245,000.',
+          truncated: false,
+        }],
+        skipped: [],
+      };
+    }
     case 'gmail_draft':
     case 'gmail_send':
       return { dryRun: true, message: `[DRY RUN] Would send email to ${(input as { to: string }).to}`, input };

@@ -161,9 +161,16 @@ Keep a single dev server running. Client code must import queue types from `lib/
 
 **Nango local setup:** Copy `NANGO_SECRET_KEY` from [app.nango.dev](https://app.nango.dev) → Environment Settings into `.env.local`. Restart dev server. `vercel env pull` may return empty strings for encrypted vars — paste the key manually if needed.
 
-### Live inbox approve E2E
+### Live inbox approve E2E (Gmail + Calendar)
 
-Opt-in integration test (`npm run test:integration:e2e` / `test:e2e`) — not CI. Requires:
+Opt-in — **not** CI. Sends **real email** and may create a **real calendar event**. Run:
+
+```bash
+npm run test:e2e:inbox
+# same as: npm run test:integration:e2e
+```
+
+Requires:
 
 | Variable / setup | Purpose |
 |------------------|---------|
@@ -175,6 +182,22 @@ Opt-in integration test (`npm run test:integration:e2e` / `test:e2e`) — not CI
 Test mail subjects use prefix `aidea-e2e-`. The suite sends to yourself, triages, approves an `email_reply`, then approves seeded calendar and KB queue items.
 
 Calendar step creates an event on your **primary** Google Calendar (~90 minutes ahead, title prefix `aidea-e2e-cal`). Search Google Calendar for `aidea-e2e-cal` or check the time slot about 90 minutes from the test run. aidea does not show a live calendar grid — executed events appear only as Inbox → **Done** queue rows (and in Settings audit), not in Home schedule unless a morning brief run included them.
+
+Test file: `tests/integration/inbox-approve-e2e.test.ts`. Helpers: `tests/integration/e2e-gmail.ts`.
+
+### Profile memory E2E (no external services)
+
+Opt-in — **not** CI. Does **not** send email or call Gmail/Calendar. Exercises people store, sync blocklist, queue approve/reject, and pulse dismiss via API handlers:
+
+```bash
+npm run test:e2e:profile
+npm run test:e2e          # profile + platform
+npm run test:e2e:all      # profile + platform + live inbox (above)
+```
+
+Uses local `data/` profile (or Postgres if `DATABASE_URL` is set). Test people use prefix `aidea-e2e-person-`.
+
+Test file: `tests/integration/profile-memory-e2e.test.ts`. Contract: `app/api/kb/kb.contract.test.ts`.
 
 ---
 

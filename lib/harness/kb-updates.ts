@@ -1,16 +1,19 @@
 import { readAllKB, writeManyKB, writeKB } from './knowledge-base';
 import { readDomainAutonomy } from './domain-autonomy';
 import type { CurrentProjects, JobApplication, KnowledgeBase } from '@/types/knowledge-base';
+import { upsertPerson } from '@/lib/profile/people';
+import { ensurePeopleStore } from '@/lib/profile/people-migrate';
 import {
   formatKbPatchSummary,
   kbPatchInputFromPayload,
   normalizeKbPatchInput,
   sanitizeQueueSummary,
   type JobApplicationPatch,
+  type PersonPatch,
   type KbPatchInput,
 } from './kb-update-display';
 
-export type { JobApplicationPatch, KbPatchInput };
+export type { JobApplicationPatch, PersonPatch, KbPatchInput };
 export {
   describeKbUpdate,
   formatKbPatchSummary,
@@ -28,10 +31,16 @@ export async function buildKbPatch(input: KbPatchInput): Promise<Record<string, 
   const patch: Record<string, unknown> = { ...(input.updates ?? {}) };
 
   if (input.jobApplication) {
-    const kb = await readAllKB();
+    const kb = ensurePeopleStore(await readAllKB() as KnowledgeBase);
     const work = (kb.work ?? {}) as NonNullable<KnowledgeBase['work']>;
     const updated = mergeJobApplication(work.currentProjects, input.jobApplication);
     patch.work = { ...work, ...(patch.work as object ?? {}), currentProjects: updated };
+  }
+
+  if (input.person) {
+    const kb = ensurePeopleStore(await readAllKB() as KnowledgeBase);
+    const { kb: next } = upsertPerson(kb, { ...input.person, sources: ['agent'] });
+    patch.relationships = next.relationships;
   }
 
   return patch;
@@ -85,7 +94,7 @@ export async function applyKbPatch(input: KbPatchInput | Record<string, unknown>
     ? normalizeKbPatchInput(input as KbPatchInput)
     : (input as KbPatchInput);
 
-  const patch = '_dotKey' in normalized || normalized.jobApplication || normalized.updates || normalized.key !== undefined
+  const patch = '_dotKey' in normalized || normalized.jobApplication || normalized.person || normalized.updates || normalized.key !== undefined
     ? await buildKbPatch(normalized)
     : (normalized as Record<string, unknown>);
 

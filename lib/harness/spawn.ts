@@ -1,5 +1,5 @@
 import type { HarnessAgent, HarnessContext, AgentDefinition, Authority } from './types';
-import { registerAgent, addChildId, patchAgent } from './registry';
+import { registerAgent, addChildId, patchAgent, setAgentStatus } from './registry';
 import { AGENT_LIBRARY } from '@/lib/agents/library';
 import { resolveLibraryAgent } from '@/lib/agents/resolve';
 
@@ -108,6 +108,7 @@ function spawnFromDef(
   // Start loop in background (non-blocking)
   setImmediate(() => {
     runLoop(child, ctx).catch(err => {
+      setAgentStatus(ctx.registry, child.id, 'error');
       ctx.send({
         type: 'agent_error',
         sessionId: ctx.sessionId,

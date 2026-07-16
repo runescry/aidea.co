@@ -7,6 +7,8 @@ import { buildProactiveTasks, type UserAutonomyPreference, type ProactiveHygiene
 import { buildYesterdayTimeline, timelineToTaskItems, type TimelineEntry } from './timeline';
 import { detectScheduleConflicts, conflictsToTaskItems, type ScheduleConflict } from './conflicts';
 import type { QueueAuditEntry } from './queue-audit';
+import { finalizeMustDoList } from './morning-brief-must-do';
+import { isUserLocalSameDay, resolveUserTimezone, userDateYmd } from '@/lib/calendar/user-time';
 
 export type TaskStatus = 'needs_you' | 'suggestion' | 'running' | 'done' | 'failed';
 
@@ -62,13 +64,23 @@ function isSameCalendarDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString();
 }
 
-export function isTodayBrief(brief: Record<string, unknown>, now = new Date()): boolean {
+export function isTodayBrief(
+  brief: Record<string, unknown>,
+  now = new Date(),
+  timeZone?: string,
+): boolean {
+  const tz = timeZone ?? resolveUserTimezone(null);
+  const date = brief.date;
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return isUserLocalSameDay(date, now, tz);
+  }
   const generatedAt = brief.generatedAt;
   if (typeof generatedAt === 'string') {
     const parsed = new Date(generatedAt);
-    if (!Number.isNaN(parsed.getTime())) return isSameCalendarDay(parsed, now);
+    if (!Number.isNaN(parsed.getTime())) {
+      return isUserLocalSameDay(generatedAt, now, tz);
+    }
   }
-  const date = brief.date;
   if (typeof date === 'string') {
     const parsed = new Date(date);
     if (!Number.isNaN(parsed.getTime())) return isSameCalendarDay(parsed, now);
@@ -79,10 +91,13 @@ export function isTodayBrief(brief: Record<string, unknown>, now = new Date()): 
 export function latestBriefToTask(
   brief: Record<string, unknown> | null | undefined,
   now = new Date(),
+  timeZone?: string,
 ): TaskItem | null {
-  if (!brief || typeof brief !== 'object' || !isTodayBrief(brief, now)) return null;
+  const tz = timeZone ?? resolveUserTimezone(null);
+  if (!brief || typeof brief !== 'object' || !isTodayBrief(brief, now, tz)) return null;
 
-  const mustDo = Array.isArray(brief.mustDo) ? brief.mustDo : [];
+  const mustDoRaw = Array.isArray(brief.mustDo) ? brief.mustDo as Record<string, unknown>[] : [];
+  const mustDo = finalizeMustDoList(mustDoRaw);
   const priorityCount = mustDo.length;
   const generatedAt =
     typeof brief.generatedAt === 'string' && !Number.isNaN(new Date(brief.generatedAt).getTime())
@@ -90,7 +105,16 @@ export function latestBriefToTask(
       : now.toISOString();
 
   let title = 'Morning brief';
-  if (typeof brief.date === 'string') {
+  if (typeof brief.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(brief.date)) {
+    const [y, m, d] = brief.date.split('-').map(Number);
+    const anchor = new Date(Date.UTC(y, m - 1, d, 12));
+    title = `Morning brief · ${anchor.toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      timeZone: 'UTC',
+    })}`;
+  } else if (typeof brief.date === 'string') {
     const parsed = new Date(brief.date);
     if (!Number.isNaN(parsed.getTime())) {
       title = `Morning brief · ${parsed.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`;
@@ -114,7 +138,7 @@ export function latestBriefToTask(
     subtitle: priorityCount > 0 ? `${priorityCount} priorit${priorityCount === 1 ? 'y' : 'ies'} today` : 'Daily brief',
     preview,
     createdAt: generatedAt,
-    brief,
+    brief: { ...brief, mustDo },
   };
 }
 
@@ -273,6 +297,7 @@ export function entityStateToTask(entity: EntityState): TaskItem {
         : 'done';
 
   const preview = artifactPreviewFromEntityData(entity.data);
+  const lastError = typeof entity.data.lastError === 'string' ? entity.data.lastError.trim() : '';
   let title: string;
   if (status === 'running') {
     title = `${entity.entityName} — in progress`;
@@ -282,14 +307,19 @@ export function entityStateToTask(entity: EntityState): TaskItem {
     title = preview ?? `${entity.entityName} — complete`;
   }
 
+  let subtitle = preview && status === 'done' ? `${typeLabel} · deliverable` : `${typeLabel} run`;
+  if (status === 'failed' && lastError) {
+    subtitle = lastError.length > 120 ? `${lastError.slice(0, 117)}…` : lastError;
+  }
+
   return {
     id: `entity-${entity.entityId}`,
     source: 'session',
     status,
     entityId: entity.entityId,
     title,
-    subtitle: preview && status === 'done' ? `${typeLabel} · deliverable` : `${typeLabel} run`,
-    preview: status === 'done' ? preview : undefined,
+    subtitle,
+    preview: status === 'done' ? preview : lastError || preview,
     createdAt: entity.updatedAt,
   };
 }
@@ -297,27 +327,47 @@ export function entityStateToTask(entity: EntityState): TaskItem {
 const RECENT_ENTITY_MS = 7 * 24 * 60 * 60 * 1000;
 /** Runs left "running" after disconnect/timeout — treat as failed in Work feed. */
 export const STALE_RUNNING_ENTITY_MS = 45 * 60 * 1000;
+/** Full Daily OS (five parallel agents) may run longer than a single-agent session. */
+export const STALE_DAILY_ENTITY_MS = 90 * 60 * 1000;
 /** Runs that never wrote artifacts — likely a dropped SSE / killed function. */
 export const STALE_EMPTY_RUN_MS = 5 * 60 * 1000;
 
 const BOOTSTRAP_DATA_KEYS = new Set([
   'currentDate', 'currentTime', 'dayOfWeek', 'command', 'conversationHistory',
+  'dailyKickstartComplete', 'lastError',
 ]);
 
+function entityHasMorningBrief(entity: EntityState): boolean {
+  const brief = entity.data.morning_brief;
+  return brief != null && typeof brief === 'object';
+}
+
 function entityHasRunProgress(entity: EntityState): boolean {
+  if (entityHasMorningBrief(entity)) return true;
   return Object.keys(entity.data).some(key => !BOOTSTRAP_DATA_KEYS.has(key));
 }
 
 export function isStaleRunningEntity(entity: EntityState, now = Date.now()): boolean {
   if (entity.status !== 'running' && entity.status !== 'paused') return false;
   const age = now - new Date(entity.updatedAt).getTime();
-  if (!entityHasRunProgress(entity) && age > STALE_EMPTY_RUN_MS) return true;
-  return age > STALE_RUNNING_ENTITY_MS;
+  if (!entityHasRunProgress(entity)) return age > STALE_EMPTY_RUN_MS;
+  const limit = entity.entityType === 'daily' ? STALE_DAILY_ENTITY_MS : STALE_RUNNING_ENTITY_MS;
+  return age > limit;
 }
 
 export function normalizeEntityForFeed(entity: EntityState, now = Date.now()): EntityState {
+  if (entityHasMorningBrief(entity) && entity.status !== 'complete') {
+    return { ...entity, status: 'complete' };
+  }
   if (!isStaleRunningEntity(entity, now)) return entity;
-  return { ...entity, status: 'error' };
+  return {
+    ...entity,
+    status: 'error',
+    data: {
+      ...entity.data,
+      lastError: entity.data.lastError ?? 'Run timed out or was interrupted before finishing',
+    },
+  };
 }
 
 export function buildUnifiedTaskFeed(input: {
@@ -328,6 +378,7 @@ export function buildUnifiedTaskFeed(input: {
   audit?: QueueAuditEntry[];
   proactiveHygiene?: ProactiveHygiene;
   now?: number;
+  timeZone?: string;
 }): {
   tasks: TaskItem[];
   needsYou: number;
@@ -337,6 +388,7 @@ export function buildUnifiedTaskFeed(input: {
 } {
   const nowMs = input.now ?? Date.now();
   const nowDate = new Date(nowMs);
+  const timeZone = input.timeZone ?? resolveUserTimezone(input.kb ?? null);
   const queueTasks = input.actions.map(queueActionToTask);
 
   const entityTasks = input.entities
@@ -371,7 +423,7 @@ export function buildUnifiedTaskFeed(input: {
     now: nowDate,
   }));
 
-  const briefTask = latestBriefToTask(input.brief, nowDate);
+  const briefTask = latestBriefToTask(input.brief, nowDate, timeZone);
   const healthTask = latestHealthBriefToTask(input.entities, nowDate);
   const tasks = insertHealthTask(
     insertBriefTask(

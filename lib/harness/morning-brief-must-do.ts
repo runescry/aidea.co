@@ -1,0 +1,184 @@
+import { gmailMessageUrl } from '@/lib/gmail/message-url';
+import { schoolFromSender } from './school-roundup';
+
+export function nonEmpty(...parts: unknown[]): string {
+  for (const part of parts) {
+    const value = String(part ?? '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+export function decodeBriefText(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+export function snippetHeadline(text: string, max = 100): string {
+  const clean = decodeBriefText(text).replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  const sentence = clean.split(/[.!?\n]/)[0]?.trim() ?? clean;
+  return sentence.length > max ? `${sentence.slice(0, max - 1)}…` : sentence;
+}
+
+const GENERIC_ACTION = /^(review(\s+this)?\s+email|read email|check email)$/i;
+const BODY_GREETING = /^(hi|hey|dear|hello)\s+/i;
+const SIGNATURE_HINT = /\b(kind regards|best regards|regards|sincerely|cheers|yours faithfully)\b/i;
+const PHONE_HINT = /\b[tm]:\s*\+?\d/;
+const ROLE_SIGNATURE = /\b(office manager|operations manager|sent from my iphone)\b/i;
+
+export function looksLikeBodyOpen(text: string): boolean {
+  return BODY_GREETING.test(decodeBriefText(text).trim());
+}
+
+/** Snippet/signature fragments that should never be used as the brief headline. */
+export function looksLikeBadHeadline(text: string): boolean {
+  const clean = decodeBriefText(text).replace(/\s+/g, ' ').trim();
+  if (!clean || clean.length < 4) return true;
+  if (looksLikeBodyOpen(clean)) return true;
+  if (SIGNATURE_HINT.test(clean)) return true;
+  if (PHONE_HINT.test(clean)) return true;
+  if (ROLE_SIGNATURE.test(clean) && clean.length > 32) return true;
+  if (/^(thank you|thanks|just tried|great news|please confirm|hi |hey )/i.test(clean)) return true;
+  return false;
+}
+
+/** Pull a title from school-app / notification snippets when subject is missing. */
+export function inferHeadlineFromSnippet(snippet: string): string {
+  const clean = decodeBriefText(snippet).replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+
+  const posted = clean.match(/\bposted\s+(.+?)(?:\s+Jun\s+\d|\s+\d{1,2}\s+\w+\s+\d{4}|$)/i);
+  if (posted?.[1]) return snippetHeadline(posted[1], 120);
+
+  const withoutGreeting = clean.replace(/^(hi|hey|dear|hello)\s+[^,!.?]+[,.!?]\s*/i, '');
+  if (withoutGreeting !== clean && withoutGreeting.length >= 12) {
+    const candidate = snippetHeadline(withoutGreeting);
+    if (!looksLikeBadHeadline(candidate)) return candidate;
+  }
+
+  if (!looksLikeBodyOpen(clean) && !looksLikeBadHeadline(clean)) return snippetHeadline(clean);
+  return '';
+}
+
+/** Permissive fallback when Gmail subject is unavailable — strip greetings/signatures only. */
+export function fallbackHeadlineFromSnippet(snippet: string): string {
+  let clean = decodeBriefText(snippet).replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  clean = clean.replace(/\s*\b(kind regards|best regards|yours faithfully)\b[\s\S]*$/i, '').trim();
+  if (BODY_GREETING.test(clean)) {
+    clean = clean.replace(/^(hi|hey|dear|hello)\s+[A-Za-z.]+[\s,]+/i, '').trim();
+  }
+  if (!clean) return '';
+  if (SIGNATURE_HINT.test(clean) && PHONE_HINT.test(clean)) return '';
+  return snippetHeadline(clean, 120);
+}
+
+export function mustDoHeadline(item: Record<string, unknown>): string {
+  const subject = nonEmpty(item.subject);
+  const snippet = nonEmpty(item.snippet, item.detail);
+  const rawStep = nonEmpty(item.action, item.nextStep);
+  const step = GENERIC_ACTION.test(rawStep) || looksLikeBadHeadline(rawStep) ? '' : rawStep;
+
+  if (subject) return subject;
+  if (step) return step;
+  const inferred = inferHeadlineFromSnippet(snippet);
+  if (inferred) return inferred;
+  const fallback = fallbackHeadlineFromSnippet(snippet);
+  if (fallback) return fallback;
+  const context = nonEmpty(item.context, item.from, senderFromSnippet(snippet));
+  const label = senderLabel(context);
+  if (label) return label;
+  return fallback || snippetHeadline(snippet) || 'Open in Gmail';
+}
+
+function senderFromSnippet(snippet: string): string {
+  const match = decodeBriefText(snippet).match(/\bFrom:\s*([^\n]+)/i);
+  return match?.[1]?.trim() ?? '';
+}
+
+function senderLabel(context: string): string {
+  const clean = decodeBriefText(context).trim();
+  if (!clean) return '';
+  const name = clean.match(/^([^<]+)</)?.[1]?.trim();
+  if (name) return `Email from ${name}`;
+  if (clean.includes('@')) return `Email from ${clean}`;
+  return clean.length <= 48 ? clean : `${clean.slice(0, 47)}…`;
+}
+
+export function normalizeMustDoItem(item: Record<string, unknown>): Record<string, unknown> {
+  const snippet = decodeBriefText(nonEmpty(item.snippet, item.detail));
+  const subject = decodeBriefText(nonEmpty(item.subject));
+  const action = mustDoHeadline({ ...item, subject, snippet });
+  const fromField = decodeBriefText(nonEmpty(item.from));
+  const existingContext = decodeBriefText(nonEmpty(item.context));
+  const school = schoolFromSender(`${fromField} ${existingContext}`);
+  const context = nonEmpty(
+    existingContext,
+    school ? `${school.school} · ${school.child}` : '',
+    senderLabel(fromField),
+    fromField,
+  );
+  const detailRaw = snippet;
+  const detail = detailRaw && detailRaw !== action ? detailRaw : undefined;
+
+  const messageId = nonEmpty(item.messageId);
+  const threadId = nonEmpty(item.threadId);
+  const account = nonEmpty(item.account);
+  const gmailUrl = nonEmpty(
+    item.gmailUrl,
+    (messageId || threadId)
+      ? gmailMessageUrl(messageId || threadId, { threadId: threadId || undefined, account: account || undefined })
+      : '',
+  );
+
+  return {
+    ...item,
+    subject: subject || undefined,
+    action,
+    context,
+    detail,
+    gmailUrl: gmailUrl || undefined,
+  };
+}
+
+const VAGUE_SUMMARY = /\b(one|several|\d+)\s+(school|email)/i;
+
+/** Drop unlinked agent summaries, dedupe by messageId, fix empty actions. */
+export function finalizeMustDoList(items: Record<string, unknown>[]): Record<string, unknown>[] {
+  const normalized = items
+    .map(normalizeMustDoItem)
+    .filter(item => nonEmpty(item.action));
+
+  const linked = normalized.filter(
+    item => nonEmpty(item.messageId) || nonEmpty(item.gmailUrl) || item.source === 'school',
+  );
+  const candidates = linked.length > 0 ? linked : normalized;
+
+  const seen = new Set<string>();
+  const deduped = candidates.filter(item => {
+    const id = nonEmpty(item.messageId);
+    if (!id) {
+      if (linked.length > 0 && VAGUE_SUMMARY.test(String(item.action))) return false;
+      return true;
+    }
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  return deduped.slice(0, 8).map((item, i) => ({ ...item, priority: i + 1 }));
+}
+
+export function normalizeMorningBrief(brief: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(brief.mustDo)) return brief;
+  return {
+    ...brief,
+    mustDo: finalizeMustDoList(brief.mustDo as Record<string, unknown>[]),
+  };
+}

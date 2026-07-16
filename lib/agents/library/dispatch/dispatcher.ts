@@ -6,7 +6,7 @@ export const dispatcherDef: AgentDefinition = {
   displayName: 'Dispatcher',
   defaultModel: 'claude-haiku-4-5-20251001',
   authority: 'directive',
-  defaultTools: ['spawn_agent', 'write_state', 'kb_read', 'update_kb', 'queue_action', 'web_search', 'gmail_read', 'calendar_read'],
+  defaultTools: ['spawn_agent', 'write_state', 'kb_read', 'update_kb', 'queue_action', 'web_search', 'news_search', 'gmail_read', 'gmail_attachment_read', 'calendar_read'],
   stateReadKeys: [],
   stateWriteKey: 'dispatch_response',
   spawnPatterns: [],
@@ -21,15 +21,19 @@ AVAILABLE ACTIONS:
 - update_kb: persist profile changes (job applications, goals, contacts, work context). Queues for approval in semi-autonomous mode; applies immediately in autonomous mode.
 - kb_read: look up current profile before updating
 - queue_action: for real-world actions (emails, calendar, tasks) — ALWAYS queue, never execute directly
-- web_search: research requests
+- web_search: research requests (companies, topics — not daily headlines)
+- news_search: recent news headlines (past 24h) — use for news/current-events queries
 - gmail_read / calendar_read: check inbox or schedule
+- gmail_attachment_read: extract text from email attachments (PDF, HTML, plain text) when reply depends on attached documents
 - spawn_agent: delegate complex multi-step work
 - write_state: record your response
 
 PROFILE UPDATE RULES (use update_kb):
-Always kb_read relevant keys first (e.g. work.currentProjects, work.keyContacts, goals).
+Before proposing update_kb, kb_read preferences.memoryHygiene.rejectedKbPatches (or read REJECTED PROFILE UPDATES in your task if provided). Do not re-propose updates the user already rejected unless they explicitly ask again.
+Always kb_read relevant keys first (e.g. work.currentProjects, relationships.people, goals).
 - User reports job news ("Anthropic offered me the role", "Vercel rejected me") → update_kb with jobApplication: { company, status, nextAction }
-- User shares new fact about family, goals, schedule, contacts → update_kb with updates: { section: {...} }
+- User shares new fact about family, goals, schedule, contacts → update_kb with updates: { section: {...} } or person: { name, email, relationship, notes }
+- User says stop tracking / remove someone from profile → update_kb with person: { name, email, status: "removed" } — never re-add removed contacts
 - User corrects something in their profile → update_kb with the fix
 - Set requireApproval: true if the change is significant and user didn't clearly instruct the update
 
@@ -41,11 +45,13 @@ IMPORTANT: update_kb must pass jobApplication or updates as structured JSON fiel
 - "My brief should be at 7am" → update_kb preferences.briefingTime
 
 ROUTING RULES:
-- "draft/send/reply/email" → gmail_read if needed, then queue_action type='email_reply' or 'email_send'
+- "draft/send/reply/email" → gmail_read if needed; if attachment-heavy or snippet insufficient, gmail_attachment_read; then queue_action type='email_reply' or 'email_send'
 - "schedule/cancel/move meeting" → calendar_read, then queue_action type='calendar_event'
 - "what's my week/schedule/calendar" → calendar_read (use appropriate date range), then write_state with summary
 - "what's in my inbox/email" → kb_read work.currentProjects first, then gmail_read, then write_state with summary
+- "failed payment" / "subscription" / "billing" / "declined" in inbox → gmail_read with query like newer_than:7d (payment OR declined OR subscription OR billing OR failed OR invoice), filter results, write_state with inbox_summary[] and a summary line (say clearly if none found)
 - "research/find out about X" → web_search, then write_state with findings
+- "news/headlines/current events/what's happening" → kb_read preferences.newsTopics + work.currentProjects (optional), news_search with 2–3 topic queries, then write_state with news_summary.top_stories[] (3–5 items: title/headline, url from news_search results, topic/category, brief context) and a short summary line
 - "remind me to X" → queue_action type='reminder'
 - "add task/todo" → queue_action type='task'
 - profile/job/goal/contact updates → kb_read then update_kb
@@ -80,7 +86,8 @@ IMPORTANT: After your final tool call, write a short natural-language response �
 
 FORMATTING:
 - Use markdown with blank lines between sections (headers, lists, action line).
-- For inbox queries: populate inbox_summary[] in write_state with priority, from, subject, snippet per email; keep the final reply concise.
+- For news queries: populate news_summary.top_stories with url on every story (from news_search results) — never a generic line like "Retrieved headlines".
+- For inbox queries: populate inbox_summary[] in write_state with priority, from, subject, snippet, messageId (from gmail_read) per email; links are added automatically when messageId is present.
 - Recruiting ads / unsolicited job posts → priority LOW (not NORMAL/HIGH); do not mention them in closing "active opportunities" lines unless user asked about all unread mail.
 
 CONTEXT:

@@ -2,8 +2,10 @@
 
 import { useMemo } from 'react';
 import { useChatConversations } from '@/hooks/useChatConversations';
+import { useConfirm } from '@/hooks/useConfirm';
 
 export default function ConversationList() {
+  const confirm = useConfirm();
   const {
     conversations,
     activeId,
@@ -38,9 +40,15 @@ export default function ConversationList() {
             </button>
             <button
               type="button"
-              onClick={e => {
+              onClick={async e => {
                 e.stopPropagation();
-                deleteConversation(conv.id);
+                const ok = await confirm({
+                  title: 'Delete conversation?',
+                  message: `"${conv.title}" will be permanently deleted. This cannot be undone.`,
+                  confirmLabel: 'Delete',
+                  destructive: true,
+                });
+                if (ok) deleteConversation(conv.id);
               }}
               disabled={streaming && active}
               className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded text-foreground-subtle opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-foreground hover:bg-surface-subtle transition-opacity disabled:opacity-30"
