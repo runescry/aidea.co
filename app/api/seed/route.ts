@@ -1,25 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { clearActivityHistory, saveQueuedAction, saveEntityState, writeLatestBrief } from '@/lib/storage';
 
 export const runtime = 'nodejs';
-
-// Simple guard — require ?secret=SEED_SECRET env var to be set and matched.
-// If SEED_SECRET is not set this endpoint is disabled entirely.
-function checkSecret(req: NextRequest): boolean {
-  const expected = process.env.SEED_SECRET;
-  if (!expected) return false;
-  return req.nextUrl.searchParams.get('secret') === expected;
-}
 
 function ago(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
 }
 
-export async function POST(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
+export async function POST() {
   const TODAY = new Date().toISOString().split('T')[0];
 
   const SAMPLE_QUEUE = [
