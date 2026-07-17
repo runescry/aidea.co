@@ -183,4 +183,6 @@ export async function clearActivityHistory(): Promise<void> {
   const userId = getUserId();
   if (usePostgres()) await pg.clearActivityHistory(userId);
   else fs.clearActivityHistory();
+  // Also clear the onboarding completion flag so the wizard re-shows after a reset.
+  await mergeProfile({ 'preferences.onboardingComplete': false });
 }
