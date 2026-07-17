@@ -11,6 +11,7 @@ import { useSaveFeedback } from '@/hooks/useSaveFeedback';
 import { useConfirm } from '@/hooks/useConfirm';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 import { useChatConversations } from '@/hooks/useChatConversations';
+import { clearOnboardingCache } from '@/lib/client/onboarding-cache';
 
 type SettingKey = 'anthropicApiKey' | 'braveSearchApiKey';
 
@@ -242,7 +243,8 @@ export default function SettingsPanel() {
         throw new Error('reset failed');
       }
       resetLocalChatStore();
-      await refreshWorkFeed();
+      clearOnboardingCache();
+      window.location.assign('/');
     }).catch(() => undefined);
   };
 

@@ -32,7 +32,7 @@ export default function HarnessDashboard() {
       .then(r => r.json())
       .then(d => {
         writeOnboardingCache(Boolean(d.complete));
-        if (d.complete) setShowWelcome(false);
+        setShowWelcome(!d.complete);
         setShowOnboarding(!d.complete);
       })
       .catch(() => {

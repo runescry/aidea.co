@@ -73,9 +73,9 @@ export default function WelcomeScreen({ onGoogleConnected, onDemoReady }: Props)
       <section className="w-full max-w-md rounded-2xl border border-border bg-surface p-7 shadow-sm">
         <div className="mb-8">
           <div className="text-display text-foreground">aidea</div>
-          <h1 className="mt-5 text-2xl font-semibold tracking-tight">Start with your Google account</h1>
+          <h1 className="mt-5 text-2xl font-semibold tracking-tight">Log in or sign up</h1>
           <p className="mt-3 text-sm leading-6 text-foreground-muted">
-            Connect Gmail and Calendar so your first brief is based on your real day. You&apos;ll set your preferences next.
+            Continue with Google to connect Gmail and Calendar, then confirm your details before your first brief.
           </p>
         </div>
 
