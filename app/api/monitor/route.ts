@@ -7,6 +7,7 @@ import { writeLatestBrief } from '@/lib/storage';
 import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { recordRelationshipMonitorSignals } from '@/lib/contacts/sync-signals';
 import { listGmailConnectionsLite, hasNangoConnections } from '@/lib/nango/connections';
+import { nangoConfigured } from '@/lib/nango/client';
 
 export const runtime = 'nodejs';
 export const maxDuration = 1800;
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
 
   // Inbox and daily monitors need Gmail — skip gracefully if not connected.
   if (name === 'inbox' || name === 'daily') {
-    const gmailConns = await listGmailConnectionsLite();
+    const gmailConns = nangoConfigured() ? await listGmailConnectionsLite() : [];
     if (gmailConns.length === 0) {
       return NextResponse.json({ ok: true, skipped: 'no Gmail connection', eventCount: 0 });
     }
