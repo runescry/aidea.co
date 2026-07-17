@@ -31,8 +31,9 @@ export default function HarnessDashboard() {
     fetch('/api/onboarding')
       .then(r => r.json())
       .then(d => {
-        writeOnboardingCache(Boolean(d.complete));
-        setShowWelcome(!d.complete);
+        // A cleared cache deliberately means "show the login screen" (first visit or reset).
+        // Do not replace that choice with the profile's previously completed onboarding state.
+        if (readOnboardingCache() !== null) writeOnboardingCache(Boolean(d.complete));
         setShowOnboarding(!d.complete);
       })
       .catch(() => {
