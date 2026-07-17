@@ -74,11 +74,13 @@ export default function SettingsPanel() {
   const [values, setValues] = useState<Partial<Record<SettingKey, string>>>({});
   const { saving, saved, runSave } = useSaveFeedback();
   const { saving: resetting, saved: resetDone, runSave: runReset } = useSaveFeedback();
+  const { saving: seeding, saved: seedDone, runSave: runSeed } = useSaveFeedback();
   const { refresh: refreshWorkFeed } = useWorkFeed();
   const { resetLocalChatStore } = useChatConversations();
 
   const [nangoConfigured, setNangoConfigured] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [seedError, setSeedError] = useState<string | null>(null);
   const [connections, setConnections] = useState<NangoConnection[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -238,6 +240,20 @@ export default function SettingsPanel() {
       if (!res.ok) {
         setResetError(body.error ?? `Reset failed (${res.status})`);
         throw new Error('reset failed');
+      }
+      resetLocalChatStore();
+      await refreshWorkFeed();
+    }).catch(() => undefined);
+  };
+
+  const handleSeedSampleData = async () => {
+    setSeedError(null);
+    await runSeed(async () => {
+      const res = await fetch('/api/seed', { method: 'POST' });
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok) {
+        setSeedError(body.error ?? `Seed failed (${res.status})`);
+        throw new Error('seed failed');
       }
       resetLocalChatStore();
       await refreshWorkFeed();
@@ -431,6 +447,29 @@ export default function SettingsPanel() {
       <div className="card p-4 space-y-3">
         <h3 className="text-sm font-medium text-foreground">Queue activity</h3>
         <AuditTrailPanel />
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Sample data</h3>
+            <p className="text-xs text-foreground-muted mt-1">
+              Clear activity and load realistic demo data — useful for demos without live integrations.
+            </p>
+          </div>
+          <button
+            onClick={handleSeedSampleData}
+            disabled={seeding}
+            className="btn-secondary text-xs py-1.5 shrink-0"
+          >
+            {seedDone ? 'Loaded ✓' : seeding ? 'Loading…' : 'Load sample data'}
+          </button>
+        </div>
+        {seedError && (
+          <p className="text-xs text-red-600 dark:text-red-400 whitespace-pre-wrap">
+            {seedError}
+          </p>
+        )}
       </div>
 
       <div className="card border-danger/30 p-4 space-y-4">
