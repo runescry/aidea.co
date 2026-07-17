@@ -156,6 +156,10 @@ async function enrichConnections(conns: ListedConnection[]): Promise<NangoConnec
 let _hasConnectionsCache: { at: number; value: boolean } | null = null;
 const NANGO_HAS_CONNECTIONS_MS = 60_000;
 
+export function invalidateNangoConnectionsCache(): void {
+  _hasConnectionsCache = null;
+}
+
 export async function hasNangoConnections(): Promise<boolean> {
   if (!nangoConfigured()) return false;
   const now = Date.now();
