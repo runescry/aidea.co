@@ -17,8 +17,10 @@ import AgentLibrary from './AgentLibrary';
 import OnboardingWizard from './onboarding/OnboardingWizard';
 import QuickStartOnboarding from './onboarding/QuickStartOnboarding';
 import HumanInputOverlay from './HumanInputOverlay';
+import WelcomeScreen from './WelcomeScreen';
 
 export default function HarnessDashboard() {
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => readOnboardingCache() === null);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
     const cached = readOnboardingCache();
     return cached === false;
@@ -30,6 +32,7 @@ export default function HarnessDashboard() {
       .then(r => r.json())
       .then(d => {
         writeOnboardingCache(Boolean(d.complete));
+        if (d.complete) setShowWelcome(false);
         setShowOnboarding(!d.complete);
       })
       .catch(() => {
@@ -39,6 +42,21 @@ export default function HarnessDashboard() {
         }
       });
   }, []);
+
+  if (showWelcome) {
+    return (
+      <WelcomeScreen
+        onGoogleConnected={() => {
+          setShowWelcome(false);
+          setShowOnboarding(true);
+        }}
+        onDemoReady={() => {
+          setShowWelcome(false);
+          setShowOnboarding(false);
+        }}
+      />
+    );
+  }
 
   if (showOnboarding) {
     if (onboardingMode === 'full') {
