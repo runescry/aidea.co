@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { clearActivityHistory, saveQueuedAction, saveEntityState, writeLatestBrief } from '@/lib/storage';
+import { invalidateDevTasksCache } from '@/lib/harness/tasks-cache';
+import { invalidateNangoConnectionsCache } from '@/lib/nango/connections';
 
 export const runtime = 'nodejs';
 
@@ -224,6 +226,8 @@ export async function POST(req: NextRequest) {
   };
 
   try {
+    invalidateNangoConnectionsCache();
+    invalidateDevTasksCache();
     await clearActivityHistory();
     for (const action of SAMPLE_QUEUE) {
       await saveQueuedAction({ ...action });

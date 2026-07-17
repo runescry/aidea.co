@@ -6,6 +6,7 @@ import { hasApiKey } from '@/lib/ai/provider';
 import { writeLatestBrief } from '@/lib/storage';
 import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { recordRelationshipMonitorSignals } from '@/lib/contacts/sync-signals';
+import { listGmailConnectionsLite, hasNangoConnections } from '@/lib/nango/connections';
 
 export const runtime = 'nodejs';
 export const maxDuration = 1800;
@@ -41,6 +42,21 @@ export async function GET(req: NextRequest) {
       { error: 'LLM not configured — set AI_GATEWAY_API_KEY (recommended) or ANTHROPIC_API_KEY in environment' },
       { status: 500 }
     );
+  }
+
+  // Inbox and daily monitors need Gmail — skip gracefully if not connected.
+  if (name === 'inbox' || name === 'daily') {
+    const gmailConns = await listGmailConnectionsLite();
+    if (gmailConns.length === 0) {
+      return NextResponse.json({ ok: true, skipped: 'no Gmail connection', eventCount: 0 });
+    }
+  }
+
+  // Relationship monitor needs at least some integration — skip if none.
+  if (name === 'relationships') {
+    if (!(await hasNangoConnections())) {
+      return NextResponse.json({ ok: true, skipped: 'no integrations connected', eventCount: 0 });
+    }
   }
 
   const events: HarnessEvent[] = [];

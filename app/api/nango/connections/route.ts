@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteNangoConnection, listNangoConnections } from '@/lib/nango/connections';
+import { deleteNangoConnection, listNangoConnections, invalidateNangoConnectionsCache } from '@/lib/nango/connections';
 import { nangoConfigured } from '@/lib/nango/client';
 
 export const runtime = 'nodejs';
@@ -21,5 +21,6 @@ export async function DELETE(req: NextRequest) {
   }
 
   await deleteNangoConnection(connectionId, integrationId);
+  invalidateNangoConnectionsCache();
   return NextResponse.json({ ok: true, connections: await listNangoConnections() });
 }
