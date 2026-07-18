@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getEndUserId,
+  resolveEndUserId,
   getNango,
   gmailIntegrationId,
   calendarIntegrationId,
   nangoConfigured,
   nangoMisconfigMessage,
 } from '@/lib/nango/client';
+import { isDemoUserId } from '@/lib/auth/session';
 
 export const runtime = 'nodejs';
 
@@ -28,6 +29,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const endUserId = await resolveEndUserId();
+    if (isDemoUserId(endUserId)) {
+      return NextResponse.json({ error: 'Demo sessions cannot connect Google integrations' }, { status: 403 });
+    }
+
     const body = await req.json().catch(() => ({})) as { integrations?: string[] };
     const requested = body.integrations?.length
       ? body.integrations
@@ -46,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { data } = await nango.createConnectSession({
-      tags: { end_user_id: getEndUserId() },
+      tags: { end_user_id: endUserId },
       allowed_integrations: allowed,
     });
 

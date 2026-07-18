@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteNangoConnection, listNangoConnections, invalidateNangoConnectionsCache } from '@/lib/nango/connections';
-import { nangoConfigured } from '@/lib/nango/client';
+import { nangoConfigured, resolveEndUserId } from '@/lib/nango/client';
+import { isDemoUserId } from '@/lib/auth/session';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
+  if (isDemoUserId(await resolveEndUserId())) {
+    return NextResponse.json({ configured: true, connections: [] });
+  }
+
   if (!nangoConfigured()) {
     return NextResponse.json({ configured: false, connections: [] });
   }
@@ -20,7 +25,12 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'connectionId and integrationId required' }, { status: 400 });
   }
 
-  await deleteNangoConnection(connectionId, integrationId);
+  try {
+    await deleteNangoConnection(connectionId, integrationId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Connection not found for current user';
+    return NextResponse.json({ error: message }, { status: 404 });
+  }
   invalidateNangoConnectionsCache();
   return NextResponse.json({ ok: true, connections: await listNangoConnections() });
 }

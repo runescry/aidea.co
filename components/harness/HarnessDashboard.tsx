@@ -33,8 +33,11 @@ export default function HarnessDashboard() {
       .then(d => {
         // A cleared cache deliberately means "show the login screen" (first visit or reset).
         // Do not replace that choice with the profile's previously completed onboarding state.
-        if (readOnboardingCache() !== null) writeOnboardingCache(Boolean(d.complete));
-        setShowOnboarding(!d.complete);
+        if (readOnboardingCache() !== null) {
+          writeOnboardingCache(Boolean(d.complete));
+          setShowWelcome(false);
+          setShowOnboarding(!d.complete);
+        }
       })
       .catch(() => {
         if (readOnboardingCache() === null) {

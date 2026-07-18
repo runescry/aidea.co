@@ -80,7 +80,7 @@ flowchart TB
   STRAVA --> KBH
 ```
 
-**Tenant model:** All storage calls use `getUserId()` → `process.env.DEFAULT_USER_ID ?? 'default'`. There is **no session auth** today; Nango connections are tagged with the same `end_user_id`.
+**Tenant model:** In Postgres mode, user data is scoped by a request cookie (`aidea-user-id`) created by the Login / Demo entry flow, with `DEFAULT_USER_ID ?? 'default'` retained as the local/CLI fallback. Nango connection sessions and connection lookups use the same resolved user id as their `end_user_id`; demo tenants (`demo:*`) cannot connect live Google integrations. Filesystem storage remains a single-user local development fallback.
 
 ---
 
