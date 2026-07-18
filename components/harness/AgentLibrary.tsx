@@ -63,7 +63,10 @@ export default function AgentLibrary() {
       const data = await res.json() as { groups: AgentGroup[]; toolCatalog: Record<string, ToolInfo> };
       setGroups(data.groups);
       setToolCatalog(data.toolCatalog);
-      setSelectedId(prev => prev ?? data.groups[0]?.agents[0]?.id ?? null);
+      setSelectedId(prev => {
+        if (prev || !window.matchMedia('(min-width: 768px)').matches) return prev;
+        return data.groups[0]?.agents[0]?.id ?? null;
+      });
     }
     setLoading(false);
   }, []);
@@ -187,7 +190,7 @@ export default function AgentLibrary() {
                   key={agent.id}
                   type="button"
                   onClick={() => handleSelect(agent.id)}
-                  className={`w-full text-left px-4 py-2.5 border-b border-border/50 transition-colors ${
+                  className={`min-h-12 w-full border-b border-border/50 px-4 py-3 text-left transition-colors md:min-h-0 md:py-2.5 ${
                     selectedId === agent.id ? 'bg-accent/[0.05]' : 'hover:bg-surface-subtle/80'
                   }`}
                 >
@@ -213,31 +216,31 @@ export default function AgentLibrary() {
             Select an agent
           </div>
         ) : (
-          <div className="w-full max-w-3xl mx-auto p-4 md:p-6 space-y-6">
+          <div className="mx-auto w-full max-w-3xl space-y-4 p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:space-y-6 sm:p-4 md:p-6">
             <button
               type="button"
               onClick={() => setSelectedId(null)}
-              className="md:hidden text-[12px] text-foreground-muted hover:text-foreground -mt-1 mb-2"
+              className="-mt-1 mb-1 min-h-11 w-full text-left text-[12px] text-foreground-muted hover:text-foreground md:hidden"
             >
               ← All agents
             </button>
-            <div className="flex items-start justify-between gap-4">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0">
                 <h1 className="text-lg font-semibold text-foreground">{selected.displayName}</h1>
-                <p className="text-xs text-foreground-muted mt-1 font-mono">{selected.id}</p>
+                <p className="mt-1 break-all font-mono text-xs text-foreground-muted">{selected.id}</p>
               </div>
-              <div className="flex flex-col items-end gap-1.5 shrink-0">
-                <div className="flex gap-2">
+              <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-auto sm:items-end">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                   {selected.hasCustomization && (
-                    <button type="button" onClick={handleReset} disabled={saving} className="btn-secondary text-xs py-1.5">
+                    <button type="button" onClick={handleReset} disabled={saving} className="btn-secondary min-h-11 w-full text-xs sm:min-h-0 sm:w-auto sm:py-1.5">
                       Reset all
                     </button>
                   )}
-                  <button type="button" onClick={handleSave} disabled={saving} className="btn-primary text-xs py-1.5">
+                  <button type="button" onClick={handleSave} disabled={saving} className="btn-primary min-h-11 w-full text-xs sm:min-h-0 sm:w-auto sm:py-1.5">
                     {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save changes'}
                   </button>
                 </div>
-                {saveError && <p className="text-[11px] text-danger">{saveError}</p>}
+                {saveError && <p className="text-[11px] text-danger sm:text-right">{saveError}</p>}
               </div>
             </div>
 
@@ -273,13 +276,13 @@ export default function AgentLibrary() {
               </div>
 
               <div>
-                <div className="flex items-center gap-2 mb-3">
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
                   <span className="text-xs font-medium text-foreground-muted">Prompt mode</span>
-                  <div className="flex rounded-lg border border-border overflow-hidden">
+                  <div className="flex w-full overflow-hidden rounded-lg border border-border sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setPromptMode('append')}
-                      className={`px-3 py-1 text-[11px] font-medium transition-colors ${
+                      className={`min-h-11 flex-1 px-2 py-1 text-[11px] font-medium transition-colors sm:min-h-0 sm:flex-none sm:px-3 ${
                         promptMode === 'append' ? 'bg-foreground text-surface' : 'text-foreground-muted hover:text-foreground'
                       }`}
                     >
@@ -288,7 +291,7 @@ export default function AgentLibrary() {
                     <button
                       type="button"
                       onClick={switchToReplace}
-                      className={`px-3 py-1 text-[11px] font-medium transition-colors border-l border-border ${
+                      className={`min-h-11 flex-1 border-l border-border px-2 py-1 text-[11px] font-medium transition-colors sm:min-h-0 sm:flex-none sm:px-3 ${
                         promptMode === 'replace' ? 'bg-foreground text-surface' : 'text-foreground-muted hover:text-foreground'
                       }`}
                     >
@@ -386,7 +389,7 @@ export default function AgentLibrary() {
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[12px] font-mono text-foreground">{tool}</span>
+                          <span className="break-all font-mono text-[12px] text-foreground">{tool}</span>
                           {info?.realWorld && (
                             <span className="text-[9px] uppercase tracking-wide text-warning font-medium">Real world</span>
                           )}
