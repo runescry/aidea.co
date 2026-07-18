@@ -8,10 +8,6 @@ import * as fs from './filesystem';
 import * as pg from './postgres';
 import { getCurrentUserId } from '@/lib/auth/session';
 
-export function getUserId(): string {
-  return process.env.DEFAULT_USER_ID ?? 'default';
-}
-
 async function resolveUserId(): Promise<string> {
   return getCurrentUserId();
 }
