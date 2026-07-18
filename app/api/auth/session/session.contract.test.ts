@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GET, POST } from './route';
+import { DELETE, GET, POST } from './route';
 
 describe('/api/auth/session', () => {
   it('returns the fallback session shape when no request cookie is available', async () => {
@@ -8,6 +8,13 @@ describe('/api/auth/session', () => {
 
     const body = await res.json() as { userId: string; mode: string };
     expect(body).toEqual({ userId: process.env.DEFAULT_USER_ID ?? 'default', mode: 'default' });
+  });
+
+  it('clears the session when logging out', async () => {
+    const res = await DELETE();
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true });
   });
 
   it('rejects unsupported session modes', async () => {

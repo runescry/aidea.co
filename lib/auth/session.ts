@@ -72,9 +72,13 @@ export async function setCurrentUser(mode: AideaAuthMode): Promise<string> {
 }
 
 export async function clearCurrentUser(): Promise<void> {
-  const store = await cookies();
-  store.delete(AIDEA_USER_COOKIE);
-  store.delete(AIDEA_AUTH_MODE_COOKIE);
+  try {
+    const store = await cookies();
+    store.delete(AIDEA_USER_COOKIE);
+    store.delete(AIDEA_AUTH_MODE_COOKIE);
+  } catch {
+    // Route contract tests and CLI callers may not have a Next request cookie store.
+  }
 }
 
 export function isDemoUserId(userId: string): boolean {

@@ -76,6 +76,7 @@ export default function SettingsPanel() {
   const { saving, saved, runSave } = useSaveFeedback();
   const { saving: resetting, saved: resetDone, runSave: runReset } = useSaveFeedback();
   const { saving: seeding, saved: seedDone, runSave: runSeed } = useSaveFeedback();
+  const { saving: loggingOut, runSave: runLogout } = useSaveFeedback();
   const { refresh: refreshWorkFeed } = useWorkFeed();
   const { resetLocalChatStore } = useChatConversations();
 
@@ -143,6 +144,25 @@ export default function SettingsPanel() {
       setValues({});
       await load();
     });
+  };
+
+  const handleLogout = async () => {
+    const ok = await confirm({
+      title: 'Log out of aidea?',
+      message:
+        'This clears the local app session on this browser and returns you to Log in / Sign up. '
+        + 'Your saved profile, queue history, and connected Google accounts are not deleted.',
+      confirmLabel: 'Log out',
+    });
+    if (!ok) return;
+
+    await runLogout(async () => {
+      await fetch('/api/auth/session', { method: 'DELETE' });
+      resetLocalChatStore();
+      clearCachedWorkFeed();
+      clearOnboardingCache();
+      window.location.assign('/');
+    }).catch(() => undefined);
   };
 
   const handleConnectGoogle = async () => {
@@ -291,6 +311,25 @@ export default function SettingsPanel() {
               {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save keys'}
             </button>
           )}
+        </div>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Account</h3>
+            <p className="text-xs text-foreground-muted mt-1">
+              Log out on this browser to return to Log in / Sign up. This does not delete profile data
+              or disconnect Google.
+            </p>
+          </div>
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="btn-secondary text-xs py-1.5 shrink-0"
+          >
+            {loggingOut ? 'Logging out…' : 'Log out'}
+          </button>
         </div>
       </div>
 
