@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ needsYou, suggestions: 0 });
   }
 
-  await ensureQueueHygiene();
+  void ensureQueueHygiene();
 
   const cached = getDevTasksCache();
   if (cached) {
@@ -59,17 +59,22 @@ export async function GET(req: NextRequest) {
     listQueueAudit(200),
   ]);
 
-  const briefEnriched = briefRaw ? await enrichBriefMustDoFromGmail(briefRaw) : null;
-  const brief = briefEnriched ? normalizeMorningBrief(briefEnriched) : null;
+  const brief = briefRaw ? normalizeMorningBrief(briefRaw) : null;
 
-  if (brief && briefRaw && Array.isArray(brief.mustDo) && Array.isArray(briefRaw.mustDo)) {
-    const gainedSubject = (brief.mustDo as Record<string, unknown>[]).some((row, i) => {
-      const prior = (briefRaw.mustDo as Record<string, unknown>[])[i];
-      return nonEmpty(row.subject) && !nonEmpty(prior?.subject);
-    });
-    if (gainedSubject) {
-      void writeLatestBrief(brief).catch(() => undefined);
-    }
+  if (briefRaw) {
+    void enrichBriefMustDoFromGmail(briefRaw)
+      .then(enriched => {
+        const enrichedBrief = enriched ? normalizeMorningBrief(enriched) : null;
+        if (!enrichedBrief || !Array.isArray(enrichedBrief.mustDo) || !Array.isArray(briefRaw.mustDo)) return;
+        const gainedSubject = (enrichedBrief.mustDo as Record<string, unknown>[]).some((row, i) => {
+          const prior = (briefRaw.mustDo as Record<string, unknown>[])[i];
+          return nonEmpty(row.subject) && !nonEmpty(prior?.subject);
+        });
+        if (gainedSubject) {
+          return writeLatestBrief(enrichedBrief);
+        }
+      })
+      .catch(() => undefined);
   }
 
   const stale = rawEntities.filter(isStaleRunningEntity);
