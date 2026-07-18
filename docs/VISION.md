@@ -202,7 +202,7 @@ flowchart TB
 | D8 Entity modes | 80 | Functional | Personal/Daily absent from Home launcher |
 | D9 Proactive & governance | 85 | Production-ready | Per-domain autonomy UI; queue gating partial (P8.0) |
 | D10 Chat persistence | 85 | Production-ready | Dual localStorage sync; no chat contract tests |
-| D11 Production platform | 72 | Functional | Lightweight session-scoped tenants; verified auth provider and prod smoke hardening remain |
+| D11 Production platform | 82 | Functional | Signed Nango-verified tenants and production API gating shipped; mobile secondary-surface polish remains |
 | D12 Mobile | 82 | Functional | Secondary views (Agents, Context, Settings) desktop-first |
 
 **Strength:** chat → Inbox → Gmail approval loop; morning brief and cron outcomes on Home.
@@ -297,9 +297,9 @@ flowchart TB
 
 **Works:** Postgres schema and migrate; Vercel deploy; crons with `CRON_SECRET`; activity reset; AI Gateway path; P7 shipped to prod.
 
-**Partial:** Lightweight session cookies scope Postgres/Nango by browser session; verified auth middleware and post-deploy smoke checklist remain ([PLAN P8.0](./PLAN.md#p80--complete-p7-partials)).
+**Delivered:** Signed sessions scope Postgres by stable Nango-verified Google identity (or isolated demo tenant), production API middleware rejects tampered/unsigned sessions, and the post-deploy smoke checklist covers the account lifecycle ([PLAN P8.4](./PLAN.md#p84--platform)).
 
-**Next enrichment:** Document prod smoke in [DEPLOYMENT.md](./DEPLOYMENT.md); replace the lightweight cookie entry session with verified auth while preserving the resolved user-id seam ([PLAN P8.4](./PLAN.md#p84--platform)).
+**Next enrichment:** Polish mobile Agents, Profile, and Settings secondary surfaces while retaining the signed resolved-user seam ([PLAN P8.4](./PLAN.md#p84--platform)).
 
 ### D12 Mobile — 82
 

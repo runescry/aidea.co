@@ -6,8 +6,12 @@ describe('/api/auth/session', () => {
     const res = await GET();
     expect(res.status).toBe(200);
 
-    const body = await res.json() as { userId: string; mode: string };
-    expect(body).toEqual({ userId: process.env.DEFAULT_USER_ID ?? 'default', mode: 'default' });
+    const body = await res.json() as { userId: string; mode: string; authenticated: boolean };
+    expect(body).toEqual({
+      userId: process.env.DEFAULT_USER_ID ?? 'default',
+      mode: 'default',
+      authenticated: false,
+    });
   });
 
   it('clears the session when logging out', async () => {

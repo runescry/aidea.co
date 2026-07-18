@@ -1,12 +1,18 @@
 import { randomUUID } from 'crypto';
 import { cookies } from 'next/headers';
+import {
+  createSessionToken,
+  AIDEA_SESSION_COOKIE,
+  sessionMaxAgeSeconds,
+  verifySessionToken,
+  type AideaSession,
+} from './session-token';
 
 export const AIDEA_USER_COOKIE = 'aidea-user-id';
 export const AIDEA_AUTH_MODE_COOKIE = 'aidea-auth-mode';
+export { AIDEA_SESSION_COOKIE } from './session-token';
 
 export type AideaAuthMode = 'google' | 'demo';
-
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 function fallbackUserId(): string {
   return process.env.DEFAULT_USER_ID ?? 'default';
@@ -29,51 +35,68 @@ export function normalizeUserId(value: string | undefined | null): string | null
   return clean ? `${prefix}:${clean}` : null;
 }
 
-export async function getCurrentUserId(): Promise<string> {
+async function readSession(): Promise<AideaSession | null> {
   try {
     const store = await cookies();
-    return normalizeUserId(store.get(AIDEA_USER_COOKIE)?.value) ?? fallbackUserId();
+    return verifySessionToken(store.get(AIDEA_SESSION_COOKIE)?.value);
   } catch {
-    return fallbackUserId();
+    return null;
   }
+}
+
+export async function getCurrentUserId(): Promise<string> {
+  return (await readSession())?.userId ?? fallbackUserId();
 }
 
 export async function getCurrentAuthMode(): Promise<AideaAuthMode | 'default'> {
-  try {
-    const store = await cookies();
-    const mode = store.get(AIDEA_AUTH_MODE_COOKIE)?.value;
-    if (mode === 'google' || mode === 'demo') return mode;
-  } catch {
-    // fall through
-  }
-  return 'default';
+  return (await readSession())?.mode ?? 'default';
+}
+
+export async function isCurrentSessionVerified(): Promise<boolean> {
+  return (await readSession())?.verified ?? false;
+}
+
+export async function getCurrentNangoUserId(): Promise<string> {
+  const session = await readSession();
+  return session?.nangoUserId ?? session?.userId ?? fallbackUserId();
+}
+
+async function writeSession(session: Omit<AideaSession, 'expiresAt'>): Promise<void> {
+  const store = await cookies();
+  store.set(AIDEA_SESSION_COOKIE, await createSessionToken(session), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: sessionMaxAgeSeconds,
+  });
 }
 
 export async function setCurrentUser(mode: AideaAuthMode): Promise<string> {
-  const store = await cookies();
-  const existing = normalizeUserId(store.get(AIDEA_USER_COOKIE)?.value);
-  const userId = existing?.startsWith(`${mode}:`) ? existing : createUserId(mode);
-  const secure = process.env.NODE_ENV === 'production';
-  store.set(AIDEA_USER_COOKIE, userId, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure,
-    path: '/',
-    maxAge: COOKIE_MAX_AGE,
-  });
-  store.set(AIDEA_AUTH_MODE_COOKIE, mode, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure,
-    path: '/',
-    maxAge: COOKIE_MAX_AGE,
+  const existing = await readSession();
+  const userId = existing?.mode === mode ? existing.userId : createUserId(mode);
+  await writeSession({
+    userId,
+    mode,
+    verified: mode === 'demo',
+    ...(mode === 'google' ? { nangoUserId: existing?.mode === mode ? existing.nangoUserId ?? userId : userId } : {}),
   });
   return userId;
+}
+
+export async function setCurrentGoogleUser(userId: string, nangoUserId: string): Promise<void> {
+  const normalizedUserId = normalizeUserId(userId);
+  const normalizedNangoUserId = normalizeUserId(nangoUserId);
+  if (!normalizedUserId?.startsWith('google:') || !normalizedNangoUserId?.startsWith('google:')) {
+    throw new Error('Google session ids are invalid');
+  }
+  await writeSession({ userId: normalizedUserId, mode: 'google', verified: true, nangoUserId: normalizedNangoUserId });
 }
 
 export async function clearCurrentUser(): Promise<void> {
   try {
     const store = await cookies();
+    store.delete(AIDEA_SESSION_COOKIE);
     store.delete(AIDEA_USER_COOKIE);
     store.delete(AIDEA_AUTH_MODE_COOKIE);
   } catch {

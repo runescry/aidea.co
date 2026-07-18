@@ -101,7 +101,7 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null; pkill -f "next dev" 2>/dev/null; slee
 | P8.1 health connector | `lib/health/`, Settings integrations, Nango or provider OAuth |
 | P8.2 contact graph | `interaction-graph.ts`, relationship-monitor cron, Gmail/Calendar signals |
 | P8.3 finance spike | new `lib/finance/` or Plaid module, KB `finance` section |
-| P8.4 platform | verified auth middleware, tenant migration/hardening, mobile secondary views |
+| P8.4 platform | signed Nango-backed auth and tenant hardening complete; mobile secondary views remain |
 | P9 profile memory | `lib/profile/people.ts`, `ProfilePeopleSection`, `memory-hygiene.ts`, graph blocklist |
 
 ---
@@ -409,7 +409,7 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 
 #### P8.4 — Platform
 
-- [ ] **Auth / multi-user hardening** — Replace lightweight entry cookies with verified session middleware; migrate/retire public `DEFAULT_USER_ID` fallback while preserving per-user profile/KB scoping ([VISION D11](./VISION.md#d11-production-platform--62))
+- [x] **Auth / multi-user hardening** — Nango-verified Google identity, signed session middleware, stable opaque tenants, automatic safe tenant claiming, and no public production `DEFAULT_USER_ID` fallback ([VISION D11](./VISION.md#d11-production-platform--62))
 - [ ] **Mobile secondary surfaces** — Agents, Context, Settings usable on small screens (Home loop already mobile-first)
 
 ---

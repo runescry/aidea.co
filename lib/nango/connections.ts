@@ -255,6 +255,13 @@ export async function listCalendarConnectionsLite(): Promise<NangoConnectionPubl
   return listNangoConnectionsLite(calendarIntegrationId());
 }
 
+export async function getConnectedGoogleIdentity(): Promise<{ email: string; displayName?: string }> {
+  const connections = await listNangoConnections();
+  const identified = connections.find(connection => connection.email);
+  if (!identified?.email) throw new Error('Google connection did not return an email address');
+  return { email: identified.email, displayName: identified.displayName };
+}
+
 export async function resolveGmailConnections(connectionId?: string): Promise<NangoConnectionPublic[]> {
   const all = await listGmailConnectionsLite();
   if (all.length === 0) {
