@@ -18,6 +18,13 @@ export default function WelcomeScreen({ onGoogleConnected, onDemoReady }: Props)
     setConnecting(true);
     setError(null);
     try {
+      const authRes = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'google' }),
+      });
+      if (!authRes.ok) throw new Error('Failed to start Google session');
+
       const res = await fetch('/api/nango/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -50,6 +57,13 @@ export default function WelcomeScreen({ onGoogleConnected, onDemoReady }: Props)
     setLoadingDemo(true);
     setError(null);
     try {
+      const authRes = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'demo' }),
+      });
+      if (!authRes.ok) throw new Error('Failed to start demo session');
+
       const res = await fetch('/api/seed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

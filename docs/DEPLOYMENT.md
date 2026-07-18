@@ -211,10 +211,9 @@ npm run typecheck && npm test && npm run test:contract && npm run build
 
 ## Single-user vs multi-user
 
-Today, `DEFAULT_USER_ID` scopes all rows. For true multi-user:
+Postgres rows are scoped by the resolved app user id. The Login / Demo entry flow sets an `aidea-user-id` cookie (`google:*` for Google entry, `demo:*` for demo entry), and storage plus Nango resolve that request-scoped id before touching data or integrations. `DEFAULT_USER_ID` remains the fallback for local scripts, CLI tasks, and single-user private deploys. Filesystem storage remains a single-user local development fallback; use Postgres/Neon for multi-user isolation.
 
-1. Add authentication (e.g. Clerk, Auth.js) and set `DEFAULT_USER_ID` from the session in middleware or API routes.
-2. Ensure every storage call uses `getUserId()` (already centralized in [`lib/storage/index.ts`](../lib/storage/index.ts)).
+For production hardening, replace the current lightweight cookie entry session with a verified auth provider (for example Auth.js or Clerk), but keep storage and Nango flowing through the centralized resolved user id seam.
 
 ## Verify Postgres locally
 
