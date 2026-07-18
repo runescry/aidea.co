@@ -30,6 +30,8 @@ See [AGENTS.md](../AGENTS.md) for agent git/deploy rules.
 
 ## Post-deploy smoke ([aidea-co.vercel.app](https://aidea-co.vercel.app))
 
+Full checklist: [PROD_SMOKE.md](./PROD_SMOKE.md).
+
 Run after each prod deploy (extends [PLAN P7.0](./PLAN.md#p70--ship--stabilize); full checklist tracked in [PLAN P8.0](./PLAN.md#p80--complete-p7-partials)):
 
 | Surface | Check |
@@ -214,6 +216,22 @@ npm run typecheck && npm test && npm run test:contract && npm run build
 Postgres rows are scoped by the resolved app user id. The Login / Demo entry flow sets an `aidea-user-id` cookie (`google:*` for Google entry, `demo:*` for demo entry), and storage plus Nango resolve that request-scoped id before touching data or integrations. `DEFAULT_USER_ID` remains the fallback for local scripts, CLI tasks, and single-user private deploys. Filesystem storage remains a single-user local development fallback; use Postgres/Neon for multi-user isolation.
 
 For production hardening, replace the current lightweight cookie entry session with a verified auth provider (for example Auth.js or Clerk), but keep storage and Nango flowing through the centralized resolved user id seam.
+
+### Inspect or copy legacy `default` tenant data
+
+Before replacing the lightweight entry session with verified auth, inspect any existing rows stored under `user_id = 'default'` and decide whether to archive them or copy them to a verified user id. The tenant migration helper is report-only by default:
+
+```bash
+npm run tenant:report -- --from=default
+```
+
+To copy rows to a target tenant, pass `--to` and the explicit `--apply` flag:
+
+```bash
+npm run tenant:migrate -- --from=default --to=google:user_123 --apply
+```
+
+The helper copies profile, queue, entity state, briefs, settings, chat, and audit rows. It does not delete the source tenant; take a database backup before using `--apply` in production.
 
 ## Verify Postgres locally
 
