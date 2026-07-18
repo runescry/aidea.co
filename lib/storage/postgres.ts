@@ -10,6 +10,17 @@ import {
   rowToConversation,
 } from './chat-conversations';
 
+const globalForChatMigration = globalThis as typeof globalThis & {
+  __aideaLegacyChatMigratedUsers?: Set<string>;
+};
+
+function legacyChatMigratedUsers(): Set<string> {
+  if (!globalForChatMigration.__aideaLegacyChatMigratedUsers) {
+    globalForChatMigration.__aideaLegacyChatMigratedUsers = new Set<string>();
+  }
+  return globalForChatMigration.__aideaLegacyChatMigratedUsers;
+}
+
 export async function readProfile(userId: string): Promise<Record<string, unknown>> {
   const sql = getSql();
   const rows = await sql<{ data: Record<string, unknown> }[]>`
@@ -126,22 +137,35 @@ export async function writeSettings(userId: string, data: AppSettings): Promise<
 }
 
 async function migrateLegacyChatStore(userId: string): Promise<void> {
+  const migratedUsers = legacyChatMigratedUsers();
+  if (migratedUsers.has(userId)) return;
+
   const sql = getSql();
   const existing = await sql<{ n: number }[]>`
     SELECT 1 AS n FROM chat_conversations WHERE user_id = ${userId} LIMIT 1
   `;
-  if (existing.length > 0) return;
+  if (existing.length > 0) {
+    migratedUsers.add(userId);
+    return;
+  }
 
   const legacyRows = await sql<{ data: unknown }[]>`
     SELECT data FROM chat_store WHERE user_id = ${userId}
   `;
-  if (legacyRows.length === 0) return;
+  if (legacyRows.length === 0) {
+    migratedUsers.add(userId);
+    return;
+  }
 
   const parsed = parseLegacyChatStore(legacyRows[0].data);
-  if (!parsed) return;
+  if (!parsed) {
+    migratedUsers.add(userId);
+    return;
+  }
 
   await writeChatStore(userId, parsed);
   await sql`DELETE FROM chat_store WHERE user_id = ${userId}`;
+  migratedUsers.add(userId);
 }
 
 async function upsertChatMeta(userId: string, activeId: string): Promise<void> {
