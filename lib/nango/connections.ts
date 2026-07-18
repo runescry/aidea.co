@@ -155,10 +155,13 @@ async function enrichConnections(conns: ListedConnection[]): Promise<NangoConnec
 }
 
 let _hasConnectionsCache = new Map<string, { at: number; value: boolean }>();
+let _liteConnectionsCache = new Map<string, { at: number; value: NangoConnectionPublic[] }>();
 const NANGO_HAS_CONNECTIONS_MS = 60_000;
+const NANGO_LITE_CONNECTIONS_MS = 60_000;
 
 export function invalidateNangoConnectionsCache(): void {
   _hasConnectionsCache = new Map();
+  _liteConnectionsCache = new Map();
 }
 
 export async function hasNangoConnections(): Promise<boolean> {
@@ -202,12 +205,22 @@ export async function listNangoConnectionsLite(
 ): Promise<NangoConnectionPublic[]> {
   const endUserId = await resolveEndUserId();
   if (isDemoUserId(endUserId)) return [];
+
+  const cacheKey = `${endUserId}:${integrationId ?? '*'}`;
+  const now = Date.now();
+  const cached = _liteConnectionsCache.get(cacheKey);
+  if (cached && now - cached.at < NANGO_LITE_CONNECTIONS_MS) {
+    return cached.value;
+  }
+
   const nango = getNango();
   const res = await nango.listConnections({ tags: { end_user_id: endUserId } });
   const connections = (res.connections ?? []) as ListedConnection[];
-  return connections
+  const value = connections
     .filter(c => !integrationId || c.provider_config_key === integrationId)
     .map(mapConnectionLite);
+  _liteConnectionsCache.set(cacheKey, { at: now, value });
+  return value;
 }
 
 export async function listNangoConnections(integrationId?: string): Promise<NangoConnectionPublic[]> {
