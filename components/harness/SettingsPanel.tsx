@@ -9,7 +9,7 @@ import DomainAutonomyPanel from './DomainAutonomyPanel';
 import HarnessCostPanel from './HarnessCostPanel';
 import { useSaveFeedback } from '@/hooks/useSaveFeedback';
 import { useConfirm } from '@/hooks/useConfirm';
-import { useWorkFeed } from '@/hooks/useWorkFeed';
+import { clearCachedWorkFeed, useWorkFeed } from '@/hooks/useWorkFeed';
 import { useChatConversations } from '@/hooks/useChatConversations';
 import { clearOnboardingCache } from '@/lib/client/onboarding-cache';
 
@@ -243,6 +243,7 @@ export default function SettingsPanel() {
         throw new Error('reset failed');
       }
       resetLocalChatStore();
+      clearCachedWorkFeed();
       clearOnboardingCache();
       window.location.assign('/');
     }).catch(() => undefined);
@@ -258,6 +259,7 @@ export default function SettingsPanel() {
         throw new Error('seed failed');
       }
       resetLocalChatStore();
+      clearCachedWorkFeed();
       await refreshWorkFeed();
     }).catch(() => undefined);
   };
