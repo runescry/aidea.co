@@ -21,7 +21,9 @@
     "reset:activity": "npx tsx scripts/reset-activity.mts",
     "seed": "npx tsx scripts/seed-sample-data.mts",
     "test:all": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "tenant:report": "npx tsx scripts/tenant-migration.mts",
+    "tenant:migrate": "npx tsx scripts/tenant-migration.mts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",
