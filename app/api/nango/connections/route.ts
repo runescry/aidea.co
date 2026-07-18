@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteNangoConnection, listNangoConnections, invalidateNangoConnectionsCache } from '@/lib/nango/connections';
+import {
+  deleteNangoConnection,
+  listNangoConnections,
+  listNangoConnectionsLite,
+  invalidateNangoConnectionsCache,
+} from '@/lib/nango/connections';
 import { nangoConfigured, resolveEndUserId } from '@/lib/nango/client';
 import { isDemoUserId } from '@/lib/auth/session';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (isDemoUserId(await resolveEndUserId())) {
     return NextResponse.json({ configured: true, connections: [] });
   }
@@ -14,7 +19,8 @@ export async function GET() {
     return NextResponse.json({ configured: false, connections: [] });
   }
 
-  const connections = await listNangoConnections();
+  const lite = req.nextUrl.searchParams.get('lite') === '1';
+  const connections = lite ? await listNangoConnectionsLite() : await listNangoConnections();
   return NextResponse.json({ configured: true, connections });
 }
 

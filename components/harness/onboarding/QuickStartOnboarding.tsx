@@ -40,7 +40,7 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
 
   const loadConnections = useCallback(async () => {
     try {
-      const res = await fetch('/api/nango/connections');
+      const res = await fetch('/api/nango/connections?lite=1');
       const body = res.ok ? await res.json() as { connections?: Array<{ integrationId?: string }> } : { connections: [] };
       setConnections((body.connections ?? []).map(connection => connection.integrationId ?? ''));
     } finally {
