@@ -38,9 +38,9 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
   const missingConnections = ['google-mail', 'google-calendar'].filter(id => !connections.includes(id));
   const hasRequiredConnections = missingConnections.length === 0;
 
-  const loadConnections = useCallback(async () => {
+  const loadConnections = useCallback(async (refresh = false) => {
     try {
-      const res = await fetch('/api/nango/connections?lite=1');
+      const res = await fetch(`/api/nango/connections?lite=1${refresh ? '&refresh=1' : ''}`);
       const body = res.ok ? await res.json() as { connections?: Array<{ integrationId?: string }> } : { connections: [] };
       setConnections((body.connections ?? []).map(connection => connection.integrationId ?? ''));
     } finally {
@@ -71,7 +71,7 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
       const connect = nango.openConnectUI({
         onEvent: event => {
           if (event.type === 'connect') {
-            void loadConnections();
+            void loadConnections(true);
             setConnectingAccounts(false);
           }
           if (event.type === 'close') setConnectingAccounts(false);

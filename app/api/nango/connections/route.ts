@@ -19,6 +19,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ configured: false, connections: [] });
   }
 
+  if (req.nextUrl.searchParams.get('refresh') === '1') {
+    invalidateNangoConnectionsCache();
+  }
   const lite = req.nextUrl.searchParams.get('lite') === '1';
   const connections = lite ? await listNangoConnectionsLite() : await listNangoConnections();
   return NextResponse.json({ configured: true, connections });
