@@ -48,7 +48,7 @@ Run after each prod deploy (extends [PLAN P7.0](./PLAN.md#p70--ship--stabilize);
 |----------|---------|
 | `DATABASE_URL` | Postgres connection string. Also accepts `POSTGRES_URL` or `POSTGRES_PRISMA_URL`. |
 | `AI_GATEWAY_API_KEY` | **Production LLM auth** — Vercel AI Gateway (required on Vercel; OIDC-only often returns `Forbidden`) |
-| `DEFAULT_USER_ID` | Tenant id for single-user deploys (default: `default`). Set per user when you add auth. |
+| `DEFAULT_USER_ID` | Local scripts, CLI tasks, and single-user fallback tenant (default: `default`). Browser flows normally use the `aidea-user-id` session cookie. |
 
 ## Optional integrations
 
