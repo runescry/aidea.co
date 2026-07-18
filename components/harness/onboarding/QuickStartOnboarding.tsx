@@ -71,6 +71,8 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
       const connect = nango.openConnectUI({
         onEvent: event => {
           if (event.type === 'connect') {
+            setConnections(prev => [...new Set([...prev, ...missingConnections])]);
+            setConnectionsLoaded(true);
             void loadConnections(true);
             setConnectingAccounts(false);
           }
