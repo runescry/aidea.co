@@ -11,7 +11,7 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-06-21  
 **Phase:** P9 complete — Profile memory & people graph  
-**Next up:** [P8.4 — Platform](./docs/PLAN.md#p84--platform) — auth/multi-user blocked pending provider choice  
+**Next up:** [P8.4 — Platform](./docs/PLAN.md#p84--platform) — mobile secondary-surface polish
 **Recent:** P9 People UI + memory hygiene; profile E2E suite; onboarding → `people[]`; agent `person` queue fix  
 **Git:** `main` ahead of `origin/main` (docs + P8.0)
 
@@ -131,7 +131,7 @@ Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkb
 - [x] **Rich contact graph** — Last touch from Gmail/Calendar; relationship-monitor writes graph
 - [x] **Finance spike** — Plaid read-only or minimal subscription alerts
 - [x] **Finance → Inbox** — Actionable finance nudges as approval/suggestion cards
-- [ ] **Auth / multi-user** — Session middleware; per-user profile/KB — **BLOCKED** (needs auth provider + storage migration)
+- [x] **Auth / multi-user** — Signed session middleware; stable Nango-verified Google tenants; per-user profile/KB and safe tenant claiming (no Clerk dependency)
 - [ ] **Mobile secondary surfaces** — Agents, Context, Settings polish on small screens — deferred with P8.4
 
 ---

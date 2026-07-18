@@ -37,11 +37,21 @@ export default function WelcomeScreen({ onGoogleConnected, onDemoReady }: Props)
       const { sessionToken } = await res.json() as { sessionToken: string };
       const nango = new Nango();
       const connect = nango.openConnectUI({
-        onEvent: event => {
+        onEvent: async event => {
           if (event.type === 'connect') {
-            writeOnboardingCache(false);
-            setConnecting(false);
-            onGoogleConnected();
+            try {
+              const completeRes = await fetch('/api/auth/google/complete', { method: 'POST' });
+              if (!completeRes.ok) {
+                const body = await completeRes.json().catch(() => ({})) as { error?: string };
+                throw new Error(body.error ?? 'Unable to finish Google sign-in');
+              }
+              writeOnboardingCache(false);
+              setConnecting(false);
+              onGoogleConnected();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Unable to finish Google sign-in');
+              setConnecting(false);
+            }
           }
           if (event.type === 'close') setConnecting(false);
         },

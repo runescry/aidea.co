@@ -1,10 +1,10 @@
 import { Nango } from '@nangohq/node';
-import { getCurrentUserId } from '@/lib/auth/session';
+import { getCurrentNangoUserId } from '@/lib/auth/session';
 
 let _nango: Nango | null = null;
 
 export async function resolveEndUserId(): Promise<string> {
-  return getCurrentUserId();
+  return getCurrentNangoUserId();
 }
 
 function nangoSecretKey(): string | undefined {

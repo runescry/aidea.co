@@ -4,7 +4,7 @@ Run this after auth/session, tenant, integration, or onboarding changes are depl
 
 ## Preconditions
 
-- Vercel env vars are configured: `DATABASE_URL`, `AI_GATEWAY_API_KEY`, `NANGO_SECRET_KEY`, and `CRON_SECRET`.
+- Vercel env vars are configured: `DATABASE_URL`, `AI_GATEWAY_API_KEY`, `NANGO_SECRET_KEY`, `AIDEA_SESSION_SECRET`, and `CRON_SECRET`.
 - If migrating legacy tenant data, run `npm run tenant:report -- --from=default` first and decide whether to copy rows with `npm run tenant:migrate`.
 - Use a browser profile where clearing app cookies/localStorage is acceptable.
 
@@ -22,9 +22,11 @@ Run this after auth/session, tenant, integration, or onboarding changes are depl
 1. Clear site data again.
 2. Open `/` and click **Continue with Google**.
 3. Complete the Nango Google connect flow.
-4. Verify Quick Start opens and the Inbox & calendar step shows Gmail and Calendar connected.
-5. If either service is missing, click **Connect now** and verify the page can continue without a manual refresh.
-6. Finish onboarding and verify Home loads.
+4. Call `GET /api/auth/session` in the same browser and verify `authenticated` is `true` and `userId` is an opaque `google:*` id that does not contain the email address.
+5. Verify Quick Start opens and the Inbox & calendar step shows Gmail and Calendar connected.
+6. If either service is missing, click **Connect now** and verify the page can continue without a manual refresh.
+7. Finish onboarding and verify Home loads.
+8. Log out, repeat Google entry with the same account, and verify the profile and prior activity resolve to the same tenant.
 
 ## Integrations and queue
 

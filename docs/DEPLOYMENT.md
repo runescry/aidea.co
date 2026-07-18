@@ -50,7 +50,8 @@ Run after each prod deploy (extends [PLAN P7.0](./PLAN.md#p70--ship--stabilize);
 |----------|---------|
 | `DATABASE_URL` | Postgres connection string. Also accepts `POSTGRES_URL` or `POSTGRES_PRISMA_URL`. |
 | `AI_GATEWAY_API_KEY` | **Production LLM auth** — Vercel AI Gateway (required on Vercel; OIDC-only often returns `Forbidden`) |
-| `DEFAULT_USER_ID` | Local scripts, CLI tasks, and single-user fallback tenant (default: `default`). Browser flows normally use the `aidea-user-id` session cookie. |
+| `AIDEA_SESSION_SECRET` | HMAC secret for signed app sessions and opaque stable Google tenant ids. Use a long random value. `NANGO_SECRET_KEY` is the compatibility fallback. |
+| `DEFAULT_USER_ID` | Local scripts, CLI tasks, cron, and single-user fallback tenant (default: `default`). Public production APIs require a signed app session. |
 
 ## Optional integrations
 
@@ -213,13 +214,13 @@ npm run typecheck && npm test && npm run test:contract && npm run build
 
 ## Single-user vs multi-user
 
-Postgres rows are scoped by the resolved app user id. The Login / Demo entry flow sets an `aidea-user-id` cookie (`google:*` for Google entry, `demo:*` for demo entry), and storage plus Nango resolve that request-scoped id before touching data or integrations. `DEFAULT_USER_ID` remains the fallback for local scripts, CLI tasks, and single-user private deploys. Filesystem storage remains a single-user local development fallback; use Postgres/Neon for multi-user isolation.
+Postgres rows are scoped by a signed app session. Demo entry receives an isolated random `demo:*` tenant. Google entry first uses a temporary Nango owner id, then verifies the connected Google identity and promotes the app session to a stable opaque `google:*` tenant derived from that account. Returning with the same Google account therefore resolves the same Postgres tenant without Clerk. The temporary Nango owner remains separate so integration lookups continue to find the connections created by that Connect session.
 
-For production hardening, replace the current lightweight cookie entry session with a verified auth provider (for example Auth.js or Clerk), but keep storage and Nango flowing through the centralized resolved user id seam.
+Production middleware rejects unsigned or tampered sessions on user-data APIs. `DEFAULT_USER_ID` remains available to local scripts, cron, and single-user development paths; it is not accepted as a public production browser session. Filesystem storage remains a single-user local development fallback; use Postgres/Neon for multi-user isolation.
 
 ### Inspect or copy legacy `default` tenant data
 
-Before replacing the lightweight entry session with verified auth, inspect any existing rows stored under `user_id = 'default'` and decide whether to archive them or copy them to a verified user id. The tenant migration helper is report-only by default:
+Inspect any existing rows stored under `user_id = 'default'` and decide whether to archive them or copy them to a stable Google tenant. The tenant migration helper is report-only by default:
 
 ```bash
 npm run tenant:report -- --from=default
