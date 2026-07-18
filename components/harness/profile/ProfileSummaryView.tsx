@@ -85,14 +85,14 @@ export default function ProfileSummaryView({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <header className="space-y-2">
         <h2 className="text-xl font-semibold text-foreground tracking-tight">{profileDisplayName(data)}</h2>
         {subtitle && <p className="text-sm text-foreground-muted">{subtitle}</p>}
         <CompletenessRing percent={completeness} />
       </header>
 
-      <section className="rounded-xl border border-border p-4 space-y-3">
+      <section className="space-y-3 rounded-xl border border-border p-3 sm:p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-[13px] font-semibold text-foreground uppercase tracking-wide">Timezone</h3>
@@ -127,7 +127,7 @@ export default function ProfileSummaryView({
         </p>
       </section>
 
-      <section className="rounded-xl border border-border bg-surface-subtle/40 p-4 space-y-3">
+      <section className="space-y-3 rounded-xl border border-border bg-surface-subtle/40 p-3 sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-[13px] font-semibold text-foreground uppercase tracking-wide">Current chapter</h3>
           {!editingChapter && chapter && (
@@ -144,11 +144,11 @@ export default function ProfileSummaryView({
               rows={3}
               placeholder="A short narrative — what chapter of life are you in?"
             />
-            <div className="flex gap-2">
-              <button type="button" onClick={saveChapter} className="px-3 py-1.5 btn-primary text-xs">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button type="button" onClick={saveChapter} className="btn-primary min-h-11 w-full px-3 text-xs sm:min-h-0 sm:w-auto sm:py-1.5">
                 Save
               </button>
-              <button type="button" onClick={() => setEditingChapter(false)} className="px-3 py-1.5 btn-secondary text-xs">
+              <button type="button" onClick={() => setEditingChapter(false)} className="btn-secondary min-h-11 w-full px-3 text-xs sm:min-h-0 sm:w-auto sm:py-1.5">
                 Cancel
               </button>
             </div>
@@ -173,7 +173,7 @@ export default function ProfileSummaryView({
         )}
       </section>
 
-      <section className="rounded-xl border border-border p-4 space-y-3">
+      <section className="space-y-3 rounded-xl border border-border p-3 sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-[13px] font-semibold text-foreground uppercase tracking-wide">Priorities</h3>
         </div>
@@ -245,7 +245,7 @@ export default function ProfileSummaryView({
         <button
           type="button"
           onClick={() => onOpenChat('Update my profile: ')}
-          className="px-3 py-2 btn-secondary text-xs"
+          className="btn-secondary min-h-11 w-full px-3 text-xs sm:w-auto"
         >
           Update anything via chat
         </button>
@@ -312,18 +312,18 @@ function PriorityRow({
             <label className="text-[10px] uppercase tracking-wide text-foreground-subtle">Next action</label>
             <TextField value={nextAction} onChange={setNextAction} />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
               onClick={() => onSave({ status, nextAction })}
-              className="px-3 py-1.5 btn-primary text-xs"
+              className="btn-primary min-h-11 w-full px-3 text-xs sm:min-h-0 sm:w-auto sm:py-1.5"
             >
               Save
             </button>
             <button
               type="button"
               onClick={onRemove}
-              className="px-3 py-1.5 btn-secondary text-xs text-red-700 dark:text-red-300"
+              className="btn-secondary min-h-11 w-full px-3 text-xs text-red-700 dark:text-red-300 sm:min-h-0 sm:w-auto sm:py-1.5"
             >
               Remove
             </button>

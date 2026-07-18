@@ -108,7 +108,7 @@ function PersonSheet({
   };
 
   return (
-    <div className="rounded-lg border border-border bg-surface-subtle/80 p-3 space-y-3">
+    <div className="space-y-3 rounded-lg border border-border bg-surface-subtle/80 p-3">
       <div className="flex items-center justify-between gap-2">
         <h4 className="text-sm font-semibold text-foreground">Edit person</h4>
         <button type="button" onClick={onClose} className="text-xs text-foreground-subtle hover:text-foreground">
@@ -139,9 +139,9 @@ function PersonSheet({
       </div>
       <div>
         <Label>Add email or phone</Label>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <TextField value={newContact} onChange={setNewContact} placeholder="work@… or +61…" />
-          <button type="button" onClick={addContactMethod} className="px-3 py-1.5 btn-secondary text-xs shrink-0" disabled={!newContact.trim()}>
+          <button type="button" onClick={addContactMethod} className="btn-secondary min-h-11 w-full shrink-0 px-3 text-xs sm:min-h-0 sm:w-auto sm:py-1.5" disabled={!newContact.trim()}>
             Add
           </button>
         </div>
@@ -161,7 +161,7 @@ function PersonSheet({
       {entry.lastTouch && (
         <p className="text-[11px] text-foreground-subtle">Last touch · {formatLastTouch(entry.lastTouch)}</p>
       )}
-      <div className="flex flex-wrap gap-2 pt-1">
+      <div className="grid grid-cols-2 gap-2 pt-1 sm:flex sm:flex-wrap">
         <button
           type="button"
           onClick={() => onSave({
@@ -174,17 +174,17 @@ function PersonSheet({
             relationship: relationship.trim() || undefined,
             notes: notes.trim() || undefined,
           })}
-          className="px-3 py-1.5 btn-primary text-xs"
+          className="btn-primary min-h-11 w-full px-3 text-xs sm:min-h-0 sm:w-auto sm:py-1.5"
           disabled={!name.trim()}
         >
           Save
         </button>
         {entry.status !== 'archived' && (
-          <button type="button" onClick={onArchive} className="px-3 py-1.5 btn-secondary text-xs">
+          <button type="button" onClick={onArchive} className="btn-secondary min-h-11 w-full px-3 text-xs sm:min-h-0 sm:w-auto sm:py-1.5">
             Archive
           </button>
         )}
-        <button type="button" onClick={onRemove} className="px-3 py-1.5 btn-secondary text-xs text-red-700 dark:text-red-300">
+        <button type="button" onClick={onRemove} className="btn-secondary col-span-2 min-h-11 w-full px-3 text-xs text-red-700 dark:text-red-300 sm:min-h-0 sm:w-auto sm:py-1.5">
           Remove from profile
         </button>
       </div>
@@ -231,11 +231,11 @@ function AddToContactRow({
           {[label, signal.lastTouch ? formatLastTouch(signal.lastTouch) : null].filter(Boolean).join(' · ')}
         </p>
       </div>
-      <div className="flex gap-2 shrink-0">
+      <div className="flex w-full gap-2 sm:w-auto sm:shrink-0">
         <select
           value={targetId}
           onChange={e => setTargetId(e.target.value)}
-          className="text-xs rounded-md border border-border bg-surface px-2 py-1.5 min-w-[10rem] max-w-[14rem]"
+          className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2 py-2 text-xs sm:min-w-[10rem] sm:max-w-[14rem]"
         >
           <option value="">Add to contact…</option>
           {targets.map(person => (
@@ -249,7 +249,7 @@ function AddToContactRow({
             if (!targetId) return;
             onAdd(targetId, { email: signal.email, phone: signal.phone });
           }}
-          className="px-3 py-1.5 btn-primary text-xs disabled:opacity-50"
+          className="btn-primary min-h-11 shrink-0 px-3 text-xs disabled:opacity-50 sm:min-h-0 sm:py-1.5"
         >
           Add
         </button>
@@ -303,7 +303,7 @@ export default function ProfilePeopleSection({
   };
 
   return (
-    <section className="rounded-xl border border-domain-people/25 bg-domain-people/[0.1] p-4 space-y-3">
+    <section className="space-y-3 rounded-xl border border-domain-people/25 bg-domain-people/[0.1] p-3 sm:p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-[13px] font-semibold text-foreground uppercase tracking-wide">People</h3>
         <button
@@ -406,7 +406,7 @@ export default function ProfilePeopleSection({
                           {[entry.relationship, entry.company, contactHint].filter(Boolean).join(' · ') || 'Contact'}
                         </p>
                       </div>
-                      <div className="shrink-0 flex flex-col items-end gap-1">
+                      <div className="flex max-w-[42%] shrink-0 flex-col items-end gap-1 text-right">
                         {cooling && (
                           <span className="text-[9px] uppercase tracking-wide text-amber-700 dark:text-amber-300">
                             Cooling
@@ -429,11 +429,11 @@ export default function ProfilePeopleSection({
               <TextField value={newEmail} onChange={setNewEmail} placeholder="optional" />
               <Label>Relationship</Label>
               <TextField value={newRelationship} onChange={setNewRelationship} placeholder="mentor, friend…" />
-              <div className="flex gap-2">
-                <button type="button" onClick={addPerson} className="px-3 py-1.5 btn-primary text-xs" disabled={!newName.trim()}>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button type="button" onClick={addPerson} className="btn-primary min-h-11 w-full px-3 text-xs sm:min-h-0 sm:w-auto sm:py-1.5" disabled={!newName.trim()}>
                   Add
                 </button>
-                <button type="button" onClick={() => setAdding(false)} className="px-3 py-1.5 btn-secondary text-xs">
+                <button type="button" onClick={() => setAdding(false)} className="btn-secondary min-h-11 w-full px-3 text-xs sm:min-h-0 sm:w-auto sm:py-1.5">
                   Cancel
                 </button>
               </div>
