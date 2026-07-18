@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import Nango from '@nangohq/frontend';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { Label, TextField, SelectField } from '../forms';
 
@@ -24,6 +25,8 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
   const [connections, setConnections] = useState<string[]>([]);
   const [connectionsLoaded, setConnectionsLoaded] = useState(false);
   const [connectionsConfirmed, setConnectionsConfirmed] = useState(false);
+  const [connectingAccounts, setConnectingAccounts] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [data, setData] = useState<KnowledgeBase>({
     identity: {},
     work: {},
@@ -32,22 +35,59 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
 
   const current = STEPS[step];
   const progress = ((step + 1) / STEPS.length) * 100;
+  const missingConnections = ['google-mail', 'google-calendar'].filter(id => !connections.includes(id));
+  const hasRequiredConnections = missingConnections.length === 0;
+
+  const loadConnections = useCallback(async () => {
+    try {
+      const res = await fetch('/api/nango/connections');
+      const body = res.ok ? await res.json() as { connections?: Array<{ integrationId?: string }> } : { connections: [] };
+      setConnections((body.connections ?? []).map(connection => connection.integrationId ?? ''));
+    } finally {
+      setConnectionsLoaded(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (current.id !== 'connections' || connectionsLoaded) return;
-    fetch('/api/nango/connections')
-      .then(res => res.ok ? res.json() : { connections: [] })
-      .then((body: { connections?: Array<{ integrationId?: string }> }) => {
-        setConnections((body.connections ?? []).map(connection => connection.integrationId ?? ''));
-        setConnectionsLoaded(true);
-      })
-      .catch(() => setConnectionsLoaded(true));
-  }, [connectionsLoaded, current.id]);
+    void loadConnections();
+  }, [connectionsLoaded, current.id, loadConnections]);
+
+  const connectMissingAccounts = async () => {
+    setConnectingAccounts(true);
+    setConnectionError(null);
+    try {
+      const res = await fetch('/api/nango/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ integrations: missingConnections }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Failed to start Google connection (${res.status})`);
+      }
+      const { sessionToken } = await res.json() as { sessionToken: string };
+      const nango = new Nango();
+      const connect = nango.openConnectUI({
+        onEvent: event => {
+          if (event.type === 'connect') {
+            void loadConnections();
+            setConnectingAccounts(false);
+          }
+          if (event.type === 'close') setConnectingAccounts(false);
+        },
+      });
+      connect.setSessionToken(sessionToken);
+    } catch (err) {
+      setConnectionError(err instanceof Error ? err.message : 'Failed to connect Google accounts');
+      setConnectingAccounts(false);
+    }
+  };
 
   const canContinue = (): boolean => {
     if (current.id === 'name') return Boolean(data.identity?.name?.trim());
     if (current.id === 'role') return Boolean(data.work?.role?.trim() || data.identity?.role?.trim());
-    if (current.id === 'connections') return connectionsLoaded && connectionsConfirmed;
+    if (current.id === 'connections') return connectionsLoaded && hasRequiredConnections && connectionsConfirmed;
     return Boolean(data.preferences?.defaultAutonomyLevel);
   };
 
@@ -147,6 +187,22 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
                 <ConnectionRow label="Gmail inbox" connected={connections.includes('google-mail')} />
                 <ConnectionRow label="Google Calendar" connected={connections.includes('google-calendar')} />
               </div>
+              {connectionsLoaded && !hasRequiredConnections && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={connectMissingAccounts}
+                    disabled={connectingAccounts}
+                    className="btn-secondary w-full justify-center"
+                  >
+                    {connectingAccounts ? 'Connecting…' : 'Connect now'}
+                  </button>
+                  <p className="text-caption text-foreground-subtle">
+                    Connect the missing account{missingConnections.length > 1 ? 's' : ''} before continuing.
+                  </p>
+                </div>
+              )}
+              {connectionError && <p role="alert" className="text-caption text-danger">{connectionError}</p>}
               <label className="flex items-start gap-3 text-sm text-foreground-muted">
                 <input
                   type="checkbox"
