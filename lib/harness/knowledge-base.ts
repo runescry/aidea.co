@@ -1,23 +1,26 @@
 import { readProfile, writeProfile, mergeProfile } from '@/lib/storage';
+import { getCurrentUserId } from '@/lib/auth/session';
 import { getNestedKey, setNestedKey } from '@/lib/storage/nested-keys';
 import { ensureGraphPeopleLinked, ensurePeopleStore } from '@/lib/profile/people-migrate';
 import { getEvalHarnessContext } from '@/lib/eval/eval-context';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
-let profileCache: { data: Record<string, unknown>; at: number } | null = null;
+let profileCache = new Map<string, { data: Record<string, unknown>; at: number }>();
 const PROFILE_CACHE_MS = process.env.NODE_ENV === 'development' ? 60_000 : 15_000;
 
 function invalidateProfileCache(): void {
-  profileCache = null;
+  profileCache = new Map();
 }
 
 async function cachedReadProfile(): Promise<Record<string, unknown>> {
+  const userId = await getCurrentUserId();
   const now = Date.now();
-  if (profileCache && now - profileCache.at < PROFILE_CACHE_MS) {
-    return profileCache.data;
+  const cached = profileCache.get(userId);
+  if (cached && now - cached.at < PROFILE_CACHE_MS) {
+    return cached.data;
   }
   const data = await readProfile();
-  profileCache = { data, at: now };
+  profileCache.set(userId, { data, at: now });
   return data;
 }
 

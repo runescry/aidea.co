@@ -3,7 +3,7 @@ import { listActionsForFeed, scrubQueuePayloadBloat } from '@/lib/harness/queue-
 import { buildUnifiedTaskFeed, isStaleRunningEntity, normalizeEntityForFeed } from '@/lib/harness/tasks';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB } from '@/lib/harness/knowledge-base';
-import { countPendingQueuedActions, loadEntityStates, readLatestBrief, readProfile, saveEntityState, writeLatestBrief } from '@/lib/storage';
+import { countPendingQueuedActions, loadEntityStates, readLatestBrief, saveEntityState, writeLatestBrief } from '@/lib/storage';
 import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { readProactiveHygiene, autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
 import { listQueueAudit } from '@/lib/harness/queue-audit';
@@ -50,12 +50,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(cached);
   }
 
-  const [actions, rawEntities, kb, briefRaw, profile, audit] = await Promise.all([
+  const [actions, rawEntities, kb, briefRaw, audit] = await Promise.all([
     listActionsForFeed(),
     loadEntityStates(),
     readAllKB(),
     readLatestBrief(),
-    readProfile(),
     listQueueAudit(200),
   ]);
 
@@ -105,7 +104,7 @@ export async function GET(req: NextRequest) {
     kb: kbTyped,
     brief,
     audit,
-    proactiveHygiene: readProactiveHygiene(profile),
+    proactiveHygiene: readProactiveHygiene(kb as Record<string, unknown>),
   });
 
   const domainLevels = readDomainAutonomy(kbTyped);
