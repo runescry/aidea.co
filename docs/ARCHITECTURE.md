@@ -333,6 +333,6 @@ Handler mode calls route handlers directly; set `TEST_BASE_URL=http://localhost:
 ## Current gaps (P8.4)
 
 - **Legacy tenant assignment** — existing `default` or random pre-hardening tenants still need an explicit one-time report/copy decision; new Google sessions claim temporary tenant rows automatically.
-- **Mobile polish** on Agents/Context/Settings secondary surfaces is still open.
+- **Legacy profile cleanup** — rich person interaction history and removal of remaining `work.keyContacts` runtime reads are the next P9 follow-ups.
 
 Everything else in the daily loop (Home chat, Inbox approvals, crons, timeline, per-domain autonomy, Strava sync, contact graph, finance spike) is shipped per P7 + P8 checkboxes in [PLAN.md](./PLAN.md).
