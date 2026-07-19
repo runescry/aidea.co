@@ -9,11 +9,11 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 ## Current status
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
-**Last updated:** 2026-06-21  
-**Phase:** P9 complete — Profile memory & people graph  
-**Next up:** [P8.4 — Platform](./docs/PLAN.md#p84--platform) — mobile secondary-surface polish
-**Recent:** P9 People UI + memory hygiene; profile E2E suite; onboarding → `people[]`; agent `person` queue fix  
-**Git:** `main` ahead of `origin/main` (docs + P8.0)
+**Last updated:** 2026-07-19
+**Phase:** P8.4 and P9 core complete
+**Next up:** [P9 follow-up](./docs/PLAN.md#p9-follow-up-post-delivery-not-blocking) — rich person sheet interaction history
+**Recent:** signed multi-user sessions; mobile Settings, Profile, and Agent Library; tenant migration tooling
+**Git:** `main` synchronized with `origin/main`
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
 **Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)  
@@ -132,7 +132,7 @@ Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkb
 - [x] **Finance spike** — Plaid read-only or minimal subscription alerts
 - [x] **Finance → Inbox** — Actionable finance nudges as approval/suggestion cards
 - [x] **Auth / multi-user** — Signed session middleware; stable Nango-verified Google tenants; per-user profile/KB and safe tenant claiming (no Clerk dependency)
-- [ ] **Mobile secondary surfaces** — Agents, Context, Settings polish on small screens — deferred with P8.4
+- [x] **Mobile secondary surfaces** — Agents, Profile/Context, and Settings polished and smoke-tested on small screens
 
 ---
 
@@ -186,6 +186,6 @@ Profile as the living control plane: canonical `relationships.people[]`, tombsto
 - 2026-06-21 — P8.1 Strava health connector — OAuth, sync job, Settings connect/disconnect
 - 2026-06-21 — P8.2 rich contact graph — mail/calendar signal sync, relationship-monitor persist
 - 2026-06-21 — P8.3 finance spike — KB subscription nudges in Inbox, Plaid env stub, finance_read tool
-- 2026-06-21 — P8.4 platform — **BLOCKED** auth/multi-user (no session middleware path chosen); mobile secondary surfaces deferred
+- 2026-07-19 — P8.4 platform complete — signed Nango-backed auth, tenant isolation, and mobile Settings/Profile/Agents
 - 2026-06-21 — P9 profile memory — canonical people store, tombstones, People UI, pulse dismiss, kb reject feedback
 - 2026-06-21 — P9 follow-up — profile E2E suite, kb contract, onboarding→people[], agent person queue round-trip

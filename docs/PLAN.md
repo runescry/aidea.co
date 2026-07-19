@@ -410,7 +410,7 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 #### P8.4 — Platform
 
 - [x] **Auth / multi-user hardening** — Nango-verified Google identity, signed session middleware, stable opaque tenants, automatic safe tenant claiming, and no public production `DEFAULT_USER_ID` fallback ([VISION D11](./VISION.md#d11-production-platform--62))
-- [ ] **Mobile secondary surfaces** — Agents, Context, Settings usable on small screens (Home loop already mobile-first)
+- [x] **Mobile secondary surfaces** — Agents, Profile/Context, and Settings usable on small screens (Home loop already mobile-first)
 
 ---
 
