@@ -11,8 +11,8 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-07-19
 **Phase:** P8.4 and P9 core complete
-**Next up:** [P9 follow-up](./docs/PLAN.md#p9-follow-up-post-delivery-not-blocking) — rich person sheet interaction history
-**Recent:** signed multi-user sessions; mobile Settings, Profile, and Agent Library; tenant migration tooling
+**Next up:** Run the production tenant report and make the explicit legacy `default`-tenant copy decision in [the smoke checklist](./docs/PROD_SMOKE.md)
+**Recent:** person-sheet interaction history; legacy key-contact deprecation; signed multi-user sessions; mobile surface completion
 **Git:** `main` synchronized with `origin/main`
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
