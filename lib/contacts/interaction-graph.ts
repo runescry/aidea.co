@@ -26,6 +26,21 @@ export interface ContactGraphEntry {
   interactions?: Array<{ at: string; channel: string; summary?: string }>;
 }
 
+export type ContactInteraction = NonNullable<ContactGraphEntry['interactions']>[number];
+
+export function recentContactInteractions(entry: ContactGraphEntry, limit = 8): ContactInteraction[] {
+  const seen = new Set<string>();
+  return [...(entry.interactions ?? [])]
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .filter(item => {
+      const key = `${item.at}|${item.channel}|${item.summary ?? ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+}
+
 export { contactKey, personKey };
 
 function kbLegacyContacts(kb: KnowledgeBase): Array<PersonContact & { relationship?: string }> {

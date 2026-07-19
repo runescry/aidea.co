@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildContactGraph, findContactEntry } from './interaction-graph';
+import { buildContactGraph, findContactEntry, recentContactInteractions } from './interaction-graph';
 
 describe('buildContactGraph', () => {
   it('excludes removed contacts from graph', () => {
@@ -23,6 +23,26 @@ describe('buildContactGraph', () => {
       },
     });
     expect(graph[0].relationship).toBe('mentor');
+  });
+});
+
+describe('recentContactInteractions', () => {
+  it('returns newest unique interactions first and respects the limit', () => {
+    const duplicate = { at: '2026-07-18T10:00:00Z', channel: 'email', summary: 'Budget reply' };
+    const result = recentContactInteractions({
+      name: 'Sarah',
+      interactions: [
+        { at: '2026-07-17T10:00:00Z', channel: 'calendar', summary: 'Planning meeting' },
+        duplicate,
+        duplicate,
+        { at: '2026-07-19T10:00:00Z', channel: 'email', summary: 'Follow-up' },
+      ],
+    }, 2);
+
+    expect(result).toEqual([
+      { at: '2026-07-19T10:00:00Z', channel: 'email', summary: 'Follow-up' },
+      duplicate,
+    ]);
   });
 });
 
