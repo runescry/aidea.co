@@ -80,9 +80,14 @@ const SAMPLE_QUEUE = [
     agentRole: 'inbox-triage',
     tool: 'kb_write',
     payload: {
-      key: 'work.keyContacts',
-      value: 'Update Tom Nguyen entry: title → VP Engineering',
-      patch: { name: 'Tom Nguyen', title: 'VP Engineering', email: 'tom@client.com' },
+      input: {
+        person: {
+          name: 'Tom Nguyen',
+          email: 'tom@client.com',
+          relationship: 'client',
+          notes: 'VP Engineering',
+        },
+      },
     },
     status: 'pending' as const,
     priority: 'low' as const,

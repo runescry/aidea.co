@@ -117,6 +117,7 @@ export interface KnowledgeBase {
     directReports?: PersonContact[];
     currentProjects?: CurrentProjects;
     keyStakeholders?: string[];
+    /** @deprecated Read only by the people-store migration for legacy profiles. */
     keyContacts?: PersonContact[];
     toolsAndStack?: string[];
     communicationStyle?: string;
