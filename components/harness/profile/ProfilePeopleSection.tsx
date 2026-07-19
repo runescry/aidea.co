@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { KnowledgeBase, ProfilePerson, ProfilePersonStatus } from '@/types/knowledge-base';
-import { buildVisibleContactGraph, type ContactGraphEntry } from '@/lib/contacts/interaction-graph';
+import { buildVisibleContactGraph, recentContactInteractions, type ContactGraphEntry } from '@/lib/contacts/interaction-graph';
 import { listMergeTargets, listUnlinkedContactSignals, personEmails, personPhones } from '@/lib/profile/people';
 import { useConfirm } from '@/hooks/useConfirm';
 import { formatLastTouch, getArchivedPeople, getCoolingContacts, getRemovedPeople } from '@/lib/profile/summary';
@@ -75,6 +75,7 @@ function PersonSheet({
   const [relationship, setRelationship] = useState(entry.relationship ?? '');
   const [notes, setNotes] = useState(initialNotes);
   const [newContact, setNewContact] = useState('');
+  const interactions = recentContactInteractions(entry);
 
   const addContactMethod = () => {
     const value = newContact.trim();
@@ -161,6 +162,30 @@ function PersonSheet({
       {entry.lastTouch && (
         <p className="text-[11px] text-foreground-subtle">Last touch · {formatLastTouch(entry.lastTouch)}</p>
       )}
+      <div className="space-y-2 border-t border-border/50 pt-3">
+        <Label>Recent interactions</Label>
+        {interactions.length > 0 ? (
+          <ol className="space-y-2">
+            {interactions.map((interaction, index) => (
+              <li key={`${interaction.at}-${interaction.channel}-${index}`} className="rounded-md border border-border/50 bg-surface px-3 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">
+                    {interaction.channel}
+                  </span>
+                  <time className="text-[10px] text-foreground-subtle" dateTime={interaction.at}>
+                    {formatLastTouch(interaction.at)}
+                  </time>
+                </div>
+                {interaction.summary && (
+                  <p className="mt-1 text-xs leading-relaxed text-foreground-muted">{interaction.summary}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-xs text-foreground-subtle">No Gmail or Calendar interactions recorded yet.</p>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-2 pt-1 sm:flex sm:flex-wrap">
         <button
           type="button"
