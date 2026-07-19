@@ -469,8 +469,8 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 - [x] **Archived restore UI** — Profile People “Show archived (N)” section
 - [x] **Profile memory E2E** — `tests/integration/profile-memory-e2e.test.ts`; `app/api/kb/kb.contract.test.ts`
 - [x] **Agent reads rejection memory** — `rejectedKbPatches` injected into dispatch task + agent prompts
-- [ ] **Rich person sheet** — interaction history (wire `ContactLensPanel` patterns)
-- [ ] **Legacy list deprecation** — stop reading `work.keyContacts` in remaining agent paths
+- [x] **Rich person sheet** — interaction history (wire `ContactLensPanel` patterns)
+- [x] **Legacy list deprecation** — `people-migrate.ts` is the sole compatibility reader for `work.keyContacts`; new writes use `relationships.people[]`
 
 ### Deferred (post-P8)
 

@@ -10,7 +10,6 @@ import {
   personKey,
   personPhones,
 } from '@/lib/profile/people';
-import type { PersonContact } from '@/types/knowledge-base';
 
 export interface ContactGraphEntry {
   id?: string;
@@ -42,30 +41,6 @@ export function recentContactInteractions(entry: ContactGraphEntry, limit = 8): 
 }
 
 export { contactKey, personKey };
-
-function kbLegacyContacts(kb: KnowledgeBase): Array<PersonContact & { relationship?: string }> {
-  const contacts: Array<PersonContact & { relationship?: string }> = [];
-  const rel = kb.relationships;
-  if (rel) {
-    const groups: Array<[PersonContact[] | undefined, string]> = [
-      [rel.mentors, 'mentor'], [rel.collaborators, 'collaborator'],
-      [rel.innerCircle, 'inner circle'], [rel.friends, 'friend'],
-    ];
-    for (const [list, relationship] of groups) {
-      for (const person of list ?? []) {
-        if (!person.name?.trim()) continue;
-        if (isContactBlocked(kb, { name: person.name, email: person.email })) continue;
-        contacts.push({ ...person, relationship: person.relationship ?? relationship });
-      }
-    }
-  }
-  for (const person of kb.work?.keyContacts ?? []) {
-    if (!person.name?.trim()) continue;
-    if (isContactBlocked(kb, { name: person.name, email: person.email })) continue;
-    contacts.push({ ...person, relationship: person.relationship ?? 'contact' });
-  }
-  return contacts;
-}
 
 export function buildContactGraph(kb: KnowledgeBase): ContactGraphEntry[] {
   const normalized = ensurePeopleStore(kb);
@@ -117,41 +92,23 @@ export function buildContactGraph(kb: KnowledgeBase): ContactGraphEntry[] {
     }
   }
 
-  const canonical = normalized.relationships?.people ?? [];
-  if (canonical.length > 0) {
-    for (const person of canonical) {
-      if (person.status === 'removed') continue;
-      const emails = personEmails(person);
-      const phones = personPhones(person);
-      const base: ContactGraphEntry = {
-        id: person.id,
-        name: person.name,
-        email: emails[0],
-        emails: emails.length > 0 ? emails : undefined,
-        phones: phones.length > 0 ? phones : undefined,
-        relationship: person.relationship,
-        company: person.company,
-        channels: [],
-        interactions: [],
-        status: person.status === 'archived' ? 'archived' : 'active',
-      };
-      byPersonId.set(person.id, mergeEntry(byPersonId.get(person.id), base));
-    }
-  } else {
-    for (const person of kbLegacyContacts(normalized)) {
-      const key = contactKey(person.name!, person.email);
-      const graphEntry: ContactGraphEntry = {
-        name: person.name!,
-        email: person.email,
-        emails: person.email ? [normalizeEmail(person.email)] : undefined,
-        relationship: person.relationship,
-        company: person.company,
-        channels: [],
-        interactions: [],
-        status: 'active',
-      };
-      byOrphanKey.set(key, mergeEntry(byOrphanKey.get(key), graphEntry));
-    }
+  for (const person of normalized.relationships?.people ?? []) {
+    if (person.status === 'removed') continue;
+    const emails = personEmails(person);
+    const phones = personPhones(person);
+    const base: ContactGraphEntry = {
+      id: person.id,
+      name: person.name,
+      email: emails[0],
+      emails: emails.length > 0 ? emails : undefined,
+      phones: phones.length > 0 ? phones : undefined,
+      relationship: person.relationship,
+      company: person.company,
+      channels: [],
+      interactions: [],
+      status: person.status === 'archived' ? 'archived' : 'active',
+    };
+    byPersonId.set(person.id, mergeEntry(byPersonId.get(person.id), base));
   }
 
   return [...byPersonId.values(), ...byOrphanKey.values()]

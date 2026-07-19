@@ -38,7 +38,7 @@ interface Props {
 
 const INITIAL: KnowledgeBase = {
   identity: {},
-  work: { keyContacts: [], directReports: [] },
+  work: { directReports: [] },
   relationships: { people: [], reviewFrequency: 21 },
   goals: {},
   family: { children: [] },
