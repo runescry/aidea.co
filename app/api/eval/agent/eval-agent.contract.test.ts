@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from './route';
 
 vi.mock('@/lib/ai/provider', () => ({
@@ -26,6 +26,18 @@ describe('POST /api/eval/agent', () => {
     vi.mocked(runAgentHarness).mockReset();
     delete process.env.EVAL_ALLOW_LIVE;
     delete process.env.EVAL_API_SECRET;
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('fails closed in production when EVAL_API_SECRET is missing', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.mocked(hasApiKey).mockReturnValue(true);
+
+    const res = await post({ agentId: 'inbox-triage', mission: 'Triage inbox' });
+
+    expect(res.status).toBe(503);
+    expect(runAgentHarness).not.toHaveBeenCalled();
   });
 
   it('returns 400 when agentId is missing', async () => {

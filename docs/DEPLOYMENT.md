@@ -30,6 +30,8 @@ See [AGENTS.md](../AGENTS.md) for agent git/deploy rules.
 
 ## Post-deploy smoke ([aidea-co.vercel.app](https://aidea-co.vercel.app))
 
+Full checklist: [PROD_SMOKE.md](./PROD_SMOKE.md).
+
 Run after each prod deploy (extends [PLAN P7.0](./PLAN.md#p70--ship--stabilize); full checklist tracked in [PLAN P8.0](./PLAN.md#p80--complete-p7-partials)):
 
 | Surface | Check |
@@ -48,7 +50,9 @@ Run after each prod deploy (extends [PLAN P7.0](./PLAN.md#p70--ship--stabilize);
 |----------|---------|
 | `DATABASE_URL` | Postgres connection string. Also accepts `POSTGRES_URL` or `POSTGRES_PRISMA_URL`. |
 | `AI_GATEWAY_API_KEY` | **Production LLM auth** — Vercel AI Gateway (required on Vercel; OIDC-only often returns `Forbidden`) |
-| `DEFAULT_USER_ID` | Tenant id for single-user deploys (default: `default`). Set per user when you add auth. |
+| `AIDEA_SESSION_SECRET` | HMAC secret for signed app sessions. Use a long random value. `NANGO_SECRET_KEY` is the compatibility fallback. |
+| `AIDEA_TENANT_DERIVATION_SECRET` | Non-rotating HMAC secret for opaque stable Google tenant ids. On an existing deployment, initially set this to the current `AIDEA_SESSION_SECRET` value so existing tenant ids do not change. Never rotate it as part of session-key rotation. |
+| `DEFAULT_USER_ID` | Local scripts, CLI tasks, cron, and single-user fallback tenant (default: `default`). Public production APIs require a signed app session. |
 
 ## Optional integrations
 
@@ -59,6 +63,8 @@ Run after each prod deploy (extends [PLAN P7.0](./PLAN.md#p70--ship--stabilize);
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN` | Optional [Vercel KV](https://vercel.com/docs/storage/vercel-kv) — human-input answers across serverless instances; omit for local dev |
 | `BRAVE_SEARCH_API_KEY` | Web search tool |
 | `NANGO_SECRET_KEY` | Gmail & Calendar OAuth via [Nango](https://app.nango.dev) — copy from **Environment Settings → Secret key** |
+| `EVAL_API_SECRET` | Required to enable `/api/eval/*` in production. If omitted, eval routes fail closed with `503`. |
+| `MONITOR_INCLUDE_DEFAULT` | Set to `0` after legacy migration to stop cron monitors from also checking the fallback `DEFAULT_USER_ID` tenant. Registered Google accounts are always checked. |
 
 Vercel services **not** used: Auth, Analytics, Blob. See [ARCHITECTURE.md § Vercel platform services](./ARCHITECTURE.md#vercel-platform-services).
 
@@ -211,10 +217,25 @@ npm run typecheck && npm test && npm run test:contract && npm run build
 
 ## Single-user vs multi-user
 
-Today, `DEFAULT_USER_ID` scopes all rows. For true multi-user:
+Postgres rows are scoped by a signed app session. Demo entry receives an isolated random `demo:*` tenant. Google entry first uses a temporary Nango owner id, then verifies the connected Google identity and promotes the app session to a stable opaque `google:*` tenant derived from that account. Returning with the same Google account therefore resolves the same Postgres tenant without Clerk. The temporary Nango owner remains separate so integration lookups continue to find the connections created by that Connect session.
 
-1. Add authentication (e.g. Clerk, Auth.js) and set `DEFAULT_USER_ID` from the session in middleware or API routes.
-2. Ensure every storage call uses `getUserId()` (already centralized in [`lib/storage/index.ts`](../lib/storage/index.ts)).
+Production middleware rejects unsigned or tampered sessions on user-data APIs. `DEFAULT_USER_ID` remains available to local scripts, cron, and single-user development paths; it is not accepted as a public production browser session. Filesystem storage remains a single-user local development fallback; use Postgres/Neon for multi-user isolation.
+
+### Inspect or copy legacy `default` tenant data
+
+Inspect any existing rows stored under `user_id = 'default'` and decide whether to archive them or copy them to a stable Google tenant. The tenant migration helper is report-only by default:
+
+```bash
+npm run tenant:report -- --from=default
+```
+
+To copy rows to a target tenant, pass `--to` and the explicit `--apply` flag:
+
+```bash
+npm run tenant:migrate -- --from=default --to=google:user_123 --apply
+```
+
+The helper copies profile, queue, entity state, briefs, settings, chat, and audit rows. It does not delete the source tenant; take a database backup before using `--apply` in production.
 
 ## Verify Postgres locally
 

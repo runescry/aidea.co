@@ -215,6 +215,7 @@ export function countSuggestions(tasks: TaskItem[]): number {
 
 function queueStatusToTaskStatus(status: QueuedAction['status']): TaskStatus {
   if (status === 'pending') return 'needs_you';
+  if (status === 'executing') return 'running';
   if (status === 'failed') return 'failed';
   return 'done';
 }

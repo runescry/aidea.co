@@ -1,10 +1,11 @@
 import {
-  getEndUserId,
+  resolveEndUserId,
   getNango,
   gmailIntegrationId,
   calendarIntegrationId,
   nangoConfigured,
 } from './client';
+import { isDemoUserId } from '@/lib/auth/session';
 
 export interface NangoConnectionPublic {
   connectionId: string;
@@ -27,8 +28,8 @@ function tagEmail(tags?: Record<string, string>): string | undefined {
   return tags?.end_user_email || tags?.end_user_email_address;
 }
 
-function endUserTag(conn: ListedConnection): string {
-  return conn.tags?.end_user_id ?? getEndUserId();
+async function endUserTag(conn: ListedConnection): Promise<string> {
+  return conn.tags?.end_user_id ?? resolveEndUserId();
 }
 
 async function persistConnectionMetadata(
@@ -131,7 +132,7 @@ async function enrichConnections(conns: ListedConnection[]): Promise<NangoConnec
   const identityByTag = new Map<string, { email: string; displayName?: string }>();
   for (let i = 0; i < results.length; i++) {
     if (!results[i].email) continue;
-    identityByTag.set(endUserTag(conns[i]), {
+    identityByTag.set(await endUserTag(conns[i]), {
       email: results[i].email!,
       displayName: results[i].displayName,
     });
@@ -139,7 +140,7 @@ async function enrichConnections(conns: ListedConnection[]): Promise<NangoConnec
 
   for (let i = 0; i < results.length; i++) {
     if (results[i].email) continue;
-    const sibling = identityByTag.get(endUserTag(conns[i]));
+    const sibling = identityByTag.get(await endUserTag(conns[i]));
     if (!sibling) continue;
 
     results[i] = {
@@ -153,23 +154,29 @@ async function enrichConnections(conns: ListedConnection[]): Promise<NangoConnec
   return results;
 }
 
-let _hasConnectionsCache: { at: number; value: boolean } | null = null;
+let _hasConnectionsCache = new Map<string, { at: number; value: boolean }>();
+let _liteConnectionsCache = new Map<string, { at: number; value: NangoConnectionPublic[] }>();
 const NANGO_HAS_CONNECTIONS_MS = 60_000;
+const NANGO_LITE_CONNECTIONS_MS = 60_000;
 
 export function invalidateNangoConnectionsCache(): void {
-  _hasConnectionsCache = null;
+  _hasConnectionsCache = new Map();
+  _liteConnectionsCache = new Map();
 }
 
 export async function hasNangoConnections(): Promise<boolean> {
   if (!nangoConfigured()) return false;
+  const endUserId = await resolveEndUserId();
+  if (isDemoUserId(endUserId)) return false;
   const now = Date.now();
-  if (_hasConnectionsCache && now - _hasConnectionsCache.at < NANGO_HAS_CONNECTIONS_MS) {
-    return _hasConnectionsCache.value;
+  const cached = _hasConnectionsCache.get(endUserId);
+  if (cached && now - cached.at < NANGO_HAS_CONNECTIONS_MS) {
+    return cached.value;
   }
   const nango = getNango();
-  const res = await nango.listConnections({ tags: { end_user_id: getEndUserId() } });
+  const res = await nango.listConnections({ tags: { end_user_id: endUserId } });
   const value = (res.connections ?? []).length > 0;
-  _hasConnectionsCache = { at: now, value };
+  _hasConnectionsCache.set(endUserId, { at: now, value });
   return value;
 }
 
@@ -196,18 +203,32 @@ function mapConnectionLite(conn: ListedConnection): NangoConnectionPublic {
 export async function listNangoConnectionsLite(
   integrationId?: string,
 ): Promise<NangoConnectionPublic[]> {
+  const endUserId = await resolveEndUserId();
+  if (isDemoUserId(endUserId)) return [];
+
+  const cacheKey = `${endUserId}:${integrationId ?? '*'}`;
+  const now = Date.now();
+  const cached = _liteConnectionsCache.get(cacheKey);
+  if (cached && now - cached.at < NANGO_LITE_CONNECTIONS_MS) {
+    return cached.value;
+  }
+
   const nango = getNango();
-  const res = await nango.listConnections({ tags: { end_user_id: getEndUserId() } });
+  const res = await nango.listConnections({ tags: { end_user_id: endUserId } });
   const connections = (res.connections ?? []) as ListedConnection[];
-  return connections
+  const value = connections
     .filter(c => !integrationId || c.provider_config_key === integrationId)
     .map(mapConnectionLite);
+  _liteConnectionsCache.set(cacheKey, { at: now, value });
+  return value;
 }
 
 export async function listNangoConnections(integrationId?: string): Promise<NangoConnectionPublic[]> {
+  const endUserId = await resolveEndUserId();
+  if (isDemoUserId(endUserId)) return [];
   const nango = getNango();
   const res = await nango.listConnections({
-    tags: { end_user_id: getEndUserId() },
+    tags: { end_user_id: endUserId },
   });
 
   const connections = res.connections ?? [];
@@ -232,6 +253,13 @@ export async function listCalendarConnections(): Promise<NangoConnectionPublic[]
 
 export async function listCalendarConnectionsLite(): Promise<NangoConnectionPublic[]> {
   return listNangoConnectionsLite(calendarIntegrationId());
+}
+
+export async function getConnectedGoogleIdentity(): Promise<{ email: string; displayName?: string }> {
+  const connections = await listNangoConnections();
+  const identified = connections.find(connection => connection.email);
+  if (!identified?.email) throw new Error('Google connection did not return an email address');
+  return { email: identified.email, displayName: identified.displayName };
 }
 
 export async function resolveGmailConnections(connectionId?: string): Promise<NangoConnectionPublic[]> {
@@ -259,6 +287,10 @@ export async function resolveCalendarConnections(connectionId?: string): Promise
 }
 
 export async function deleteNangoConnection(connectionId: string, integrationId: string): Promise<void> {
+  const scopedConnections = await listNangoConnectionsLite(integrationId);
+  if (!scopedConnections.some(conn => conn.connectionId === connectionId)) {
+    throw new Error('Connection not found for current user');
+  }
   const nango = getNango();
   await nango.deleteConnection(integrationId, connectionId);
 }

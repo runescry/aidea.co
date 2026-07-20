@@ -8,16 +8,30 @@ import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { recordRelationshipMonitorSignals } from '@/lib/contacts/sync-signals';
 import { listGmailConnectionsLite, hasNangoConnections } from '@/lib/nango/connections';
 import { nangoConfigured } from '@/lib/nango/client';
+import { listMonitorTargets } from '@/lib/auth/accounts';
+import { runWithUserContext } from '@/lib/auth/user-context';
 
 export const runtime = 'nodejs';
 export const maxDuration = 1800;
 
-const MONITORS: Record<string, string> = {
+type MonitorResult = {
+  status: 'complete' | 'skipped' | 'error';
+  eventCount: number;
+  reason?: string;
+};
+
+const MONITORS = {
   daily: 'daily-orchestrator',
   inbox: 'inbox-triage',
   calendar: 'calendar-reader',
   relationships: 'relationship-monitor',
-};
+} as const;
+
+type MonitorName = keyof typeof MONITORS;
+
+function isMonitorName(value: string): value is MonitorName {
+  return value in MONITORS;
+}
 
 function authorizeCron(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -26,45 +40,24 @@ function authorizeCron(req: NextRequest): boolean {
   return auth === `Bearer ${secret}`;
 }
 
-export async function GET(req: NextRequest) {
-  if (!authorizeCron(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(req.url);
-  const name = searchParams.get('name') ?? 'daily';
-
-  if (!MONITORS[name]) {
-    return NextResponse.json({ error: `Unknown monitor: ${name}` }, { status: 400 });
-  }
-
-  if (!hasApiKey()) {
-    return NextResponse.json(
-      { error: 'LLM not configured — set AI_GATEWAY_API_KEY (recommended) or ANTHROPIC_API_KEY in environment' },
-      { status: 500 }
-    );
-  }
-
-  // Inbox and daily monitors need Gmail — skip gracefully if not connected.
-  if (name === 'inbox' || name === 'daily') {
-    const gmailConns = nangoConfigured() ? await listGmailConnectionsLite() : [];
-    if (gmailConns.length === 0) {
-      return NextResponse.json({ ok: true, skipped: 'no Gmail connection', eventCount: 0 });
-    }
-  }
-
-  // Relationship monitor needs at least some integration — skip if none.
-  if (name === 'relationships') {
-    if (!(await hasNangoConnections())) {
-      return NextResponse.json({ ok: true, skipped: 'no integrations connected', eventCount: 0 });
-    }
-  }
-
+async function runMonitor(name: MonitorName): Promise<MonitorResult> {
   const events: HarnessEvent[] = [];
-  const send = (e: HarnessEvent) => events.push(e);
-  const sessionId = crypto.randomUUID();
-
   try {
+    // Inbox and daily monitors need Gmail — skip gracefully if not connected.
+    if (name === 'inbox' || name === 'daily') {
+      const gmailConns = nangoConfigured() ? await listGmailConnectionsLite() : [];
+      if (gmailConns.length === 0) {
+        return { status: 'skipped', reason: 'no Gmail connection', eventCount: 0 };
+      }
+    }
+
+    // Relationship monitor needs at least some integration — skip if none.
+    if (name === 'relationships' && !(await hasNangoConnections())) {
+      return { status: 'skipped', reason: 'no integrations connected', eventCount: 0 };
+    }
+
+    const send = (e: HarnessEvent) => events.push(e);
+    const sessionId = crypto.randomUUID();
     const config =
       name === 'daily'
         ? dailyLiteEntityConfig
@@ -91,11 +84,45 @@ export async function GET(req: NextRequest) {
       await collapsePendingQueueDuplicates().catch(() => undefined);
     }
 
-    return NextResponse.json({ ok: true, eventCount: events.length });
+    return { status: 'complete', eventCount: events.length };
   } catch (err) {
+    return {
+      status: 'error',
+      eventCount: events.length,
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function GET(req: NextRequest) {
+  if (!authorizeCron(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const requestedName = searchParams.get('name') ?? 'daily';
+  if (!isMonitorName(requestedName)) {
+    return NextResponse.json({ error: `Unknown monitor: ${requestedName}` }, { status: 400 });
+  }
+
+  if (!hasApiKey()) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
+      { error: 'LLM not configured — set AI_GATEWAY_API_KEY (recommended) or ANTHROPIC_API_KEY in environment' },
+      { status: 500 },
     );
   }
+
+  const targets = await listMonitorTargets();
+  const results: MonitorResult[] = [];
+  for (const target of targets) {
+    results.push(await runWithUserContext(target, () => runMonitor(requestedName)));
+  }
+
+  return NextResponse.json({
+    ok: results.every(result => result.status !== 'error'),
+    processed: results.filter(result => result.status === 'complete').length,
+    skipped: results.filter(result => result.status === 'skipped').length,
+    failed: results.filter(result => result.status === 'error').length,
+    eventCount: results.reduce((sum, result) => sum + result.eventCount, 0),
+  });
 }

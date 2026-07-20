@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET } from './route';
 
 vi.mock('@/lib/agents/library', () => ({
@@ -29,6 +29,14 @@ function get(headers?: Record<string, string>) {
 describe('GET /api/eval/agents', () => {
   beforeEach(() => {
     delete process.env.EVAL_API_SECRET;
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('fails closed in production when EVAL_API_SECRET is missing', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const res = await get();
+    expect(res.status).toBe(503);
   });
 
   it('returns agent catalog', async () => {

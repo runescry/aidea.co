@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readAllKB, writeKB, writeManyKB } from '@/lib/harness/knowledge-base';
+import { redactProfileSecrets } from '@/lib/api/redact-profile';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
   const data = await readAllKB();
-  return NextResponse.json(data);
+  return NextResponse.json(redactProfileSecrets(data));
 }
 
 export async function POST(req: NextRequest) {

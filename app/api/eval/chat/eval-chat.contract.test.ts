@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from './route';
 
 vi.mock('@/lib/ai/provider', () => ({
@@ -12,10 +12,10 @@ vi.mock('@/lib/eval/collect-fast-chat', () => ({
 import { hasApiKey } from '@/lib/ai/provider';
 import { runFastChatToText } from '@/lib/eval/collect-fast-chat';
 
-function post(body: unknown) {
+function post(body: unknown, headers?: Record<string, string>) {
   return POST(new Request('http://localhost/api/eval/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
   }) as import('next/server').NextRequest);
 }
@@ -24,6 +24,30 @@ describe('POST /api/eval/chat', () => {
   beforeEach(() => {
     vi.mocked(hasApiKey).mockReset();
     vi.mocked(runFastChatToText).mockReset();
+    delete process.env.EVAL_API_SECRET;
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('fails closed in production when EVAL_API_SECRET is missing', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.mocked(hasApiKey).mockReturnValue(true);
+
+    const res = await post({ message: 'Hello' });
+
+    expect(res.status).toBe(503);
+    expect(runFastChatToText).not.toHaveBeenCalled();
+  });
+
+  it('requires the eval secret when configured', async () => {
+    process.env.EVAL_API_SECRET = 'test-secret';
+    vi.mocked(hasApiKey).mockReturnValue(true);
+
+    await expect(post({ message: 'Hello' })).resolves.toMatchObject({ status: 401 });
+
+    vi.mocked(runFastChatToText).mockResolvedValue('Hello.');
+    await expect(post({ message: 'Hello' }, { 'x-eval-api-secret': 'test-secret' }))
+      .resolves.toMatchObject({ status: 200 });
   });
 
   it('returns 400 when message is missing', async () => {

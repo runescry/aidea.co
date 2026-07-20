@@ -43,6 +43,57 @@ interface WorkFeedContextValue {
 }
 
 const WorkFeedContext = createContext<WorkFeedContextValue | null>(null);
+const WORK_FEED_CACHE_PREFIX = 'aidea-work-feed-v1:';
+const WORK_FEED_CACHE_MS = 2 * 60 * 1000;
+
+interface CachedWorkFeedPayload {
+  at: number;
+  data: WorkFeedPayload;
+}
+
+async function currentWorkFeedCacheKey(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const res = await fetch('/api/auth/session');
+    if (!res.ok) return null;
+    const body = await res.json() as { userId?: string };
+    return body.userId ? `${WORK_FEED_CACHE_PREFIX}${body.userId}` : null;
+  } catch {
+    return null;
+  }
+}
+
+function readCachedWorkFeed(key: string): WorkFeedPayload | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as CachedWorkFeedPayload;
+    if (!cached?.data || Date.now() - cached.at > WORK_FEED_CACHE_MS) return null;
+    return cached.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedWorkFeed(key: string, data: WorkFeedPayload): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({ at: Date.now(), data } satisfies CachedWorkFeedPayload));
+  } catch {
+    // quota or private mode
+  }
+}
+
+export function clearCachedWorkFeed(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(WORK_FEED_CACHE_PREFIX)) localStorage.removeItem(key);
+    }
+  } catch {
+    // private mode
+  }
+}
 
 interface ProviderProps {
   children: ReactNode;
@@ -73,6 +124,7 @@ export function WorkFeedProvider({
   const [data, setData] = useState<WorkFeedPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const fetchGenRef = useRef(0);
+  const cacheKeyRef = useRef<string | null>(null);
   const surfaceActiveRef = useRef(feedSurfaceActive(homeActive, profileActive));
   const activeRef = useRef(agentsRunning || chatStreaming);
 
@@ -96,13 +148,15 @@ export function WorkFeedProvider({
       if (gen !== fetchGenRef.current) return;
 
       if (full) {
-        setData({
+        const nextData = {
           tasks: body.tasks ?? [],
           needsYou: body.needsYou ?? 0,
           suggestions: body.suggestions ?? 0,
           timeline: body.timeline ?? [],
           autonomy: body.autonomy ?? null,
-        });
+        };
+        setData(nextData);
+        if (cacheKeyRef.current) writeCachedWorkFeed(cacheKeyRef.current, nextData);
       } else if (typeof body.needsYou === 'number') {
         setData(prev => ({
           tasks: prev?.tasks ?? [],
@@ -126,6 +180,19 @@ export function WorkFeedProvider({
     }
     await fetchFeed(false);
   }, [fetchFeed]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void currentWorkFeedCacheKey().then(key => {
+      if (cancelled || !key) return;
+      cacheKeyRef.current = key;
+      const cached = readCachedWorkFeed(key);
+      if (!cached) return;
+      setData(cached);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (refreshKey > 0) refresh();

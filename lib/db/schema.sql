@@ -4,6 +4,14 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS integration_credentials (
+  user_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  data JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, provider)
+);
+
 CREATE TABLE IF NOT EXISTS action_queue (
   id TEXT NOT NULL,
   user_id TEXT NOT NULL DEFAULT 'default',
@@ -71,3 +79,27 @@ CREATE TABLE IF NOT EXISTS action_audit (
 
 CREATE INDEX IF NOT EXISTS idx_action_audit_user_resolved
   ON action_audit (user_id, resolved_at DESC);
+
+CREATE TABLE IF NOT EXISTS api_rate_limits (
+  scope TEXT NOT NULL,
+  key_hash TEXT NOT NULL,
+  window_start BIGINT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  expires_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (scope, key_hash, window_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_rate_limits_expires
+  ON api_rate_limits (expires_at);
+
+CREATE TABLE IF NOT EXISTS user_accounts (
+  user_id TEXT PRIMARY KEY,
+  nango_user_id TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  monitors_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_accounts_monitors
+  ON user_accounts (mode, monitors_enabled);

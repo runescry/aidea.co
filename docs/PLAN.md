@@ -101,7 +101,7 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null; pkill -f "next dev" 2>/dev/null; slee
 | P8.1 health connector | `lib/health/`, Settings integrations, Nango or provider OAuth |
 | P8.2 contact graph | `interaction-graph.ts`, relationship-monitor cron, Gmail/Calendar signals |
 | P8.3 finance spike | new `lib/finance/` or Plaid module, KB `finance` section |
-| P8.4 platform | auth middleware, `DEFAULT_USER_ID`, mobile secondary views |
+| P8.4 platform | signed Nango-backed auth and tenant hardening complete; mobile secondary views remain |
 | P9 profile memory | `lib/profile/people.ts`, `ProfilePeopleSection`, `memory-hygiene.ts`, graph blocklist |
 
 ---
@@ -409,8 +409,8 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 
 #### P8.4 — Platform
 
-- [ ] **Auth / multi-user** — Replace single `DEFAULT_USER_ID`; session middleware; per-user profile/KB ([VISION D11](./VISION.md#d11-production-platform--62))
-- [ ] **Mobile secondary surfaces** — Agents, Context, Settings usable on small screens (Home loop already mobile-first)
+- [x] **Auth / multi-user hardening** — Nango-verified Google identity, signed session middleware, stable opaque tenants, automatic safe tenant claiming, and no public production `DEFAULT_USER_ID` fallback ([VISION D11](./VISION.md#d11-production-platform--62))
+- [x] **Mobile secondary surfaces** — Agents, Profile/Context, and Settings usable on small screens (Home loop already mobile-first)
 
 ---
 
@@ -469,8 +469,8 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 - [x] **Archived restore UI** — Profile People “Show archived (N)” section
 - [x] **Profile memory E2E** — `tests/integration/profile-memory-e2e.test.ts`; `app/api/kb/kb.contract.test.ts`
 - [x] **Agent reads rejection memory** — `rejectedKbPatches` injected into dispatch task + agent prompts
-- [ ] **Rich person sheet** — interaction history (wire `ContactLensPanel` patterns)
-- [ ] **Legacy list deprecation** — stop reading `work.keyContacts` in remaining agent paths
+- [x] **Rich person sheet** — interaction history (wire `ContactLensPanel` patterns)
+- [x] **Legacy list deprecation** — `people-migrate.ts` is the sole compatibility reader for `work.keyContacts`; new writes use `relationships.people[]`
 
 ### Deferred (post-P8)
 

@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import Nango from '@nangohq/frontend';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { Label, TextField, SelectField } from '../forms';
 
 const STEPS = [
   { id: 'name', title: 'Your name', subtitle: 'How agents address you' },
-  { id: 'role', title: 'Your role', subtitle: 'Work context at a glance' },
+  { id: 'role', title: 'Your title', subtitle: 'Work context at a glance' },
+  { id: 'connections', title: 'Inbox & calendar', subtitle: 'Confirm the accounts for your first brief' },
   { id: 'autonomy', title: 'Autonomy', subtitle: 'How much agents decide alone' },
 ] as const;
 
@@ -20,6 +22,12 @@ interface Props {
 export default function QuickStartOnboarding({ onComplete, onFullProfile }: Props) {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [connections, setConnections] = useState<string[]>([]);
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
+  const [connectionsConfirmed, setConnectionsConfirmed] = useState(false);
+  const [connectingAccounts, setConnectingAccounts] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [data, setData] = useState<KnowledgeBase>({
     identity: {},
     work: {},
@@ -28,18 +36,70 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
 
   const current = STEPS[step];
   const progress = ((step + 1) / STEPS.length) * 100;
+  const missingConnections = ['google-mail', 'google-calendar'].filter(id => !connections.includes(id));
+  const hasRequiredConnections = missingConnections.length === 0;
+
+  const loadConnections = useCallback(async (refresh = false) => {
+    try {
+      const res = await fetch(`/api/nango/connections?lite=1${refresh ? '&refresh=1' : ''}`);
+      const body = res.ok ? await res.json() as { connections?: Array<{ integrationId?: string }> } : { connections: [] };
+      setConnections((body.connections ?? []).map(connection => connection.integrationId ?? ''));
+    } finally {
+      setConnectionsLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (current.id !== 'connections' || connectionsLoaded) return;
+    void loadConnections();
+  }, [connectionsLoaded, current.id, loadConnections]);
+
+  const connectMissingAccounts = async () => {
+    setConnectingAccounts(true);
+    setConnectionError(null);
+    try {
+      const res = await fetch('/api/nango/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ integrations: missingConnections }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Failed to start Google connection (${res.status})`);
+      }
+      const { sessionToken } = await res.json() as { sessionToken: string };
+      const nango = new Nango();
+      const connect = nango.openConnectUI({
+        onEvent: event => {
+          if (event.type === 'connect') {
+            setConnections(prev => [...new Set([...prev, ...missingConnections])]);
+            setConnectionsLoaded(true);
+            void loadConnections(true);
+            setConnectingAccounts(false);
+          }
+          if (event.type === 'close') setConnectingAccounts(false);
+        },
+      });
+      connect.setSessionToken(sessionToken);
+    } catch (err) {
+      setConnectionError(err instanceof Error ? err.message : 'Failed to connect Google accounts');
+      setConnectingAccounts(false);
+    }
+  };
 
   const canContinue = (): boolean => {
     if (current.id === 'name') return Boolean(data.identity?.name?.trim());
     if (current.id === 'role') return Boolean(data.work?.role?.trim() || data.identity?.role?.trim());
+    if (current.id === 'connections') return connectionsLoaded && hasRequiredConnections && connectionsConfirmed;
     return Boolean(data.preferences?.defaultAutonomyLevel);
   };
 
   const saveAndFinish = useCallback(async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const role = data.work?.role?.trim() || data.identity?.role?.trim() || '';
-      await fetch('/api/kb', {
+      const response = await fetch('/api/kb', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -54,7 +114,13 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
           },
         }),
       });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Unable to save your profile (${response.status})`);
+      }
       onComplete();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save your profile');
     } finally {
       setSaving(false);
     }
@@ -89,7 +155,7 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
           {step === 0 && (
             <div className="space-y-4">
               <p className="text-body text-foreground-muted leading-relaxed">
-                Three quick questions to get you running. You can fill in the full profile later from Context.
+                Four quick questions to get you running. You can fill in the full profile later from Context.
               </p>
               <div>
                 <Label hint="Required">Your name</Label>
@@ -108,7 +174,7 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
                 Agents use this to tailor briefs, drafts, and recommendations.
               </p>
               <div>
-                <Label hint="Required">Role / title</Label>
+                <Label hint="Required">Title</Label>
                 <TextField
                   value={data.work?.role ?? data.identity?.role ?? ''}
                   onChange={v => setData(d => ({
@@ -123,6 +189,43 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
           )}
 
           {step === 2 && (
+            <div className="space-y-4">
+              <p className="text-caption text-foreground-muted">
+                We&apos;ll use these accounts for your first Inbox triage and calendar brief.
+              </p>
+              <div className="card divide-y divide-border">
+                <ConnectionRow label="Gmail inbox" connected={connections.includes('google-mail')} />
+                <ConnectionRow label="Google Calendar" connected={connections.includes('google-calendar')} />
+              </div>
+              {connectionsLoaded && !hasRequiredConnections && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={connectMissingAccounts}
+                    disabled={connectingAccounts}
+                    className="btn-secondary w-full justify-center"
+                  >
+                    {connectingAccounts ? 'Connecting…' : 'Connect now'}
+                  </button>
+                  <p className="text-caption text-foreground-subtle">
+                    Connect the missing account{missingConnections.length > 1 ? 's' : ''} before continuing.
+                  </p>
+                </div>
+              )}
+              {connectionError && <p role="alert" className="text-caption text-danger">{connectionError}</p>}
+              <label className="flex items-start gap-3 text-sm text-foreground-muted">
+                <input
+                  type="checkbox"
+                  checked={connectionsConfirmed}
+                  onChange={event => setConnectionsConfirmed(event.target.checked)}
+                  className="mt-0.5 accent-[rgb(var(--accent))]"
+                />
+                <span>I confirm aidea can use these accounts to prepare my first brief.</span>
+              </label>
+            </div>
+          )}
+
+          {step === 3 && (
             <div className="space-y-4">
               <p className="text-caption text-foreground-muted">
                 Controls what runs automatically vs. what waits for your approval in Inbox.
@@ -152,6 +255,7 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
       </main>
 
       <footer className="border-t border-border px-6 py-4 flex items-center justify-between shrink-0 bg-surface">
+        {saveError && <p role="alert" className="text-caption text-danger mr-3">{saveError}</p>}
         <button
           type="button"
           onClick={onFullProfile}
@@ -175,6 +279,15 @@ export default function QuickStartOnboarding({ onComplete, onFullProfile }: Prop
           </button>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function ConnectionRow({ label, connected }: { label: string; connected: boolean }) {
+  return (
+    <div className="flex items-center justify-between px-3 py-3 text-sm">
+      <span className="text-foreground">{label}</span>
+      <span className={connected ? 'text-success' : 'text-danger'}>{connected ? 'Connected' : 'Not connected'}</span>
     </div>
   );
 }

@@ -53,6 +53,10 @@ describe('queueActionToTask', () => {
     const task = queueActionToTask(makeAction({ status: 'failed' }));
     expect(task.status).toBe('failed');
   });
+
+  it('maps claimed items to running', () => {
+    expect(queueActionToTask(makeAction({ status: 'executing' })).status).toBe('running');
+  });
 });
 
 describe('sessionToTask', () => {

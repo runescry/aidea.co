@@ -4,6 +4,7 @@ import { resolveDailyEntityConfig } from '@/lib/entities/daily';
 import { bootstrapEntity } from '@/lib/harness/bootstrap';
 import { hasApiKey } from '@/lib/ai/provider';
 import { harnessSSEResponse } from '@/lib/api/sse';
+import { enforceRateLimit } from '@/lib/security/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,9 @@ export interface HarnessRunRequest {
 }
 
 export async function POST(req: NextRequest) {
+  const limited = await enforceRateLimit(req, { scope: 'run', limit: 6, windowMs: 10 * 60_000 });
+  if (limited) return limited;
+
   const body: HarnessRunRequest = await req.json();
   const sessionId = body.sessionId ?? crypto.randomUUID();
 

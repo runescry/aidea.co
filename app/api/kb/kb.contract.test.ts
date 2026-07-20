@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { GET, POST } from './route';
+import { redactProfileSecrets } from '@/lib/api/redact-profile';
 import { readAllKB, writeManyKB } from '@/lib/harness/knowledge-base';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 
@@ -21,6 +22,14 @@ describe('GET/POST /api/kb', () => {
     expect(res.status).toBe(200);
     const body = await res.json() as KnowledgeBase;
     expect(body).toBeTypeOf('object');
+  });
+
+  it('redacts integration credentials from profile responses', () => {
+    expect(redactProfileSecrets({
+      integrations: {
+        strava: { athleteId: 42, accessToken: 'access-secret', refreshToken: 'refresh-secret' },
+      },
+    })).toEqual({ integrations: { strava: { athleteId: 42 } } });
   });
 
   it('POST merges updates and returns ok', async () => {

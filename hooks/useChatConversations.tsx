@@ -154,18 +154,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     (async () => {
+      const local = loadLocalStore();
+      const localHydrated = hydrateChatStore(local, null);
+      setStore(localHydrated);
+      saveLocalStore(localHydrated);
+
       try {
-        const local = loadLocalStore();
         const remote = await fetchRemoteStore();
         if (cancelled) return;
-        const hydrated = hydrateChatStore(local, remote);
+        const hydrated = hydrateChatStore(localHydrated, remote);
         setStore(hydrated);
         saveLocalStore(hydrated);
       } catch {
         if (!cancelled) {
-          const fallback = hydrateChatStore(loadLocalStore(), null);
-          setStore(fallback);
-          saveLocalStore(fallback);
+          setStore(localHydrated);
+          saveLocalStore(localHydrated);
         }
       } finally {
         if (!cancelled) setSyncReady(true);

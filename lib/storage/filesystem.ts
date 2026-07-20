@@ -44,6 +44,17 @@ export function writeProfile(data: Record<string, unknown>): void {
   writeJson('knowledge-base.json', data);
 }
 
+export function readIntegrationCredential<T>(provider: string): T | null {
+  return readJson<Record<string, T>>('integration-credentials.json', {})[provider] ?? null;
+}
+
+export function writeIntegrationCredential(provider: string, data: unknown | null): void {
+  const credentials = readJson<Record<string, unknown>>('integration-credentials.json', {});
+  if (data === null) delete credentials[provider];
+  else credentials[provider] = data;
+  writeJson('integration-credentials.json', credentials);
+}
+
 export function getQueueAction(id: string): QueuedAction | null {
   return listQueue().find(action => action.id === id) ?? null;
 }
@@ -62,6 +73,16 @@ export function saveQueueAction(action: QueuedAction): void {
   if (idx === -1) all.push(action);
   else all[idx] = action;
   writeJson('action-queue.json', all);
+}
+
+export function claimQueueAction(action: QueuedAction): QueuedAction | null {
+  const all = listQueue();
+  const idx = all.findIndex(candidate => candidate.id === action.id && candidate.status === 'pending');
+  if (idx === -1) return null;
+  const claimed = { ...action, status: 'executing' as const };
+  all[idx] = claimed;
+  writeJson('action-queue.json', all);
+  return claimed;
 }
 
 export function replaceQueue(actions: QueuedAction[]): void {

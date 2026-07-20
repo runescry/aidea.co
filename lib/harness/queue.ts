@@ -1,5 +1,6 @@
 import {
   getQueuedAction,
+  claimQueuedAction,
   saveQueuedAction,
   replaceQueue,
   listQueuedActions,
@@ -186,7 +187,10 @@ export async function resolveQueueAction(
   const current = await getQueuedAction(id);
   if (!current || current.status !== 'pending') return null;
 
-  let action = applyQueueNormalization(applyQueueEdits(current, edits));
+  const prepared = applyQueueNormalization(applyQueueEdits(current, edits));
+  const claimed = await claimQueuedAction(prepared);
+  if (!claimed) return null;
+  let action = claimed;
   const resolvedAt = new Date().toISOString();
 
   if (intent === 'reject') {

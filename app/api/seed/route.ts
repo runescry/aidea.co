@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server';
-import { clearActivityHistory, saveQueuedAction, saveEntityState, writeLatestBrief } from '@/lib/storage';
+import { NextRequest, NextResponse } from 'next/server';
+import { clearActivityHistory, saveQueuedAction, saveEntityState, writeLatestBrief, writeProfile } from '@/lib/storage';
 import { invalidateDevTasksCache } from '@/lib/harness/tasks-cache';
 import { invalidateNangoConnectionsCache } from '@/lib/nango/connections';
+import { enforceRateLimit } from '@/lib/security/rate-limit';
+import { getCurrentAuthMode } from '@/lib/auth/session';
 
 export const runtime = 'nodejs';
 
@@ -9,7 +11,15 @@ function ago(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const limited = await enforceRateLimit(req, { scope: 'seed', limit: 4, windowMs: 60 * 60_000 });
+  if (limited) return limited;
+
+  if (process.env.NODE_ENV === 'production' && await getCurrentAuthMode() !== 'demo') {
+    return NextResponse.json({ error: 'Sample data is only available for demo accounts' }, { status: 403 });
+  }
+
+  const { includeProfile = false } = await req.json().catch(() => ({})) as { includeProfile?: boolean };
   const TODAY = new Date().toISOString().split('T')[0];
 
   const SAMPLE_QUEUE = [
@@ -74,9 +84,14 @@ export async function POST() {
       agentRole: 'inbox-triage',
       tool: 'kb_write',
       payload: {
-        key: 'work.keyContacts',
-        value: 'Update Tom Nguyen entry: title → VP Engineering',
-        patch: { name: 'Tom Nguyen', title: 'VP Engineering', email: 'tom@client.com' },
+        input: {
+          person: {
+            name: 'Tom Nguyen',
+            email: 'tom@client.com',
+            relationship: 'client',
+            notes: 'VP Engineering',
+          },
+        },
       },
       status: 'pending' as const,
       priority: 'low' as const,
@@ -213,16 +228,41 @@ export async function POST() {
     sentiment: 'Productive day ahead. High-stakes investor lunch — be sharp. Clear your inbox approvals this morning.',
   };
 
+  const DEMO_PROFILE = {
+    identity: {
+      name: 'Alex Morgan',
+      preferredName: 'Alex',
+      role: 'Founder',
+      company: 'Studio Co',
+      industry: 'B2B SaaS',
+    },
+    work: {
+      role: 'Founder',
+      currentProjects: ['Q3 growth plan', 'Meridian Health proposal'],
+      urgentFrom: ['sarah.chen@acmecorp.com', 'lisa.park@meridian.health'],
+    },
+    goals: {
+      currentChapter: 'Growing Studio Co with deliberate focus.',
+      lifePriorities: ['Ship the Q3 growth plan', 'Protect deep-work time'],
+    },
+    preferences: {
+      onboardingComplete: true,
+      onboardingMode: 'demo',
+      defaultAutonomyLevel: 'semi-autonomous',
+    },
+  };
+
   try {
     invalidateNangoConnectionsCache();
     invalidateDevTasksCache();
     await clearActivityHistory();
+    if (includeProfile) await writeProfile(DEMO_PROFILE);
     for (const action of SAMPLE_QUEUE) {
       await saveQueuedAction({ ...action });
     }
     await saveEntityState(SAMPLE_ENTITY_STATE);
     await writeLatestBrief(SAMPLE_BRIEF);
-    return NextResponse.json({ ok: true, queued: SAMPLE_QUEUE.length });
+    return NextResponse.json({ ok: true, queued: SAMPLE_QUEUE.length, profileLoaded: includeProfile });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Seed failed';
     return NextResponse.json({ error: message }, { status: 500 });

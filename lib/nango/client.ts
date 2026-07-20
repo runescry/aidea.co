@@ -1,9 +1,10 @@
 import { Nango } from '@nangohq/node';
+import { getCurrentNangoUserId } from '@/lib/auth/session';
 
 let _nango: Nango | null = null;
 
-export function getEndUserId(): string {
-  return process.env.DEFAULT_USER_ID ?? 'default';
+export async function resolveEndUserId(): Promise<string> {
+  return getCurrentNangoUserId();
 }
 
 function nangoSecretKey(): string | undefined {

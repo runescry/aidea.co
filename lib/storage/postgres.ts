@@ -10,6 +10,17 @@ import {
   rowToConversation,
 } from './chat-conversations';
 
+const globalForChatMigration = globalThis as typeof globalThis & {
+  __aideaLegacyChatMigratedUsers?: Set<string>;
+};
+
+function legacyChatMigratedUsers(): Set<string> {
+  if (!globalForChatMigration.__aideaLegacyChatMigratedUsers) {
+    globalForChatMigration.__aideaLegacyChatMigratedUsers = new Set<string>();
+  }
+  return globalForChatMigration.__aideaLegacyChatMigratedUsers;
+}
+
 export async function readProfile(userId: string): Promise<Record<string, unknown>> {
   const sql = getSql();
   const rows = await sql<{ data: Record<string, unknown> }[]>`
@@ -25,6 +36,56 @@ export async function writeProfile(userId: string, data: Record<string, unknown>
     INSERT INTO profiles (user_id, data, updated_at)
     VALUES (${userId}, ${sql.json(toJson(data))}, NOW())
     ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+  `;
+}
+
+export async function mergeProfile(userId: string, updates: Record<string, unknown>): Promise<void> {
+  const sql = getSql();
+  await sql`
+    INSERT INTO profiles (user_id, data, updated_at)
+    VALUES (${userId}, '{}'::jsonb, NOW())
+    ON CONFLICT (user_id) DO NOTHING
+  `;
+  for (const [key, value] of Object.entries(updates)) {
+    const encoded = JSON.stringify(value ?? null);
+    if (key.includes('.')) {
+      await sql`
+        UPDATE profiles
+        SET data = jsonb_set(data, string_to_array(${key}, '.'), ${encoded}::jsonb, true), updated_at = NOW()
+        WHERE user_id = ${userId}
+      `;
+    } else {
+      await sql`
+        UPDATE profiles
+        SET data = data || jsonb_build_object(${key}, ${encoded}::jsonb), updated_at = NOW()
+        WHERE user_id = ${userId}
+      `;
+    }
+  }
+}
+
+export async function readIntegrationCredential<T>(userId: string, provider: string): Promise<T | null> {
+  const sql = getSql();
+  const rows = await sql<{ data: T }[]>`
+    SELECT data FROM integration_credentials WHERE user_id = ${userId} AND provider = ${provider}
+  `;
+  return rows[0]?.data ?? null;
+}
+
+export async function writeIntegrationCredential(
+  userId: string,
+  provider: string,
+  data: unknown | null,
+): Promise<void> {
+  const sql = getSql();
+  if (data === null) {
+    await sql`DELETE FROM integration_credentials WHERE user_id = ${userId} AND provider = ${provider}`;
+    return;
+  }
+  await sql`
+    INSERT INTO integration_credentials (user_id, provider, data, updated_at)
+    VALUES (${userId}, ${provider}, ${sql.json(toJson(data))}, NOW())
+    ON CONFLICT (user_id, provider) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
   `;
 }
 
@@ -62,6 +123,18 @@ export async function saveQueueAction(userId: string, action: QueuedAction): Pro
     VALUES (${action.id}, ${userId}, ${sql.json(toJson(action))}, ${action.status}, ${action.createdAt})
     ON CONFLICT (id, user_id) DO UPDATE SET payload = EXCLUDED.payload, status = EXCLUDED.status
   `;
+}
+
+export async function claimQueueAction(userId: string, action: QueuedAction): Promise<QueuedAction | null> {
+  const sql = getSql();
+  const claimed = { ...action, status: 'executing' as const };
+  const rows = await sql<{ payload: QueuedAction }[]>`
+    UPDATE action_queue
+    SET payload = ${sql.json(toJson(claimed))}, status = 'executing'
+    WHERE id = ${action.id} AND user_id = ${userId} AND status = 'pending'
+    RETURNING payload
+  `;
+  return rows[0]?.payload ?? null;
 }
 
 export async function replaceQueue(userId: string, actions: QueuedAction[]): Promise<void> {
@@ -126,22 +199,35 @@ export async function writeSettings(userId: string, data: AppSettings): Promise<
 }
 
 async function migrateLegacyChatStore(userId: string): Promise<void> {
+  const migratedUsers = legacyChatMigratedUsers();
+  if (migratedUsers.has(userId)) return;
+
   const sql = getSql();
   const existing = await sql<{ n: number }[]>`
     SELECT 1 AS n FROM chat_conversations WHERE user_id = ${userId} LIMIT 1
   `;
-  if (existing.length > 0) return;
+  if (existing.length > 0) {
+    migratedUsers.add(userId);
+    return;
+  }
 
   const legacyRows = await sql<{ data: unknown }[]>`
     SELECT data FROM chat_store WHERE user_id = ${userId}
   `;
-  if (legacyRows.length === 0) return;
+  if (legacyRows.length === 0) {
+    migratedUsers.add(userId);
+    return;
+  }
 
   const parsed = parseLegacyChatStore(legacyRows[0].data);
-  if (!parsed) return;
+  if (!parsed) {
+    migratedUsers.add(userId);
+    return;
+  }
 
   await writeChatStore(userId, parsed);
   await sql`DELETE FROM chat_store WHERE user_id = ${userId}`;
+  migratedUsers.add(userId);
 }
 
 async function upsertChatMeta(userId: string, activeId: string): Promise<void> {

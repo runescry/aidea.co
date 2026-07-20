@@ -45,7 +45,7 @@ Unlike production `/api/message`, does **not** pre-filter with `shouldUseFastCha
 
 ### Security
 
-Unauthenticated like `POST /api/message` today. Optional follow-up: `EVAL_API_SECRET` header for production. Do not log full `message` in observability spans.
+Production requires `EVAL_API_SECRET` in the `X-Eval-Api-Secret` header. When the environment variable is omitted, the endpoint fails closed with `503`. Local development may run without the secret. Do not log full `message` in observability spans.
 
 ### EvalKit setup
 
@@ -74,7 +74,7 @@ Stateless JSON endpoint for EvalKit **agent-matrix** mode. Runs one library agen
 ```http
 POST /api/eval/agent
 Content-Type: application/json
-X-Eval-Api-Secret: <optional when EVAL_API_SECRET is set>
+X-Eval-Api-Secret: <required in production>
 
 {
   "agentId": "inbox-triage",
@@ -117,7 +117,9 @@ X-Eval-Api-Secret: <optional when EVAL_API_SECRET is set>
 
 **400** — unknown `agentId`, missing `mission`, or `realWorldMode: "auto"` without `EVAL_ALLOW_LIVE=1`
 
-**401** — `EVAL_API_SECRET` set but `X-Eval-Api-Secret` header missing or wrong
+**401** — `X-Eval-Api-Secret` header missing or wrong
+
+**503** — production eval is disabled because `EVAL_API_SECRET` is not configured
 
 **500** — no LLM API key, or harness failure
 
@@ -126,7 +128,7 @@ X-Eval-Api-Secret: <optional when EVAL_API_SECRET is set>
 ### Security
 
 - Default `dry-run`; reject `realWorldMode: "auto"` unless `EVAL_ALLOW_LIVE=1`
-- Optional `EVAL_API_SECRET` — when set, require `X-Eval-Api-Secret` header
+- Production requires `EVAL_API_SECRET`; routes fail closed with `503` when it is absent
 - Do not log full `mission` in observability spans (hash only)
 
 ### Manual smoke test
@@ -149,7 +151,7 @@ Returns library metadata for fixture generation.
 
 ```http
 GET /api/eval/agents
-X-Eval-Api-Secret: <optional when EVAL_API_SECRET is set>
+X-Eval-Api-Secret: <required in production>
 ```
 
 **200:**

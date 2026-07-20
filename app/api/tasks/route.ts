@@ -3,7 +3,7 @@ import { listActionsForFeed, scrubQueuePayloadBloat } from '@/lib/harness/queue-
 import { buildUnifiedTaskFeed, isStaleRunningEntity, normalizeEntityForFeed } from '@/lib/harness/tasks';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB } from '@/lib/harness/knowledge-base';
-import { countPendingQueuedActions, loadEntityStates, readLatestBrief, readProfile, saveEntityState, writeLatestBrief } from '@/lib/storage';
+import { countPendingQueuedActions, loadEntityStates, readLatestBrief, saveEntityState, writeLatestBrief } from '@/lib/storage';
 import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { readProactiveHygiene, autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
 import { listQueueAudit } from '@/lib/harness/queue-audit';
@@ -43,33 +43,37 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ needsYou, suggestions: 0 });
   }
 
-  await ensureQueueHygiene();
+  void ensureQueueHygiene();
 
   const cached = getDevTasksCache();
   if (cached) {
     return NextResponse.json(cached);
   }
 
-  const [actions, rawEntities, kb, briefRaw, profile, audit] = await Promise.all([
+  const [actions, rawEntities, kb, briefRaw, audit] = await Promise.all([
     listActionsForFeed(),
     loadEntityStates(),
     readAllKB(),
     readLatestBrief(),
-    readProfile(),
     listQueueAudit(200),
   ]);
 
-  const briefEnriched = briefRaw ? await enrichBriefMustDoFromGmail(briefRaw) : null;
-  const brief = briefEnriched ? normalizeMorningBrief(briefEnriched) : null;
+  const brief = briefRaw ? normalizeMorningBrief(briefRaw) : null;
 
-  if (brief && briefRaw && Array.isArray(brief.mustDo) && Array.isArray(briefRaw.mustDo)) {
-    const gainedSubject = (brief.mustDo as Record<string, unknown>[]).some((row, i) => {
-      const prior = (briefRaw.mustDo as Record<string, unknown>[])[i];
-      return nonEmpty(row.subject) && !nonEmpty(prior?.subject);
-    });
-    if (gainedSubject) {
-      void writeLatestBrief(brief).catch(() => undefined);
-    }
+  if (briefRaw) {
+    void enrichBriefMustDoFromGmail(briefRaw)
+      .then(enriched => {
+        const enrichedBrief = enriched ? normalizeMorningBrief(enriched) : null;
+        if (!enrichedBrief || !Array.isArray(enrichedBrief.mustDo) || !Array.isArray(briefRaw.mustDo)) return;
+        const gainedSubject = (enrichedBrief.mustDo as Record<string, unknown>[]).some((row, i) => {
+          const prior = (briefRaw.mustDo as Record<string, unknown>[])[i];
+          return nonEmpty(row.subject) && !nonEmpty(prior?.subject);
+        });
+        if (gainedSubject) {
+          return writeLatestBrief(enrichedBrief);
+        }
+      })
+      .catch(() => undefined);
   }
 
   const stale = rawEntities.filter(isStaleRunningEntity);
@@ -100,7 +104,7 @@ export async function GET(req: NextRequest) {
     kb: kbTyped,
     brief,
     audit,
-    proactiveHygiene: readProactiveHygiene(profile),
+    proactiveHygiene: readProactiveHygiene(kb as Record<string, unknown>),
   });
 
   const domainLevels = readDomainAutonomy(kbTyped);

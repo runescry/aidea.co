@@ -11,7 +11,7 @@ export type ActionType =
   | 'kb_update'
   | 'generic';
 
-export type ActionStatus = 'pending' | 'approved' | 'rejected' | 'executed' | 'failed' | 'saved';
+export type ActionStatus = 'pending' | 'executing' | 'approved' | 'rejected' | 'executed' | 'failed' | 'saved';
 
 /** User intent from Inbox: send, save to Gmail drafts, or dismiss. */
 export type QueueIntent = 'approve' | 'save' | 'reject';

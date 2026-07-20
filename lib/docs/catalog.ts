@@ -43,6 +43,12 @@ export const DOC_CATALOG: DocEntry[] = [
     description: 'Vercel, Postgres, env vars, ops',
     file: 'docs/DEPLOYMENT.md',
   },
+  {
+    slug: 'known-issues',
+    title: 'Known issues',
+    description: 'Current limitations, risks, and operational workarounds',
+    file: 'docs/KNOWN_ISSUES.md',
+  },
 ];
 
 export function getDocBySlug(slug: string): DocEntry | undefined {
@@ -56,6 +62,7 @@ const BASENAME_TO_SLUG: Record<string, string> = {
   roadmap: 'roadmap',
   agents: 'agents',
   deployment: 'deployment',
+  known_issues: 'known-issues',
 };
 
 /** Map markdown hrefs to /docs/[slug] for in-app navigation */

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export function checkEvalAuth(req: NextRequest): NextResponse | null {
   const secret = process.env.EVAL_API_SECRET;
+  if (process.env.NODE_ENV === 'production' && !secret) {
+    return NextResponse.json(
+      { error: 'Eval API is disabled because EVAL_API_SECRET is not configured' },
+      { status: 503 },
+    );
+  }
   if (secret) {
     const provided = req.headers.get('x-eval-api-secret');
     if (provided !== secret) {

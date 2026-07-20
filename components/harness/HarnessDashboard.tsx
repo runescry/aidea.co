@@ -5,7 +5,7 @@ import { useHarnessSession } from '@/hooks/useHarnessSession';
 import { ChatProvider, useChatConversations } from '@/hooks/useChatConversations';
 import { ConfirmProvider } from '@/hooks/useConfirm';
 import { WorkFeedProvider, useWorkFeed } from '@/hooks/useWorkFeed';
-import { readOnboardingCache, writeOnboardingCache } from '@/lib/client/onboarding-cache';
+import { clearOnboardingCache, readOnboardingCache, writeOnboardingCache } from '@/lib/client/onboarding-cache';
 import AppSidebar, { type MainView } from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import ConversationDrawer from './sidebar/ConversationDrawer';
@@ -17,8 +17,10 @@ import AgentLibrary from './AgentLibrary';
 import OnboardingWizard from './onboarding/OnboardingWizard';
 import QuickStartOnboarding from './onboarding/QuickStartOnboarding';
 import HumanInputOverlay from './HumanInputOverlay';
+import WelcomeScreen from './WelcomeScreen';
 
 export default function HarnessDashboard() {
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => readOnboardingCache() === null);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
     const cached = readOnboardingCache();
     return cached === false;
@@ -27,18 +29,40 @@ export default function HarnessDashboard() {
 
   useEffect(() => {
     fetch('/api/onboarding')
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error(`Unable to load onboarding (${r.status})`);
+        return r.json();
+      })
       .then(d => {
-        writeOnboardingCache(Boolean(d.complete));
-        setShowOnboarding(!d.complete);
+        // A cleared cache deliberately means "show the login screen" (first visit or reset).
+        // Do not replace that choice with the profile's previously completed onboarding state.
+        if (readOnboardingCache() !== null) {
+          writeOnboardingCache(Boolean(d.complete));
+          setShowWelcome(false);
+          setShowOnboarding(!d.complete);
+        }
       })
       .catch(() => {
-        if (readOnboardingCache() === null) {
-          writeOnboardingCache(true);
-          setShowOnboarding(false);
-        }
+        clearOnboardingCache();
+        setShowWelcome(true);
+        setShowOnboarding(false);
       });
   }, []);
+
+  if (showWelcome) {
+    return (
+      <WelcomeScreen
+        onGoogleConnected={() => {
+          setShowWelcome(false);
+          setShowOnboarding(true);
+        }}
+        onDemoReady={() => {
+          setShowWelcome(false);
+          setShowOnboarding(false);
+        }}
+      />
+    );
+  }
 
   if (showOnboarding) {
     if (onboardingMode === 'full') {

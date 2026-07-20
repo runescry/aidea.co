@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasApiKey } from '@/lib/ai/provider';
 import { runFastChatToText } from '@/lib/eval/collect-fast-chat';
+import { checkEvalAuth } from '@/lib/eval/eval-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,9 @@ export const maxDuration = 30;
  * fast-chat system prompt so eval harnesses can score model behavior.
  */
 export async function POST(req: NextRequest) {
+  const authError = checkEvalAuth(req);
+  if (authError) return authError;
+
   if (!hasApiKey()) {
     return NextResponse.json(
       { error: 'LLM not configured — set AI_GATEWAY_API_KEY (recommended) or ANTHROPIC_API_KEY in environment' },

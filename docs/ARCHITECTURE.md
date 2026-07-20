@@ -1,6 +1,6 @@
 # aidea — infrastructure & data architecture
 
-How the platform is deployed, where data lives, how integrations and the agent harness connect. **P7 is complete on prod; P8 hardens partials and adds live connectors (Strava, contact graph, finance spike). P8.4 auth/multi-user is still open.**
+How the platform is deployed, where data lives, how integrations and the agent harness connect. **P7 is complete on prod; P8 hardens partials and adds live connectors (Strava, contact graph, finance spike). P8.4 auth/multi-user hardening is complete; mobile secondary-surface polish remains.**
 
 **Related:** [Product vision](/docs/vision) · [Gap closure plan](/docs/plan) · [Deployment](/docs/deployment) · [Agent instructions](/docs/agents)
 
@@ -80,7 +80,7 @@ flowchart TB
   STRAVA --> KBH
 ```
 
-**Tenant model:** All storage calls use `getUserId()` → `process.env.DEFAULT_USER_ID ?? 'default'`. There is **no session auth** today; Nango connections are tagged with the same `end_user_id`.
+**Tenant model:** In Postgres mode, user data is scoped by an HMAC-signed app session. Demo sessions use isolated random `demo:*` ids. Google entry uses Nango OAuth to verify the account, derives a stable opaque `google:*` tenant from the normalized Google email, and preserves the temporary Nango owner id for connection lookups. Production API middleware rejects missing, expired, or tampered sessions. `DEFAULT_USER_ID ?? 'default'` remains only as the local/CLI/cron fallback. Filesystem storage remains a single-user local development fallback.
 
 ---
 
@@ -98,7 +98,7 @@ flowchart TB
 - Postgres client: `max: 1` connection per instance (serverless-safe).
 - Schema auto-applied on first DB access via `lib/db/migrate.ts`.
 - **Settings panel writes are blocked on Vercel** (`isProductionDeploy()`); API keys must be Vercel env vars, not in-app form saves.
-- **Crons:** `GET /api/monitor?name=…` — scheduled jobs in [`vercel.json`](../vercel.json) (`daily`, `inbox`, `relationships`); `calendar` is supported in code but not scheduled. Authorized via `Authorization: Bearer CRON_SECRET` (open in non-prod if secret unset).
+- **Crons:** `GET /api/monitor?name=…` — scheduled jobs in [`vercel.json`](../vercel.json) (`daily`, `inbox`, `relationships`); `calendar` is supported in code but not scheduled. Authorized via `Authorization: Bearer CRON_SECRET` (open in non-prod if secret unset). Each invocation enumerates registered Google accounts and runs under an explicit per-user storage/Nango context; the legacy fallback tenant remains enabled unless `MONITOR_INCLUDE_DEFAULT=0`.
 - **Human-in-the-loop across instances:** optional Vercel KV (`KV_REST_*`) for `request_human_input`; otherwise in-memory Map (single dev server only).
 
 ### Vercel platform services
@@ -112,7 +112,8 @@ What aidea uses on Vercel vs what it does not. Postgres (Neon, Supabase, etc.) i
 | **Cron Jobs** | Yes | [`vercel.json`](../vercel.json) → `/api/monitor`: daily 6:30 UTC, inbox every 15m (7–22), relationships Mon 8:00. Requires `CRON_SECRET` in prod |
 | **KV** | Optional | `@vercel/kv` for `request_human_input` when `KV_REST_*` env vars set; without KV, human-input answers use an in-memory Map (single instance / local dev only) |
 | **OIDC** (`VERCEL_OIDC_TOKEN`) | Fallback | Third LLM auth path when gateway key and direct Anthropic key are unset ([`lib/ai/provider.ts`](../lib/ai/provider.ts)). On Vercel deploys, OIDC-only often returns **403** on multi-agent Studio runs — set `AI_GATEWAY_API_KEY` |
-| **Auth** | No | No Vercel Auth; single tenant via `DEFAULT_USER_ID` (P8.4 backlog) |
+| **Auth** | Yes | Nango-verified Google identity or isolated demo entry; signed app session, stable Postgres tenant, and production API middleware. No Clerk dependency. |
+| **Abuse controls** | Yes | IP-hashed fixed-window limits on public session creation and high-cost message, run, and seed routes; Postgres-backed in deployed environments. |
 | **Analytics** | No | Not integrated |
 | **Blob** | No | Profile, queue, chat, and briefs live in Postgres or local `data/` — not Vercel Blob |
 
@@ -131,13 +132,13 @@ Central facade: `lib/storage/index.ts` — switches filesystem vs Postgres trans
 | Domain | Filesystem (`data/`) | Postgres table | Notes |
 |--------|----------------------|----------------|-------|
 | **Profile / KB** | `knowledge-base.json` | `profiles.data` (JSONB) | Same document; KB helpers in `lib/harness/knowledge-base.ts` with 15s in-process cache (60s in dev) |
-| **Queue** | `action-queue.json` | `action_queue` | Pending approvals + resolved items |
+| **Queue** | `action-queue.json` | `action_queue` | Pending approvals + resolved items; execution uses an atomic `pending` → `executing` claim |
 | **Audit** | `action-audit.json` | `action_audit` | Approve/reject/save/fail events; `GET /api/queue/audit` |
 | **Harness runs** | `harness-state.json` | `harness_entities` | Entity/agent run state for Studio + feed |
 | **Chat** | `chat/conversations/*.json` + `chat/meta.json` | `chat_conversations`, `chat_meta` (+ legacy `chat_store`) | Client also caches in `localStorage` key `aidea-chat-v1` |
 | **Daily brief** | `latest-brief.json` | `latest_briefs` | Written by cron lite daily monitor |
 | **App settings** | `settings.json` | `app_settings` | Local-only writes; prod uses env vars |
-| **Strava tokens** | Inside profile at `integrations.strava` | Same in `profiles.data` | Not Nango — direct OAuth |
+| **Integration credentials** | `integration-credentials.json` | `integration_credentials` | Server-only credentials; Strava profile data contains safe connection metadata only |
 | **Nango connections** | External (Nango cloud) | — | Listed by `end_user_id`; not in local JSON |
 
 ### Merge semantics
@@ -184,7 +185,7 @@ Models route through Vercel AI Gateway (`anthropic/claude-*`). Fast chat uses Ha
 ### Nango — Gmail & Calendar
 
 - Env: `NANGO_SECRET_KEY`; optional `NANGO_GMAIL_INTEGRATION_ID` / `NANGO_CALENDAR_INTEGRATION_ID` (defaults: `google-mail`, `google-calendar`).
-- Connect flow: Settings → `POST /api/nango/session` → Nango Connect UI → connections stored in Nango tagged with `DEFAULT_USER_ID`.
+- Connect flow: Welcome or Settings → `POST /api/nango/session` → Nango Connect UI → connections stored in Nango under the session's integration-owner id. Welcome then calls `POST /api/auth/google/complete` to verify the Google email, claim the stable app tenant, and retain that integration-owner id; demo tenants are blocked from live connects.
 - Runtime: `lib/nango/gmail.ts`, `lib/nango/calendar.ts` — read inbox, send mail, create drafts, create calendar events.
 - Harness auto-upgrades `realWorldToolMode` from `dry-run` to `auto` when Nango connections exist.
 
@@ -292,7 +293,9 @@ Per-domain autonomy (`domain-autonomy.ts`) gates auto-execute vs `needs_you` on 
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | Postgres (also `POSTGRES_URL`, `POSTGRES_PRISMA_URL`) |
-| `DEFAULT_USER_ID` | Single-tenant user id (default `default`) |
+| `AIDEA_SESSION_SECRET` | HMAC signing for app sessions; use a long random production value |
+| `AIDEA_TENANT_DERIVATION_SECRET` | Non-rotating HMAC secret for stable opaque Google tenant ids; initialize to the former session secret when upgrading an existing deployment |
+| `DEFAULT_USER_ID` | Local/CLI/cron/single-user fallback (default `default`); not a public production browser identity |
 | `AI_GATEWAY_API_KEY` | Vercel AI Gateway (prod LLM auth) |
 | `AI_GATEWAY_BASE_URL` | Optional gateway URL override |
 | `ANTHROPIC_API_KEY` | Direct Anthropic fallback (local dev) |
@@ -331,8 +334,7 @@ Handler mode calls route handlers directly; set `TEST_BASE_URL=http://localhost:
 
 ## Current gaps (P8.4)
 
-- **No auth middleware** — anyone with the URL shares one tenant (`DEFAULT_USER_ID`).
-- **Multi-user** requires session → per-user `DEFAULT_USER_ID` on all storage/Nango tags.
-- **Mobile polish** on Agents/Context/Settings secondary surfaces still open.
+- **Legacy tenant assignment** — existing `default` or random pre-hardening tenants still need an explicit one-time report/copy decision; new Google sessions claim temporary tenant rows automatically.
+- **Legacy profile compatibility** — `people-migrate.ts` remains the sole read-time bridge from old relationship lists; all active graph, onboarding, agent, and seed paths use `relationships.people[]`.
 
 Everything else in the daily loop (Home chat, Inbox approvals, crons, timeline, per-domain autonomy, Strava sync, contact graph, finance spike) is shipped per P7 + P8 checkboxes in [PLAN.md](./PLAN.md).

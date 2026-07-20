@@ -5,12 +5,16 @@ import { hasApiKey } from '@/lib/ai/provider';
 import { harnessSSEResponse } from '@/lib/api/sse';
 import { shouldUseFastChat, runFastChat } from '@/lib/harness/fast-chat';
 import type { ChatHistoryEntry } from '@/types/chat';
+import { enforceRateLimit } from '@/lib/security/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 1800;
 
 export async function POST(req: NextRequest) {
+  const limited = await enforceRateLimit(req, { scope: 'message', limit: 30, windowMs: 5 * 60_000 });
+  if (limited) return limited;
+
   const body = await req.json() as {
     command?: string;
     sessionId?: string;
