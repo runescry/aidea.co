@@ -6,6 +6,7 @@ import { hasApiKey } from '@/lib/ai/provider';
 import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { recordRelationshipMonitorSignals } from '@/lib/contacts/sync-signals';
 import { syncSchoolInbox } from '@/lib/harness/school-inbox-sync';
+import { syncSchoolSharePoint } from '@/lib/harness/school-sharepoint-sync';
 
 export const runtime = 'nodejs';
 export const maxDuration = 1800;
@@ -18,7 +19,7 @@ const MONITORS: Record<string, string> = {
 };
 
 /** Deterministic sync jobs — no LLM required. */
-const SYNC_MONITORS = new Set(['school-inbox']);
+const SYNC_MONITORS = new Set(['school-inbox', 'school-sync']);
 
 function authorizeCron(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -39,6 +40,10 @@ export async function GET(req: NextRequest) {
     try {
       if (name === 'school-inbox') {
         const result = await syncSchoolInbox();
+        return NextResponse.json(result);
+      }
+      if (name === 'school-sync') {
+        const result = await syncSchoolSharePoint();
         return NextResponse.json(result);
       }
       return NextResponse.json({ error: `Unknown sync monitor: ${name}` }, { status: 400 });

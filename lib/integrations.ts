@@ -1,11 +1,11 @@
 import { hasApiKey } from '@/lib/ai/provider';
 import { getSettingsStatus } from '@/lib/settings';
-import { nangoConfigured } from '@/lib/nango/client';
+import { nangoConfigured, microsoftIntegrationId } from '@/lib/nango/client';
 import { listNangoConnectionsLite } from '@/lib/nango/connections';
 import { stravaConnectionStatus } from '@/lib/health/strava-sync';
 
 export interface IntegrationItem {
-  id: 'llm' | 'brave' | 'google' | 'strava';
+  id: 'llm' | 'brave' | 'google' | 'microsoft' | 'strava';
   label: string;
   configured: boolean;
   detail?: string;
@@ -35,6 +35,18 @@ export async function getIntegrationStatus(): Promise<IntegrationStatus> {
 
   const strava = await stravaConnectionStatus();
 
+  let microsoftConfigured = false;
+  let microsoftDetail: string | undefined;
+  if (nangoConfigured()) {
+    const microsoft = (await listNangoConnectionsLite()).filter(
+      c => c.integrationId === microsoftIntegrationId() || c.integrationId.includes('microsoft'),
+    );
+    microsoftConfigured = microsoft.length > 0;
+    if (microsoftConfigured) {
+      microsoftDetail = microsoft.map(c => c.email ?? c.integrationId).join(', ');
+    }
+  }
+
   const integrations: IntegrationItem[] = [
     {
       id: 'llm',
@@ -46,6 +58,12 @@ export async function getIntegrationStatus(): Promise<IntegrationStatus> {
       label: 'Google',
       configured: googleConfigured,
       detail: googleDetail,
+    },
+    {
+      id: 'microsoft',
+      label: 'School Microsoft',
+      configured: microsoftConfigured,
+      detail: microsoftDetail,
     },
     {
       id: 'brave',

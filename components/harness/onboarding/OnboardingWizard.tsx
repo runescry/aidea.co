@@ -517,6 +517,23 @@ export default function OnboardingWizard({ onComplete }: Props) {
                       <TextField value={child.age ?? ''} onChange={v => updateChild(i, { age: v })} placeholder="Age" />
                       <TextField value={child.school ?? ''} onChange={v => updateChild(i, { school: v })} placeholder="School" />
                     </div>
+                    <TextField
+                      value={(child.senderDomains ?? []).join(', ')}
+                      onChange={v => updateChild(i, {
+                        senderDomains: v.split(',').map(s => s.trim()).filter(Boolean),
+                      })}
+                      placeholder="Email domains: genazzano.vic.edu.au, xavier.vic.edu.au"
+                    />
+                    <TextField
+                      value={child.microsoftSiteId ?? ''}
+                      onChange={v => updateChild(i, { microsoftSiteId: v })}
+                      placeholder="SharePoint site ID (optional)"
+                    />
+                    <TextField
+                      value={child.microsoftDocsPath ?? ''}
+                      onChange={v => updateChild(i, { microsoftDocsPath: v })}
+                      placeholder="SharePoint docs path: Shared Documents/Timetables"
+                    />
                     <TextField value={(child.peDay ?? []).join(', ')} onChange={v => updateChild(i, { peDay: v.split(',').map(s => s.trim()).filter(Boolean) })} placeholder="PE days: Mon, Wed" />
                     <TextArea value={child.notes ?? ''} onChange={v => updateChild(i, { notes: v })} rows={2} placeholder="Football Tue 4pm. Allergies: nuts." />
                   </div>

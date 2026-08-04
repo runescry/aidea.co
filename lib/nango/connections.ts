@@ -3,6 +3,7 @@ import {
   getNango,
   gmailIntegrationId,
   calendarIntegrationId,
+  microsoftIntegrationId,
   nangoConfigured,
 } from './client';
 
@@ -46,6 +47,27 @@ async function persistConnectionMetadata(
     });
   } catch {
     // non-fatal
+  }
+}
+
+async function fetchMicrosoftIdentity(
+  integrationId: string,
+  connectionId: string,
+): Promise<{ email?: string; displayName?: string }> {
+  const nango = getNango();
+  try {
+    const res = await nango.get<{ mail?: string; userPrincipalName?: string; displayName?: string }>({
+      providerConfigKey: integrationId,
+      connectionId,
+      endpoint: '/v1.0/me',
+      baseUrlOverride: 'https://graph.microsoft.com',
+    });
+    return {
+      email: res.data.mail ?? res.data.userPrincipalName,
+      displayName: res.data.displayName,
+    };
+  } catch {
+    return {};
   }
 }
 
@@ -106,7 +128,11 @@ async function enrichConnection(conn: ListedConnection): Promise<NangoConnection
   }
 
   if (!email) {
-    const profile = await fetchGoogleIdentity(conn.provider_config_key, conn.connection_id);
+    const isMicrosoft = conn.provider_config_key === microsoftIntegrationId()
+      || conn.provider_config_key.includes('microsoft');
+    const profile = isMicrosoft
+      ? await fetchMicrosoftIdentity(conn.provider_config_key, conn.connection_id)
+      : await fetchGoogleIdentity(conn.provider_config_key, conn.connection_id);
     email = profile.email ?? email;
     displayName = displayName ?? profile.displayName;
   }
@@ -251,6 +277,25 @@ export async function resolveCalendarConnections(connectionId?: string): Promise
   if (!connectionId) return all;
   const match = all.find(c => c.connectionId === connectionId);
   if (!match) throw new Error(`No calendar connection ${connectionId}`);
+  return [match];
+}
+
+export async function listMicrosoftConnections(): Promise<NangoConnectionPublic[]> {
+  return listNangoConnections(microsoftIntegrationId());
+}
+
+export async function listMicrosoftConnectionsLite(): Promise<NangoConnectionPublic[]> {
+  return listNangoConnectionsLite(microsoftIntegrationId());
+}
+
+export async function resolveMicrosoftConnections(connectionId?: string): Promise<NangoConnectionPublic[]> {
+  const all = await listMicrosoftConnectionsLite();
+  if (all.length === 0) {
+    throw new Error('School Microsoft account not connected — use Settings → Connect school Microsoft');
+  }
+  if (!connectionId) return all;
+  const match = all.find(c => c.connectionId === connectionId);
+  if (!match) throw new Error(`No Microsoft connection ${connectionId}`);
   return [match];
 }
 

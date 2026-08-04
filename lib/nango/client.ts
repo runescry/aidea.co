@@ -40,3 +40,7 @@ export function gmailIntegrationId(): string {
 export function calendarIntegrationId(): string {
   return process.env.NANGO_CALENDAR_INTEGRATION_ID ?? 'google-calendar';
 }
+
+export function microsoftIntegrationId(): string {
+  return process.env.NANGO_MICROSOFT_INTEGRATION_ID ?? 'microsoft-school';
+}

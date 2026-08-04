@@ -6,6 +6,7 @@ import TaskFeed from './TaskFeed';
 import IntegrationStatusBar from './IntegrationStatusBar';
 import EntityRunLauncher from './EntityRunLauncher';
 import MorningBriefCard from './MorningBriefCard';
+import SchoolCard from './SchoolCard';
 import { IconBriefcase, IconMenu } from '../sidebar/icons';
 import { type HomeRunnableEntity } from '@/lib/entities/run-meta';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
@@ -115,6 +116,7 @@ export default function HomeScreen({
               onOpenInbox={() => setInboxOpen(true)}
             />
           )}
+          <SchoolCard />
           <ChatInterface
             variant="home"
             onMessageComplete={onTaskRefresh}

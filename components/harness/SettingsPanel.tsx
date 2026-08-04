@@ -25,6 +25,7 @@ interface NangoConnection {
 const INTEGRATION_LABELS: Record<string, string> = {
   'google-mail': 'Gmail',
   'google-calendar': 'Calendar',
+  'microsoft-school': 'School Microsoft',
 };
 
 function connectionTitle(conn: NangoConnection): string {
@@ -82,6 +83,8 @@ export default function SettingsPanel() {
   const [connections, setConnections] = useState<NangoConnection[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [microsoftConnecting, setMicrosoftConnecting] = useState(false);
+  const [microsoftConnectError, setMicrosoftConnectError] = useState<string | null>(null);
   const [strava, setStrava] = useState<{
     configured: boolean;
     connected: boolean;
@@ -169,6 +172,38 @@ export default function SettingsPanel() {
     } catch (err) {
       setConnectError(err instanceof Error ? err.message : 'Failed to start Google connect');
       setConnecting(false);
+    }
+  };
+
+  const googleConnections = connections.filter(c => c.integrationId.startsWith('google'));
+  const microsoftConnections = connections.filter(c => c.integrationId.includes('microsoft'));
+
+  const handleConnectMicrosoft = async () => {
+    setMicrosoftConnecting(true);
+    setMicrosoftConnectError(null);
+    try {
+      const res = await fetch('/api/nango/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ integrations: ['microsoft-school'] }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        setMicrosoftConnectError(err.error ?? `Failed to start Microsoft connect (${res.status})`);
+        return;
+      }
+      const { sessionToken } = await res.json() as { sessionToken: string };
+      const nango = new Nango();
+      const connect = nango.openConnectUI({
+        onEvent: event => {
+          if (event.type === 'connect') void loadConnections();
+          if (event.type === 'close') setMicrosoftConnecting(false);
+        },
+      });
+      connect.setSessionToken(sessionToken);
+    } catch (err) {
+      setMicrosoftConnectError(err instanceof Error ? err.message : 'Failed to start Microsoft connect');
+      setMicrosoftConnecting(false);
     }
   };
 
@@ -353,7 +388,7 @@ export default function SettingsPanel() {
 
         {connections.length > 0 ? (
           <ul className="divide-y divide-border rounded-md border border-border">
-            {connections.map(conn => (
+            {googleConnections.map(conn => (
               <li key={conn.connectionId} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <StatusDot configured />
                 <div className="min-w-0 flex-1">
@@ -371,6 +406,52 @@ export default function SettingsPanel() {
           </ul>
         ) : nangoConfigured ? (
           <p className="text-xs text-foreground-muted">No Google accounts connected yet.</p>
+        ) : null}
+      </div>
+
+      <div className="card p-4 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">School Microsoft (SharePoint)</h3>
+            <p className="text-xs text-foreground-muted mt-1">
+              Separate from personal Gmail — use your school Microsoft account for SharePoint news and timetables.
+            </p>
+          </div>
+          <button
+            onClick={handleConnectMicrosoft}
+            disabled={microsoftConnecting || !nangoConfigured}
+            className="btn-primary text-xs py-1.5 shrink-0"
+          >
+            {microsoftConnecting ? 'Connecting…' : 'Connect Microsoft'}
+          </button>
+        </div>
+
+        {microsoftConnectError && (
+          <p className="text-xs text-red-600 dark:text-red-400 whitespace-pre-wrap">
+            {microsoftConnectError}
+          </p>
+        )}
+
+        {microsoftConnections.length > 0 ? (
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {microsoftConnections.map(conn => (
+              <li key={conn.connectionId} className="flex items-center gap-3 px-3 py-2 text-sm">
+                <StatusDot configured />
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium truncate">{connectionTitle(conn)}</div>
+                  <div className="text-[11px] text-foreground-subtle">{connectionSubtitle(conn)}</div>
+                </div>
+                <button
+                  onClick={() => handleDisconnect(conn)}
+                  className="text-xs text-foreground-muted hover:text-red-500"
+                >
+                  Disconnect
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : nangoConfigured ? (
+          <p className="text-xs text-foreground-muted">No school Microsoft account connected yet.</p>
         ) : null}
       </div>
 
