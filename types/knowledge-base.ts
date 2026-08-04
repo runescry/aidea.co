@@ -39,6 +39,15 @@ export interface ChildProfile {
   name?: string;
   age?: string;
   school?: string;
+  /** Gmail sender domains for this school, e.g. genazzano.vic.edu.au */
+  senderDomains?: string[];
+  /** Optional regex or substring patterns matched against From header */
+  senderPatterns?: string[];
+  /** SharePoint site ID (Microsoft school account) */
+  microsoftSiteId?: string;
+  microsoftNewsListId?: string;
+  /** Document library path, e.g. Shared Documents/Timetables */
+  microsoftDocsPath?: string;
   peDay?: string[];
   activities?: Record<string, string>;
   notes?: string;

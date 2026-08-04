@@ -1,6 +1,12 @@
 /** Gmail rows cached from gmail_read — source of truth for triage attribution. */
 import { gmailMessageUrl, gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
 import { bundleSchoolTriage } from './school-roundup';
+import {
+  allSchoolChildNames,
+  loadSchoolProfiles,
+  schoolChildAttributionMap,
+} from './school-config';
+import type { SchoolProfile } from './school-config';
 
 export interface CachedGmail {
   id: string;
@@ -31,17 +37,14 @@ export interface InboxTriagePayload {
   [key: string]: unknown;
 }
 
-const CHILD_NAMES = ['sebastian', 'ivy'] as const;
+const CHILD_NAMES = allSchoolChildNames();
 
 /** School senders → child names that may appear in that school's emails. */
-const SCHOOL_CHILD_MAP: Array<{ match: RegExp; allowedChildren: string[] }> = [
-  { match: /genazzano/i, allowedChildren: ['ivy'] },
-  { match: /xavier/i, allowedChildren: ['sebastian'] },
-];
+const SCHOOL_CHILD_MAP = schoolChildAttributionMap();
 
-function childNamesInText(text: string): string[] {
+function childNamesInText(text: string, childNames: string[] = CHILD_NAMES): string[] {
   const lower = text.toLowerCase();
-  return CHILD_NAMES.filter(name => lower.includes(name));
+  return childNames.filter(name => lower.includes(name));
 }
 
 function normalizeSubject(subject: string): string {
@@ -117,16 +120,22 @@ function applyEmailToRow(row: InboxSummaryRow, email: CachedGmail): InboxSummary
   };
 }
 
-function orphanChildNames(sourceText: string, summaryText: string): string[] {
-  const inSummary = childNamesInText(summaryText);
-  const inSource = childNamesInText(sourceText);
+function orphanChildNames(sourceText: string, summaryText: string, childNames: string[] = CHILD_NAMES): string[] {
+  const inSummary = childNamesInText(summaryText, childNames);
+  const inSource = childNamesInText(sourceText, childNames);
   return inSummary.filter(name => !inSource.includes(name));
 }
 
-function schoolAttributionViolation(from: string, subject: string, summaryText: string): boolean {
+function schoolAttributionViolation(
+  from: string,
+  subject: string,
+  summaryText: string,
+  schoolMap: Array<{ match: RegExp; allowedChildren: string[] }> = SCHOOL_CHILD_MAP,
+  childNames: string[] = CHILD_NAMES,
+): boolean {
   const header = `${from} ${subject}`.toLowerCase();
-  const names = childNamesInText(summaryText);
-  for (const { match, allowedChildren } of SCHOOL_CHILD_MAP) {
+  const names = childNamesInText(summaryText, childNames);
+  for (const { match, allowedChildren } of schoolMap) {
     if (!match.test(header)) continue;
     if (names.some(n => !allowedChildren.includes(n))) return true;
   }
@@ -147,10 +156,14 @@ export function sanitizeTriageItem(
   item: unknown,
   cache: Map<string, CachedGmail>,
   attachmentCache?: Map<string, CachedGmailAttachment>,
+  schoolProfiles?: SchoolProfile[],
 ): Record<string, unknown> {
   if (!item || typeof item !== 'object') return { summary: String(item ?? '') };
   const raw = item as Record<string, unknown>;
   const email = findCachedEmail(raw, cache);
+  const profiles = schoolProfiles ?? loadSchoolProfiles();
+  const childNames = allSchoolChildNames(profiles);
+  const schoolMap = schoolChildAttributionMap(profiles);
 
   const out: Record<string, unknown> = { ...raw };
   if (email) {
@@ -169,9 +182,9 @@ export function sanitizeTriageItem(
     ? `${email.from} ${email.subject} ${bodySource}${attachmentText ? ` ${attachmentText}` : ''}`
     : '';
   const summaryText = `${String(out.reason ?? '')} ${String(out.action ?? '')}`;
-  const orphans = orphanChildNames(sourceText, summaryText);
+  const orphans = orphanChildNames(sourceText, summaryText, childNames);
   const schoolMismatch = email
-    ? schoolAttributionViolation(email.from, email.subject, summaryText)
+    ? schoolAttributionViolation(email.from, email.subject, summaryText, schoolMap, childNames)
     : false;
 
   if (email && (orphans.length > 0 || schoolMismatch)) {
@@ -264,20 +277,22 @@ export function sanitizeInboxTriage(
   triage: unknown,
   cache: Map<string, CachedGmail>,
   stateData?: Record<string, unknown>,
+  schoolProfiles?: SchoolProfile[],
 ): InboxTriagePayload {
   if (!triage || typeof triage !== 'object') return {};
   const src = triage as InboxTriagePayload;
   const attachmentCache = stateData ? getGmailAttachmentCache(stateData) : undefined;
+  const profiles = schoolProfiles ?? loadSchoolProfiles();
 
   const sanitizeList = (list: unknown[] | undefined) =>
-    (list ?? []).map(item => sanitizeTriageItem(item, cache, attachmentCache));
+    (list ?? []).map(item => sanitizeTriageItem(item, cache, attachmentCache, profiles));
 
   return bundleSchoolTriage({
     ...src,
     urgent: sanitizeList(src.urgent as unknown[] | undefined),
     actionRequired: sanitizeList(src.actionRequired as unknown[] | undefined),
     fyi: sanitizeList(src.fyi as unknown[] | undefined),
-  }, cache);
+  }, cache, 2, profiles);
 }
 
 export function cacheGmailRead(

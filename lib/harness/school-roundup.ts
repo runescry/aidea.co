@@ -1,11 +1,11 @@
 import type { CachedGmail } from './inbox-sanitize';
 import type { InboxTriagePayload } from './inbox-sanitize';
 import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
+import { loadSchoolProfiles, schoolFromSender as matchSchoolFromSender } from './school-config';
+import type { SchoolProfile } from './school-config';
 
-const SCHOOL_SENDERS: Array<{ match: RegExp; school: string; child: string }> = [
-  { match: /genazzano/i, school: 'Genazzano', child: 'Ivy' },
-  { match: /xavier/i, school: 'Xavier College', child: 'Sebastian' },
-];
+export { loadSchoolProfiles, schoolFromSender } from './school-config';
+export type { SchoolProfile } from './school-config';
 
 const ACTION_HINT = /\b(reply|confirm|return|submit|sign|pay|rsvp|permission|deadline|by \w+day|asap|urgent|action required)\b/i;
 const GENERIC_ACTION = /^(review this email|read email|check email)$/i;
@@ -28,23 +28,20 @@ export interface SchoolRoundup {
   messageIds: string[];
 }
 
-export function schoolFromSender(from: string): { school: string; child: string } | null {
-  for (const { match, school, child } of SCHOOL_SENDERS) {
-    if (match.test(from)) return { school, child };
-  }
-  return null;
-}
-
 function asRow(item: unknown): Record<string, unknown> | null {
   return item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
 }
 
-function rowSchoolKey(row: Record<string, unknown>, cache: Map<string, CachedGmail>): string | null {
+function rowSchoolKey(
+  row: Record<string, unknown>,
+  cache: Map<string, CachedGmail>,
+  profiles: SchoolProfile[],
+): string | null {
   const from = String(row.from ?? '');
   const messageId = row.messageId ? String(row.messageId) : '';
   const cached = messageId ? cache.get(messageId) : undefined;
   const header = `${from} ${cached?.from ?? ''}`;
-  const match = schoolFromSender(header);
+  const match = matchSchoolFromSender(header, profiles);
   return match ? `${match.school}:${match.child}` : null;
 }
 
@@ -151,6 +148,7 @@ export function bundleSchoolTriage(
   triage: InboxTriagePayload,
   cache: Map<string, CachedGmail>,
   minEmails = 2,
+  profiles: SchoolProfile[] = loadSchoolProfiles(),
 ): InboxTriagePayload {
   const urgent = [...(triage.urgent ?? [])];
   const actionRequired = [...(triage.actionRequired ?? [])];
@@ -172,7 +170,7 @@ export function bundleSchoolTriage(
 
   const bySchool = new Map<string, TaggedRow[]>();
   for (const entry of tagged) {
-    const key = rowSchoolKey(entry.row, cache);
+    const key = rowSchoolKey(entry.row, cache, profiles);
     if (!key) continue;
     const list = bySchool.get(key) ?? [];
     list.push(entry);
@@ -189,8 +187,9 @@ export function bundleSchoolTriage(
   for (const [, entries] of bySchool) {
     if (entries.length < minEmails) continue;
 
-    const meta = schoolFromSender(
+    const meta = matchSchoolFromSender(
       String(entries[0]!.row.from ?? cache.get(String(entries[0]!.row.messageId ?? ''))?.from ?? ''),
+      profiles,
     );
     if (!meta) continue;
 
