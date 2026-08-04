@@ -49,6 +49,7 @@ import { classifyAgentWait } from './agent-wait';
 import {
   appendInboxWindowToGmailQuery,
   defaultInboxTriageGmailQuery,
+  defaultNonSchoolInboxGmailQuery,
   inboxTriageAgentRoles,
   isEmailClearlyOutsideInboxWindow,
 } from './inbox-window';
@@ -998,7 +999,9 @@ export async function executeHarnessTool(
       }
       if (inboxTriageAgentRoles().has(callerAgent.role) && !messageIds?.length) {
         query = /^is:unread$/i.test(query.trim())
-          ? defaultInboxTriageGmailQuery()
+          ? (callerAgent.role === 'inbox-triage'
+            ? defaultNonSchoolInboxGmailQuery()
+            : defaultInboxTriageGmailQuery())
           : appendInboxWindowToGmailQuery(query);
       }
       try {

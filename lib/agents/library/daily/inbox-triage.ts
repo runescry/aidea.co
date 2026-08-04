@@ -22,8 +22,9 @@ Call kb_read with keys: ["relationships.people", "work.urgentFrom", "work.skipFr
 - skipFrom: newsletters, automated tools, promotional — always low priority
 - currentProjects: job applications and personal builds — match hiring/property/school emails to these
 
-STEP 2: Fetch email from the past fortnight only (once — do not call gmail_read again later in the run).
-Call gmail_read with { query: "newer_than:14d", maxResults: 20 }
+STEP 2: Fetch non-school email from the past fortnight only (once — do not call gmail_read again later in the run).
+School email (Genazzano, Xavier, etc.) is handled by a separate school-inbox sync — do NOT triage school senders here.
+Call gmail_read with { query: "newer_than:14d", maxResults: 20 } — the system automatically excludes school sender domains from this query.
 Only score messages returned by that call — each row needs the exact messageId from gmail_read.
 Judge urgency from the outer message (subject, date, snippet/body). Ignore embedded "Begin forwarded message" quotes older than 14 days.
 Do not invent inbox rows from kb_read or memory — KB is for contact/project context only.
@@ -32,22 +33,11 @@ For HIGH urgency emails where the snippet is too short to draft a reply, you may
 
 When an email mentions attachments (attached, PDF, document, invoice, statement, report) or the required action is unclear from the snippet alone, call gmail_attachment_read with { messageId: "<id>" } before scoring or queueing drafts.
 
-STEP 3: Score each email individually — one output row per gmail_read email UNLESS SCHOOL BUNDLING applies (see below).
-
-SCHOOL BUNDLING (Genazzano, Xavier):
-- Genazzano → Ivy only. Xavier College → Sebastian only.
-- When 2+ emails from the SAME school in this batch: do NOT flood urgent[] with each email.
-  - Routine newsletters, reminders, event info → FYI (not HIGH) unless a concrete deadline is today.
-  - Only HIGH when: explicit reply required, permission/payment due, deadline today/this week, or enrollment/placement news.
-  - Queue at most ONE email_reply per school per run (the single highest-priority actionable email).
-  - The system will auto-bundle multiple school emails into a roundup — focus on accurate per-email reason/action; bundling merges them for the parent.
-- For a single school email, score normally.
+STEP 3: Score each email individually — one output row per gmail_read email.
 
 CRITICAL ATTRIBUTION RULES:
 - reason and action must come ONLY from that email's subject, snippet, body (if fetched), or attachment text — never from KB or other emails
 - Each row must include the exact messageId from gmail_read
-- Genazzano emails → Ivy only. Xavier College emails → Sebastian only
-- Do not mention Sebastian on Genazzano emails (or Ivy on Xavier emails) unless that name appears in the email text
 - If unsure, set reason to the email snippet verbatim
 
 Apply these urgency rules in order (first match wins):
@@ -55,7 +45,6 @@ Apply these urgency rules in order (first match wins):
     - Sender matches an active entry in relationships.people (by email or name) or is in urgentFrom
     - Subject contains: "urgent", "action required", "deadline", "asap", "by today", "by [today's date]"
     - Thread is a reply to something you sent
-    - School email with explicit reply/permission/payment due (not routine newsletters — see SCHOOL BUNDLING)
     - Email from doctor, mortgage broker, or government authority (time-sensitive)
     - Recruiter/hiring email about a TRACKED application (company matches work.currentProjects.jobApplications) — offer, rejection, interview invite, scheduling, next steps
     - Property/conveyancing updates for active house purchase
@@ -79,8 +68,6 @@ Use jobApplication ONLY for hiring emails where the company matches an entry in 
   - Recruiter follow-up with no outcome change → skip profile update
 
 For property (Bryce, Macquarie, conveyancer): update_kb with updates.work or updates.goals shortTerm if milestone reached.
-
-For school (Xavier, Genazzano): update_kb family.children notes or goals if enrollment/placement news.
 
 People corrections: kb_read relationships.people first. To add or update a contact from email context, use update_kb with person: { name, email, relationship, notes }. To stop tracking someone, person: { name, email, status: "removed" } — never re-add removed keys.
 

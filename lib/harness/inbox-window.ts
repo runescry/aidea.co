@@ -1,10 +1,18 @@
 import { resolveTriageRowEmail, type CachedGmail } from './inbox-sanitize';
+import { buildSchoolGmailExcludeQuery } from './school-config';
 
 /** Default lookback for Daily OS inbox triage and morning brief must-do. */
 export const INBOX_LOOKBACK_DAYS = 14;
 
 export function defaultInboxTriageGmailQuery(): string {
   return `newer_than:${INBOX_LOOKBACK_DAYS}d`;
+}
+
+/** General inbox triage — excludes school senders (handled by school-inbox sync). */
+export function defaultNonSchoolInboxGmailQuery(): string {
+  const exclude = buildSchoolGmailExcludeQuery();
+  const window = defaultInboxTriageGmailQuery();
+  return exclude ? `${exclude} ${window}`.replace(/\s+/g, ' ').trim() : window;
 }
 
 export function isEmailClearlyOutsideInboxWindow(dateStr: string, now = new Date()): boolean {

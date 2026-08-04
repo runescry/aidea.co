@@ -3,6 +3,7 @@ import type { CachedGmail } from './inbox-sanitize';
 import {
   appendInboxWindowToGmailQuery,
   defaultInboxTriageGmailQuery,
+  defaultNonSchoolInboxGmailQuery,
   filterTriageListForMustDo,
   isEmailClearlyOutsideInboxWindow,
   isEmailWithinInboxWindow,
@@ -14,6 +15,12 @@ import {
 describe('inbox-window', () => {
   it('defaults to fortnight window without unread filter', () => {
     expect(defaultInboxTriageGmailQuery()).toBe(`newer_than:${INBOX_LOOKBACK_DAYS}d`);
+  });
+
+  it('excludes school senders in non-school inbox query', () => {
+    const q = defaultNonSchoolInboxGmailQuery();
+    expect(q).toContain('-from:');
+    expect(q).toContain(`newer_than:${INBOX_LOOKBACK_DAYS}d`);
   });
 
   it('appends newer_than when missing', () => {

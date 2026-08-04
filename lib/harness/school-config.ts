@@ -157,3 +157,9 @@ export function buildSchoolGmailFromQuery(profiles: SchoolProfile[] = loadSchool
   const list = [...terms].join(' OR ');
   return list ? `from:(${list})` : '';
 }
+
+/** Gmail exclude clause — omit school senders from general inbox triage. */
+export function buildSchoolGmailExcludeQuery(profiles: SchoolProfile[] = loadSchoolProfiles()): string {
+  const include = buildSchoolGmailFromQuery(profiles);
+  return include ? `-${include}` : '';
+}
