@@ -1,5 +1,7 @@
 import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
 import { readGmailMessages } from '@/lib/nango/gmail';
+import { fetchGmailAttachments } from '@/lib/nango/gmail-attachments';
+import { extractTextFromBuffer } from '@/lib/documents/extract-text';
 import { readAllKB, writeKB } from '@/lib/harness/knowledge-base';
 import type { KnowledgeBase, SchoolFeed, SchoolFeedEmailRow } from '@/types/knowledge-base';
 import { INBOX_LOOKBACK_DAYS } from './inbox-window';
@@ -10,6 +12,7 @@ import {
 import {
   classifySchoolEmails,
   partitionSchoolRows,
+  parseSchoolDeadline,
   type SchoolEmailRow,
 } from './school-rules';
 import { bundleSchoolTriage } from './school-roundup';
@@ -37,12 +40,44 @@ function toFeedRow(row: SchoolEmailRow): SchoolFeedEmailRow {
     category: row.category,
     priority: row.priority,
     deadline: row.deadline,
+    attachmentSummary: row.attachmentSummary,
     gmailUrl: gmailMessageUrlFromEmail({
       id: row.messageId,
       threadId: row.threadId,
       account: row.account,
     }),
   };
+}
+
+async function enrichActionRowsWithAttachments(rows: SchoolEmailRow[]): Promise<SchoolEmailRow[]> {
+  const enriched: SchoolEmailRow[] = [];
+  for (const row of rows) {
+    if (!row.connectionId) {
+      enriched.push(row);
+      continue;
+    }
+    try {
+      const { attachments } = await fetchGmailAttachments({
+        messageId: row.messageId,
+        connectionId: row.connectionId,
+        maxAttachments: 2,
+        extractText: extractTextFromBuffer,
+      });
+      if (attachments.length === 0) {
+        enriched.push(row);
+        continue;
+      }
+      const attachmentSummary = attachments
+        .map(a => `[${a.filename}]\n${a.text}`)
+        .join('\n\n')
+        .slice(0, 2000);
+      const deadline = row.deadline ?? parseSchoolDeadline(attachmentSummary);
+      enriched.push({ ...row, attachmentSummary, deadline });
+    } catch {
+      enriched.push(row);
+    }
+  }
+  return enriched;
 }
 
 function rowToTriageItem(row: SchoolEmailRow): Record<string, unknown> {
@@ -137,8 +172,10 @@ export async function syncSchoolInbox(): Promise<SchoolInboxSyncResult> {
     }
 
     const cache = emailsToCache(emails);
-    const classified = classifySchoolEmails([...cache.values()], profiles);
-    const { actionRequired, fyi } = partitionSchoolRows(classified);
+    let classified = classifySchoolEmails([...cache.values()], profiles);
+    const { actionRequired: actionRaw, fyi } = partitionSchoolRows(classified);
+    const actionRequired = await enrichActionRowsWithAttachments(actionRaw);
+    classified = [...actionRequired, ...fyi];
 
     const triageInput = {
       urgent: classified.filter(r => r.priority === 'action_required').map(rowToTriageItem),

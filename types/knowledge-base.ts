@@ -64,6 +64,7 @@ export interface SchoolFeedEmailRow {
   priority: 'action_required' | 'fyi';
   deadline?: string;
   gmailUrl?: string;
+  attachmentSummary?: string;
 }
 
 export interface SchoolFeedRoundup {

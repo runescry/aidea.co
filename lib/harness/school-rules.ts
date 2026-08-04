@@ -26,6 +26,7 @@ export interface SchoolEmailRow {
   threadId?: string;
   account?: string;
   connectionId?: string;
+  attachmentSummary?: string;
 }
 
 const PERMISSION = /\b(permission|consent|sign|return form|reply required|action required)\b/i;
