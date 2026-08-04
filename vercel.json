@@ -9,6 +9,10 @@
       "schedule": "*/15 7-22 * * *"
     },
     {
+      "path": "/api/monitor?name=school-inbox",
+      "schedule": "*/15 7-22 * * *"
+    },
+    {
       "path": "/api/monitor?name=relationships",
       "schedule": "0 8 * * 1"
     }

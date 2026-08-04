@@ -53,6 +53,41 @@ export interface ChildProfile {
   notes?: string;
 }
 
+export interface SchoolFeedEmailRow {
+  messageId: string;
+  from: string;
+  subject: string;
+  snippet: string;
+  school: string;
+  child: string;
+  category: string;
+  priority: 'action_required' | 'fyi';
+  deadline?: string;
+  gmailUrl?: string;
+}
+
+export interface SchoolFeedRoundup {
+  school: string;
+  child: string;
+  emailCount: number;
+  needsYou: SchoolFeedEmailRow[];
+  fyi: SchoolFeedEmailRow[];
+  messageIds: string[];
+}
+
+export interface SchoolFeed {
+  updatedAt: string;
+  gmail: {
+    roundups: SchoolFeedRoundup[];
+    actionRequired: SchoolFeedEmailRow[];
+    fyi: SchoolFeedEmailRow[];
+  };
+  sharepoint?: {
+    news: Array<{ title: string; publishedAt: string; url: string; summary?: string }>;
+    documents: Array<{ name: string; url: string; excerpt?: string; child?: string }>;
+  };
+}
+
 export interface ImportantDate {
   label?: string;
   date?: string;
@@ -166,6 +201,7 @@ export interface KnowledgeBase {
   family?: {
     partner?: PersonContact & { work?: string };
     children?: ChildProfile[];
+    schoolFeed?: SchoolFeed;
     pets?: string[];
     householdNotes?: string;
     caregiving?: string;

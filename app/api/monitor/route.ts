@@ -3,9 +3,9 @@ import type { HarnessEvent } from '@/lib/harness/types';
 import { bootstrapEntity } from '@/lib/harness/bootstrap';
 import { dailyEntityConfig, dailyLiteEntityConfig, inboxLiteEntityConfig } from '@/lib/entities/daily';
 import { hasApiKey } from '@/lib/ai/provider';
-import { writeLatestBrief } from '@/lib/storage';
 import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { recordRelationshipMonitorSignals } from '@/lib/contacts/sync-signals';
+import { syncSchoolInbox } from '@/lib/harness/school-inbox-sync';
 
 export const runtime = 'nodejs';
 export const maxDuration = 1800;
@@ -16,6 +16,9 @@ const MONITORS: Record<string, string> = {
   calendar: 'calendar-reader',
   relationships: 'relationship-monitor',
 };
+
+/** Deterministic sync jobs — no LLM required. */
+const SYNC_MONITORS = new Set(['school-inbox']);
 
 function authorizeCron(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -31,6 +34,21 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const name = searchParams.get('name') ?? 'daily';
+
+  if (SYNC_MONITORS.has(name)) {
+    try {
+      if (name === 'school-inbox') {
+        const result = await syncSchoolInbox();
+        return NextResponse.json(result);
+      }
+      return NextResponse.json({ error: `Unknown sync monitor: ${name}` }, { status: 400 });
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : String(err) },
+        { status: 500 },
+      );
+    }
+  }
 
   if (!MONITORS[name]) {
     return NextResponse.json({ error: `Unknown monitor: ${name}` }, { status: 400 });
@@ -58,10 +76,6 @@ export async function GET(req: NextRequest) {
               rootAgentId: MONITORS[name],
             };
     const state = await bootstrapEntity(config, {}, send, sessionId);
-
-    if (name === 'daily' && state.data.morning_brief) {
-      await writeLatestBrief(state.data.morning_brief as Record<string, unknown>);
-    }
 
     if (name === 'relationships' && state.data.relationship_monitor) {
       const monitor = state.data.relationship_monitor as {
