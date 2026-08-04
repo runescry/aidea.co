@@ -1,5 +1,6 @@
 import type { HarnessAgent, HarnessContext } from './types';
 import { getAgentByRole, setAgentStatus } from './registry';
+import { readKB } from './knowledge-base';
 import { setStateKey } from './state';
 import { executeHarnessTool } from './tools';
 import { eventDateYmd } from '@/lib/calendar/dates';
@@ -9,6 +10,8 @@ import { filterTriageListForMustDo } from './inbox-window';
 import { finalizeMustDoList, mustDoHeadline, nonEmpty } from './morning-brief-must-do';
 import { roundupToMustDoItems, schoolFromSender, type SchoolRoundup } from './school-roundup';
 import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
+import { isSchoolFeedFresh, schoolFeedToMustDoItems } from './school-feed-must-do';
+import type { SchoolFeed } from '@/types/knowledge-base';
 
 const PARALLEL_ROLES = [
   'inbox-triage',
@@ -136,7 +139,7 @@ function filterLogisticsForToday(flags: unknown[], schedule: Record<string, unkn
     });
 }
 
-function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
+function assembleMorningBrief(ctx: HarnessContext, schoolFeed?: SchoolFeed | null): Record<string, unknown> {
   const tz = String(ctx.state.data.userTimezone ?? resolveUserTimezone(null));
   const todayDate = String(
     ctx.state.data.currentDate ?? userDateYmd(new Date(), tz),
@@ -148,25 +151,33 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
   const work = ctx.state.data.work_prep as Record<string, unknown> | undefined;
   const gmailCache = getGmailCache(ctx.state.data);
 
+  const schoolFromFeed = schoolFeed && isSchoolFeedFresh(schoolFeed)
+    ? schoolFeedToMustDoItems(schoolFeed, 1)
+    : [];
+
   const urgent = filterTriageListForMustDo(
     (inbox?.urgent as Record<string, unknown>[] | undefined) ?? [],
     gmailCache,
   );
   const actionRequired = (inbox?.actionRequired as unknown[]) ?? [];
-  const schoolRoundups = (inbox?.schoolRoundups as unknown[]) ?? [];
+  const schoolRoundups = schoolFromFeed.length > 0
+    ? []
+    : ((inbox?.schoolRoundups as unknown[]) ?? []);
   const schoolRollupFallback =
-    schoolRoundups.length === 0
-      ? actionRequired.filter(
+    schoolFromFeed.length > 0 || schoolRoundups.length > 0
+      ? []
+      : actionRequired.filter(
           item => item && typeof item === 'object' && (item as Record<string, unknown>).kind === 'school_roundup',
-        )
-      : [];
+        );
   const actionRows = filterTriageListForMustDo(
     actionRequired.filter(
       item => !(item && typeof item === 'object' && (item as Record<string, unknown>).kind === 'school_roundup'),
     ) as Record<string, unknown>[],
     gmailCache,
   );
-  const mustDoSource = [...schoolRoundups, ...schoolRollupFallback, ...urgent, ...actionRows].slice(0, 8);
+  const mustDoSource = schoolFromFeed.length > 0
+    ? [...schoolFromFeed, ...urgent, ...actionRows].slice(0, 8)
+    : [...schoolRoundups, ...schoolRollupFallback, ...urgent, ...actionRows].slice(0, 8);
 
   const mustDo = mustDoSource.flatMap((item, i) => {
     if (typeof item === 'string') {
@@ -174,6 +185,9 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
     }
     if (item && typeof item === 'object') {
       const o = item as Record<string, unknown>;
+      if (o.source === 'school' && o.action && o.priority != null) {
+        return [o];
+      }
       if (o.school && o.child && Array.isArray(o.needsYou)) {
         const roundup = o as unknown as SchoolRoundup;
         const expanded = roundupToMustDoItems(roundup, i + 1);
@@ -263,6 +277,7 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
     workPrep: work ?? {},
     sources: {
       inbox_triage: inbox != null,
+      school_feed: schoolFeed != null && isSchoolFeedFresh(schoolFeed),
       calendar_brief: calendar != null,
       health_brief: health != null,
       news_brief: news != null,
@@ -297,7 +312,10 @@ export async function finalizeDailyBrief(
     spawnFn,
   ) as { status?: string; roles?: string[]; failed?: string[] };
 
-  const brief = assembleMorningBrief(ctx);
+  const kbSlice = await readKB(['family.schoolFeed']);
+  const schoolFeed = (kbSlice.family as { schoolFeed?: SchoolFeed } | undefined)?.schoolFeed;
+
+  const brief = assembleMorningBrief(ctx, schoolFeed);
   const failedAgents = waitResult?.failed ?? PARALLEL_ROLES.filter(role => {
     const agent = getAgentByRole(ctx.registry, role);
     return agent?.status === 'error';
