@@ -21,6 +21,7 @@ export const DEFAULT_SCHOOL_PROFILES: SchoolProfile[] = [
   {
     school: 'Xavier College',
     child: 'Sebastian',
+    senderDomains: ['xavier.vic.edu.au'],
     senderPatterns: ['xavier'],
   },
 ];

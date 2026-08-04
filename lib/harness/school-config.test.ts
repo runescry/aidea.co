@@ -61,6 +61,17 @@ describe('schoolFromSender', () => {
     });
   });
 
+  it('matches real school notification senders by domain only', () => {
+    expect(schoolFromSender('Genazzano FCJ College <genconnect@genazzano.vic.edu.au>')).toEqual({
+      school: 'Genazzano',
+      child: 'Ivy',
+    });
+    expect(schoolFromSender('Consent2Go <Consent2Go@xavier.vic.edu.au>')).toEqual({
+      school: 'Xavier College',
+      child: 'Sebastian',
+    });
+  });
+
   it('uses KB profiles when provided', () => {
     const kb: KnowledgeBase = {
       family: {
