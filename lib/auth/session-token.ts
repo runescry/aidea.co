@@ -21,6 +21,16 @@ function sessionSecret(): string {
   return DEV_SESSION_SECRET;
 }
 
+/** Separate from sessionSecret() so rotating one doesn't reshuffle the other's derived ids. */
+function tenantDerivationSecret(): string {
+  const configured = process.env.AIDEA_TENANT_DERIVATION_SECRET?.trim();
+  if (configured) return configured;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('AIDEA_TENANT_DERIVATION_SECRET is required in production');
+  }
+  return DEV_SESSION_SECRET;
+}
+
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -37,11 +47,11 @@ function base64UrlToBytes(value: string): Uint8Array {
   return Uint8Array.from(binary, char => char.charCodeAt(0));
 }
 
-async function hmac(value: string): Promise<Uint8Array> {
+async function hmac(value: string, secret: string): Promise<Uint8Array> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(sessionSecret()),
+    encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign'],
@@ -58,7 +68,7 @@ export async function createSessionToken(
     expiresAt: now + SESSION_MAX_AGE_SECONDS * 1000,
   };
   const encoded = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
-  const signature = bytesToBase64Url(await hmac(encoded));
+  const signature = bytesToBase64Url(await hmac(encoded, sessionSecret()));
   return `${encoded}.${signature}`;
 }
 
@@ -67,7 +77,7 @@ export async function verifySessionToken(token: string | undefined, now = Date.n
   const [encoded, signature, extra] = token.split('.');
   if (!encoded || !signature || extra) return null;
 
-  const expected = await hmac(encoded);
+  const expected = await hmac(encoded, sessionSecret());
   const actual = base64UrlToBytes(signature);
   if (actual.length !== expected.length) return null;
   let mismatch = 0;
@@ -88,7 +98,7 @@ export async function verifySessionToken(token: string | undefined, now = Date.n
 export async function stableGoogleUserId(email: string): Promise<string> {
   const normalized = email.trim().toLowerCase();
   if (!normalized || !normalized.includes('@')) throw new Error('Google connection did not return an email address');
-  return `google:${bytesToHex(await hmac(`google-account:${normalized}`)).slice(0, 48)}`;
+  return `google:${bytesToHex(await hmac(`google-account:${normalized}`, tenantDerivationSecret())).slice(0, 48)}`;
 }
 
 export const sessionMaxAgeSeconds = SESSION_MAX_AGE_SECONDS;

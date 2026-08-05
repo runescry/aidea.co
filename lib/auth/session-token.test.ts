@@ -31,4 +31,17 @@ describe('signed app sessions', () => {
     expect(first).toMatch(/^google:[a-f0-9]{48}$/);
     expect(first).not.toContain('person');
   });
+
+  it('derives tenant ids from a secret independent of the session-signing secret', async () => {
+    const before = process.env.AIDEA_SESSION_SECRET;
+    try {
+      const withoutOverride = await stableGoogleUserId('person@example.com');
+      process.env.AIDEA_SESSION_SECRET = 'a-completely-different-session-secret';
+      const withSessionSecretChanged = await stableGoogleUserId('person@example.com');
+      expect(withSessionSecretChanged).toBe(withoutOverride);
+    } finally {
+      if (before === undefined) delete process.env.AIDEA_SESSION_SECRET;
+      else process.env.AIDEA_SESSION_SECRET = before;
+    }
+  });
 });
