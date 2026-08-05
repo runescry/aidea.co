@@ -1,7 +1,7 @@
 'use client';
 
 import type { TaskItem } from '@/lib/harness/tasks';
-import { decodeBriefText, mustDoHeadline } from '@/lib/harness/morning-brief-must-do';
+import { decodeBriefText, mustDoCardLines } from '@/lib/harness/morning-brief-must-do';
 
 interface MustDoItem {
   priority?: number;
@@ -11,10 +11,7 @@ interface MustDoItem {
   detail?: string;
   snippet?: string;
   gmailUrl?: string;
-}
-
-function mustDoLabel(item: MustDoItem): string {
-  return decodeBriefText(mustDoHeadline(item as Record<string, unknown>));
+  from?: string;
 }
 
 export default function MorningBriefCard({
@@ -28,8 +25,8 @@ export default function MorningBriefCard({
     ? (task.brief!.mustDo as MustDoItem[])
     : [];
   const topItems = mustDo
-    .map(item => ({ item, label: mustDoLabel(item) }))
-    .filter(({ label }) => label.length > 0)
+    .map(item => mustDoCardLines(item as Record<string, unknown>))
+    .filter(line => line.title.length > 0)
     .slice(0, 3);
 
   return (
@@ -53,26 +50,33 @@ export default function MorningBriefCard({
         )}
       </div>
       {topItems.length > 0 && (
-        <ol className="space-y-1 pl-4 list-decimal marker:text-foreground-subtle">
-          {topItems.map(({ item, label }, i) => (
-            <li key={i} className="text-[12px] text-foreground-muted leading-snug">
-              {item.gmailUrl ? (
-                <a
-                  href={item.gmailUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent hover:underline"
-                >
-                  {label}
-                </a>
-              ) : (
-                label
-              )}
-              {item.context ? (
-                <span className="text-foreground-subtle"> · {item.context}</span>
-              ) : null}
-            </li>
-          ))}
+        <ol className="space-y-2.5 pl-4 list-decimal marker:text-foreground-subtle">
+          {topItems.map((line, i) => {
+            const title = decodeBriefText(line.title);
+            const sender = line.sender ? decodeBriefText(line.sender) : undefined;
+            const subline = line.subline ? decodeBriefText(line.subline) : undefined;
+            const titleText = sender ? `${title} · ${sender}` : title;
+
+            return (
+              <li key={i} className="text-[12px] leading-snug">
+                {line.gmailUrl ? (
+                  <a
+                    href={line.gmailUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-accent hover:underline"
+                  >
+                    {titleText}
+                  </a>
+                ) : (
+                  <span className="font-medium text-foreground">{titleText}</span>
+                )}
+                {subline && (
+                  <p className="mt-0.5 text-[11px] text-foreground-muted line-clamp-2">{subline}</p>
+                )}
+              </li>
+            );
+          })}
         </ol>
       )}
     </div>

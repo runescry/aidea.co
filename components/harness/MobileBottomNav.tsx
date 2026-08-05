@@ -1,25 +1,24 @@
 'use client';
 
-import type { MainView } from './AppSidebar';
+import { useBuilderNav } from '@/hooks/useBuilderNav';
+import { navItemsForMode, type MainView } from '@/lib/client/builder-nav';
 import {
   IconAgents,
+  IconBriefcase,
   IconContext,
   IconHome,
   IconSettings,
   IconStudio,
 } from './sidebar/icons';
 
-const NAV: Array<{
-  id: MainView;
-  label: string;
-  Icon: typeof IconHome;
-}> = [
-  { id: 'home', label: 'Home', Icon: IconHome },
-  { id: 'agents', label: 'Agents', Icon: IconAgents },
-  { id: 'studio', label: 'Studio', Icon: IconStudio },
-  { id: 'profile', label: 'Profile', Icon: IconContext },
-  { id: 'settings', label: 'Settings', Icon: IconSettings },
-];
+const NAV_META: Record<MainView, { label: string; Icon: typeof IconHome }> = {
+  home: { label: 'Home', Icon: IconHome },
+  inbox: { label: 'Inbox', Icon: IconBriefcase },
+  agents: { label: 'Agents', Icon: IconAgents },
+  studio: { label: 'Studio', Icon: IconStudio },
+  profile: { label: 'Profile', Icon: IconContext },
+  settings: { label: 'Settings', Icon: IconSettings },
+};
 
 interface Props {
   view: MainView;
@@ -29,13 +28,17 @@ interface Props {
 }
 
 export default function MobileBottomNav({ view, onNavigate, agentsRunning, workPendingCount = 0 }: Props) {
+  const { builderNav } = useBuilderNav();
+  const navIds = navItemsForMode(builderNav);
+
   return (
     <nav
       className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-surface/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom)]"
       aria-label="Main navigation"
     >
       <div className="flex items-stretch justify-around h-14">
-        {NAV.map(({ id, label, Icon }) => {
+        {navIds.map(id => {
+          const { label, Icon } = NAV_META[id];
           const active = view === id;
           return (
             <button
@@ -49,12 +52,12 @@ export default function MobileBottomNav({ view, onNavigate, agentsRunning, workP
             >
               <Icon className="w-5 h-5 shrink-0" />
               <span className="text-[10px] font-medium truncate max-w-full">{label}</span>
-              {id === 'home' && workPendingCount > 0 && (
+              {id === 'inbox' && workPendingCount > 0 && (
                 <span className="absolute top-1.5 right-[calc(50%-20px)] flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-accent text-[9px] font-semibold text-surface tabular-nums">
                   {workPendingCount > 9 ? '9+' : workPendingCount}
                 </span>
               )}
-              {id === 'studio' && agentsRunning && (
+              {id === 'studio' && builderNav && agentsRunning && (
                 <span className="absolute top-2 right-[calc(50%-18px)] w-2 h-2 rounded-full bg-accent animate-pulse" />
               )}
             </button>

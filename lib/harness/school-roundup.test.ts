@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CachedGmail } from './inbox-sanitize';
 import { bundleSchoolTriage, roundupToMustDoItems, schoolFromSender } from './school-roundup';
+import { DEFAULT_SCHOOL_PROFILES } from './school-config';
+
+const GEN_FROM = 'Genazzano FCJ College <office@genazzano.vic.edu.au>';
 
 function genazzanoRow(overrides: Record<string, unknown> = {}) {
   return {
-    from: 'Genazzano FCJ College',
+    from: GEN_FROM,
     subject: 'Term reminder',
     snippet: 'Reminder for Ivy families',
     messageId: overrides.messageId ?? `msg-${Math.random()}`,
@@ -16,9 +19,9 @@ function genazzanoRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('schoolFromSender', () => {
-  it('detects Genazzano', () => {
-    expect(schoolFromSender('Genazzano FCJ College <office@genazzano.vic.edu.au>')).toEqual({
-      school: 'Genazzano',
+  it('detects Genazzano by sender domain', () => {
+    expect(schoolFromSender(GEN_FROM)).toEqual({
+      school: 'Genazzano FCJ College',
       child: 'Ivy',
     });
   });
@@ -26,9 +29,9 @@ describe('schoolFromSender', () => {
 
 describe('bundleSchoolTriage', () => {
   const cache = new Map<string, CachedGmail>([
-    ['g1', { id: 'g1', from: 'Genazzano', subject: 'Report', snippet: 'Report for Ivy' }],
-    ['g2', { id: 'g2', from: 'Genazzano', subject: 'Sport', snippet: 'Carnival Monday' }],
-    ['g3', { id: 'g3', from: 'Genazzano', subject: 'Phone', snippet: 'Confirm phone', bodyText: 'Please confirm phone' }],
+    ['g1', { id: 'g1', from: GEN_FROM, subject: 'Report', snippet: 'Report for Ivy' }],
+    ['g2', { id: 'g2', from: GEN_FROM, subject: 'Sport', snippet: 'Carnival Monday' }],
+    ['g3', { id: 'g3', from: GEN_FROM, subject: 'Phone', snippet: 'Confirm phone', bodyText: 'Please confirm phone' }],
   ]);
 
   it('bundles 2+ same-school emails into schoolRoundups', () => {
@@ -40,11 +43,11 @@ describe('bundleSchoolTriage', () => {
       ],
       actionRequired: [],
       fyi: [],
-    }, cache);
+    }, cache, 2, DEFAULT_SCHOOL_PROFILES);
 
     expect(out.schoolRoundups).toHaveLength(1);
     const roundup = out.schoolRoundups![0] as { school: string; child: string; emailCount: number; needsYou: unknown[] };
-    expect(roundup.school).toBe('Genazzano');
+    expect(roundup.school).toBe('Genazzano FCJ College');
     expect(roundup.child).toBe('Ivy');
     expect(roundup.emailCount).toBe(3);
     expect(roundup.needsYou.length).toBeGreaterThan(0);
@@ -59,7 +62,7 @@ describe('bundleSchoolTriage', () => {
       urgent: [genazzanoRow({ messageId: 'g1' })],
       actionRequired: [],
       fyi: [],
-    }, cache);
+    }, cache, 2, DEFAULT_SCHOOL_PROFILES);
     expect(out.schoolRoundups).toBeUndefined();
     expect(out.urgent).toHaveLength(1);
   });

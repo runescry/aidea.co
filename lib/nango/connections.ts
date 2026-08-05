@@ -272,12 +272,19 @@ export async function resolveGmailConnections(connectionId?: string): Promise<Na
 export async function resolveCalendarConnections(connectionId?: string): Promise<NangoConnectionPublic[]> {
   const all = await listCalendarConnectionsLite();
   if (all.length === 0) {
-    throw new Error('Google Calendar not connected — use Settings → Connect Google Calendar');
+    throw new Error(
+      'Google Calendar not connected — open Settings → Connect Calendar (Gmail alone does not grant calendar access)',
+    );
   }
   if (!connectionId) return all;
   const match = all.find(c => c.connectionId === connectionId);
   if (!match) throw new Error(`No calendar connection ${connectionId}`);
   return [match];
+}
+
+export async function hasCalendarConnection(): Promise<boolean> {
+  const all = await listCalendarConnectionsLite();
+  return all.length > 0;
 }
 
 export async function listMicrosoftConnections(): Promise<NangoConnectionPublic[]> {

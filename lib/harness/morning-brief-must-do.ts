@@ -79,6 +79,80 @@ export function fallbackHeadlineFromSnippet(snippet: string): string {
   return snippetHeadline(clean, 120);
 }
 
+export function mustDoActionSubline(item: Record<string, unknown>): string {
+  const snippet = nonEmpty(item.snippet, item.detail);
+  const rawStep = nonEmpty(item.action, item.nextStep);
+  if (rawStep && !GENERIC_ACTION.test(rawStep) && !looksLikeBadHeadline(rawStep)) {
+    return decodeBriefText(rawStep);
+  }
+  return decodeBriefText(
+    nonEmpty(
+      fallbackHeadlineFromSnippet(snippet),
+      inferHeadlineFromSnippet(snippet),
+      snippetHeadline(snippet, 140),
+    ),
+  );
+}
+
+export function mustDoSenderLine(item: Record<string, unknown>): string {
+  const from = decodeBriefText(nonEmpty(item.from));
+  const context = decodeBriefText(nonEmpty(item.context));
+  const school = schoolFromSender(`${from} ${context}`);
+  if (school) return `${school.school} · ${school.child}`;
+
+  const contextClean = context.startsWith('Email from ') ? context.slice(11) : context;
+  if (contextClean) return contextClean;
+
+  const name = from.match(/^([^<]+)</)?.[1]?.trim();
+  if (name) return name;
+  if (from && !from.includes('@')) return from;
+
+  const fromSnippet = senderFromSnippet(nonEmpty(item.snippet, item.detail));
+  if (fromSnippet) {
+    return fromSnippet.match(/^([^<]+)</)?.[1]?.trim() || fromSnippet;
+  }
+  return '';
+}
+
+export function mustDoCardLines(item: Record<string, unknown>): {
+  title: string;
+  sender?: string;
+  subline?: string;
+  gmailUrl?: string;
+} {
+  const subject = decodeBriefText(nonEmpty(item.subject));
+  const snippet = decodeBriefText(nonEmpty(item.snippet, item.detail));
+  const subline = mustDoActionSubline({ ...item, subject, snippet });
+  const sender = mustDoSenderLine(item);
+  const gmailUrl = nonEmpty(item.gmailUrl) || undefined;
+
+  if (subject) {
+    const senderLine =
+      sender && !subject.toLowerCase().includes(sender.toLowerCase().slice(0, 10))
+        ? sender
+        : undefined;
+    return {
+      title: subject,
+      sender: senderLine,
+      subline: subline && subline !== subject ? subline : undefined,
+      gmailUrl,
+    };
+  }
+
+  if (sender) {
+    return {
+      title: sender,
+      subline: subline && subline !== sender ? subline : undefined,
+      gmailUrl,
+    };
+  }
+
+  return {
+    title: subline || 'Open in Gmail',
+    gmailUrl,
+  };
+}
+
 export function mustDoHeadline(item: Record<string, unknown>): string {
   const subject = nonEmpty(item.subject);
   const snippet = nonEmpty(item.snippet, item.detail);
@@ -114,18 +188,20 @@ function senderLabel(context: string): string {
 export function normalizeMustDoItem(item: Record<string, unknown>): Record<string, unknown> {
   const snippet = decodeBriefText(nonEmpty(item.snippet, item.detail));
   const subject = decodeBriefText(nonEmpty(item.subject));
-  const action = mustDoHeadline({ ...item, subject, snippet });
+  const subline = mustDoActionSubline({ ...item, subject, snippet });
+  const action = subline || mustDoHeadline({ ...item, subject, snippet });
   const fromField = decodeBriefText(nonEmpty(item.from));
   const existingContext = decodeBriefText(nonEmpty(item.context));
   const school = schoolFromSender(`${fromField} ${existingContext}`);
+  const sender = mustDoSenderLine({ ...item, subject, snippet, context: existingContext, from: fromField });
   const context = nonEmpty(
     existingContext,
     school ? `${school.school} · ${school.child}` : '',
-    senderLabel(fromField),
+    sender,
     fromField,
   );
   const detailRaw = snippet;
-  const detail = detailRaw && detailRaw !== action ? detailRaw : undefined;
+  const detail = detailRaw && detailRaw !== subline && detailRaw !== subject ? detailRaw : undefined;
 
   const messageId = nonEmpty(item.messageId);
   const threadId = nonEmpty(item.threadId);
@@ -153,7 +229,7 @@ const VAGUE_SUMMARY = /\b(one|several|\d+)\s+(school|email)/i;
 export function finalizeMustDoList(items: Record<string, unknown>[]): Record<string, unknown>[] {
   const normalized = items
     .map(normalizeMustDoItem)
-    .filter(item => nonEmpty(item.action));
+    .filter(item => nonEmpty(item.action) || nonEmpty(item.subject));
 
   const linked = normalized.filter(
     item => nonEmpty(item.messageId) || nonEmpty(item.gmailUrl) || item.source === 'school',

@@ -18,6 +18,17 @@ export interface GmailMessage {
   bodyTruncated?: boolean;
 }
 
+const GMAIL_METADATA_HEADERS = ['From', 'Subject', 'Date', 'Reply-To'] as const;
+
+/** Gmail needs repeated metadataHeaders query params; Nango drops them when passed as an array in params. */
+export function gmailMessageMetadataEndpoint(messageId: string, extraHeaders: string[] = []): string {
+  const headers = [...new Set([...GMAIL_METADATA_HEADERS, ...extraHeaders])];
+  const q = new URLSearchParams();
+  q.set('format', 'metadata');
+  for (const h of headers) q.append('metadataHeaders', h);
+  return `/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}?${q.toString()}`;
+}
+
 async function readGmailForConnection(
   conn: NangoConnectionPublic,
   options: { query: string; maxResults: number },
@@ -46,8 +57,7 @@ async function readGmailForConnection(
       }>({
         providerConfigKey: integrationId,
         connectionId: conn.connectionId,
-        endpoint: `/gmail/v1/users/me/messages/${m.id}`,
-        params: { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date', 'Reply-To'] },
+        endpoint: gmailMessageMetadataEndpoint(m.id),
       }).then(msgRes => {
         const msg = msgRes.data;
         const headers = msg.payload?.headers ?? [];
@@ -90,10 +100,10 @@ async function fetchGmailMessageById(
     }>({
       providerConfigKey: integrationId,
       connectionId: conn.connectionId,
-      endpoint: `/gmail/v1/users/me/messages/${messageId}`,
-      params: includeBody
-        ? { format: 'full' }
-        : { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date', 'Reply-To'] },
+      endpoint: includeBody
+        ? `/gmail/v1/users/me/messages/${messageId}`
+        : gmailMessageMetadataEndpoint(messageId),
+      ...(includeBody ? { params: { format: 'full' } } : {}),
     });
 
     const msg = msgRes.data;
@@ -264,8 +274,7 @@ async function getGmailMessageMeta(
     }>({
       providerConfigKey: gmailIntegrationId(),
       connectionId: conn.connectionId,
-      endpoint: `/gmail/v1/users/me/messages/${messageId}`,
-      params: { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Message-ID', 'Reply-To'] },
+      endpoint: gmailMessageMetadataEndpoint(messageId, ['Message-ID']),
     });
     const headers = res.data.payload?.headers ?? [];
     const get = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';

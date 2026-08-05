@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { KnowledgeBase } from '@/types/knowledge-base';
+import type { ChildProfile, KnowledgeBase } from '@/types/knowledge-base';
 import { WORKOUT_DAYS, TIMEZONES, PRONOUNS, COMPANY_STAGES } from '@/types/knowledge-base';
 import { Label, TextField, TextArea, TextArrayInput, SelectField, Section } from '../forms';
 import PersonListEditor from '../onboarding/PersonListEditor';
@@ -142,13 +142,85 @@ export function LearningSection({ data, u, embedded }: SectionProps) {
 }
 
 export function FamilySection({ data, u, embedded }: SectionProps) {
+  const children = data.family?.children ?? [];
+
+  const addChild = () => {
+    u('family', {
+      children: [...children, { name: '', age: '', school: '', peDay: [], notes: '' }],
+    });
+  };
+
+  const updateChild = (index: number, updates: Partial<ChildProfile>) => {
+    const next = [...children];
+    next[index] = { ...next[index], ...updates };
+    u('family', { children: next });
+  };
+
+  const removeChild = (index: number) => {
+    const next = [...children];
+    next.splice(index, 1);
+    u('family', { children: next });
+  };
+
   return (
-    <ProfileWrap embedded={embedded} title="Family">
+    <ProfileWrap embedded={embedded} title="Family" description="Household context and school inbox routing">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div><Label>Partner</Label><TextField value={data.family?.partner?.name ?? ''} onChange={v => u('family', { partner: { ...data.family?.partner, name: v } })} /></div>
         <div><Label>Partner schedule</Label><TextField value={data.family?.partner?.work ?? ''} onChange={v => u('family', { partner: { ...data.family?.partner, work: v } })} /></div>
       </div>
       <div><Label>Household notes</Label><TextArea value={data.family?.householdNotes ?? ''} onChange={v => u('family', { householdNotes: v })} rows={2} /></div>
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <Label hint="School emails are matched by sender domain — e.g. genazzano.vic.edu.au matches any @genazzano.vic.edu.au address">
+            Children & school email domains
+          </Label>
+          <button type="button" onClick={addChild} className="text-xs text-accent hover:underline">+ Add child</button>
+        </div>
+        {children.length === 0 && (
+          <p className="text-xs text-foreground-subtle mb-2">
+            No children configured — school inbox sync will not run until you add at least one child with a sender domain.
+          </p>
+        )}
+        {children.map((child, i) => (
+          <div key={i} className="card p-3 mb-2 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-medium text-foreground-muted">Child {i + 1}</span>
+              <button type="button" onClick={() => removeChild(i)} className="text-xs text-foreground-subtle hover:text-danger">Remove</button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <TextField value={child.name ?? ''} onChange={v => updateChild(i, { name: v })} placeholder="Name" />
+              <TextField value={child.age ?? ''} onChange={v => updateChild(i, { age: v })} placeholder="Age" />
+              <TextField value={child.school ?? ''} onChange={v => updateChild(i, { school: v })} placeholder="School" />
+            </div>
+            <div>
+              <Label hint="Required — any email from this domain is triaged for this child">School email domains</Label>
+              <TextField
+                value={(child.senderDomains ?? []).join(', ')}
+                onChange={v => updateChild(i, {
+                  senderDomains: v.split(',').map(s => s.trim()).filter(Boolean),
+                })}
+                placeholder="genazzano.vic.edu.au"
+              />
+            </div>
+            <TextField
+              value={child.microsoftSiteId ?? ''}
+              onChange={v => updateChild(i, { microsoftSiteId: v })}
+              placeholder="SharePoint site ID (optional)"
+            />
+            <TextField
+              value={child.microsoftDocsPath ?? ''}
+              onChange={v => updateChild(i, { microsoftDocsPath: v })}
+              placeholder="SharePoint docs path: Shared Documents/Timetables"
+            />
+            <TextField
+              value={(child.peDay ?? []).join(', ')}
+              onChange={v => updateChild(i, { peDay: v.split(',').map(s => s.trim()).filter(Boolean) })}
+              placeholder="PE days: Mon, Wed"
+            />
+            <TextArea value={child.notes ?? ''} onChange={v => updateChild(i, { notes: v })} rows={2} placeholder="Football Tue 4pm. Allergies: nuts." />
+          </div>
+        ))}
+      </div>
     </ProfileWrap>
   );
 }

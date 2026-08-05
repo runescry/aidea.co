@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import type { KnowledgeBase, ChildProfile, PersonContact } from '@/types/knowledge-base';
+import { DEFAULT_SCHOOL_CHILDREN } from '@/lib/harness/school-config';
 import { formatProjectSummary } from '../ProjectsEditor';
 import { WORKOUT_DAYS, TIMEZONES, PRONOUNS, COMPANY_STAGES } from '@/types/knowledge-base';
 import { Label, TextField, TextArea, TextArrayInput, SelectField } from '../forms';
@@ -41,7 +42,7 @@ const INITIAL: KnowledgeBase = {
   work: { keyContacts: [], directReports: [] },
   relationships: { people: [], reviewFrequency: 21 },
   goals: {},
-  family: { children: [] },
+  family: { children: DEFAULT_SCHOOL_CHILDREN.map(c => ({ ...c })) },
   health: { workoutSchedule: {} },
   routines: {},
   learning: {},
@@ -517,13 +518,18 @@ export default function OnboardingWizard({ onComplete }: Props) {
                       <TextField value={child.age ?? ''} onChange={v => updateChild(i, { age: v })} placeholder="Age" />
                       <TextField value={child.school ?? ''} onChange={v => updateChild(i, { school: v })} placeholder="School" />
                     </div>
-                    <TextField
-                      value={(child.senderDomains ?? []).join(', ')}
-                      onChange={v => updateChild(i, {
-                        senderDomains: v.split(',').map(s => s.trim()).filter(Boolean),
-                      })}
-                      placeholder="Email domains: genazzano.vic.edu.au, xavier.vic.edu.au"
-                    />
+                    <div>
+                      <Label hint="Required — matches any sender @domain (e.g. genconnect@genazzano.vic.edu.au)">
+                        School email domains
+                      </Label>
+                      <TextField
+                        value={(child.senderDomains ?? []).join(', ')}
+                        onChange={v => updateChild(i, {
+                          senderDomains: v.split(',').map(s => s.trim()).filter(Boolean),
+                        })}
+                        placeholder="genazzano.vic.edu.au"
+                      />
+                    </div>
                     <TextField
                       value={child.microsoftSiteId ?? ''}
                       onChange={v => updateChild(i, { microsoftSiteId: v })}

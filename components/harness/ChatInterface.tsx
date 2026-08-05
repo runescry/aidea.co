@@ -6,13 +6,6 @@ import ChatMarkdown from './ChatMarkdown';
 import InboxSummaryCard, { isInboxStructured, type DispatchInboxStructured } from './chat/InboxSummaryCard';
 import NewsHeadlinesCard, { isNewsStructured, type DispatchNewsStructured } from './chat/NewsHeadlinesCard';
 
-const HOME_SUGGESTIONS = [
-  "What's still open from this week?",
-  'Draft a reply to Sarah about the budget',
-  'Research a company before my next meeting',
-  'What needs my attention right now?',
-];
-
 function ToolPill({ tool, summary }: { tool: string; summary: string }) {
   return (
     <div className="flex items-center gap-1.5 text-[11px] text-foreground-subtle py-0.5">
@@ -185,8 +178,8 @@ export default function ChatInterface({
   };
 
   const composer = (
-    <div className={isHome ? 'shrink-0 pt-3 pb-3 md:pt-4 md:pb-5' : 'border-t border-border pt-4'}>
-      {isHome && (
+    <div className={isHome ? 'shrink-0 pt-1.5 pb-2 md:pb-3 border-t border-border/60' : 'border-t border-border pt-4'}>
+      {isHome ? null : (
         <label htmlFor="chief-of-staff-input" className="block text-[11px] font-medium text-foreground-muted mb-2">
           Message
         </label>
@@ -234,37 +227,15 @@ export default function ChatInterface({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className={`flex-1 overflow-y-auto min-h-0 ${isHome ? 'space-y-5 py-4' : 'space-y-4 pb-4'}`}>
+      <div className={`flex-1 overflow-y-auto min-h-0 ${isHome ? `space-y-4 ${messages.length === 0 ? 'py-1' : 'py-3'}` : 'space-y-4 pb-4'}`}>
         {messages.length === 0 && (
-          <div className={isHome ? 'space-y-5' : 'text-center py-12 space-y-3'}>
+          <div className={isHome ? '' : 'text-center py-12 space-y-3'}>
             {isHome ? (
-              <>
-                <p className="text-[15px] text-foreground leading-relaxed max-w-lg">
-                  Your workforce is ready. Ask for research, drafts, schedule checks, profile updates — or pick a starter below.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {HOME_SUGGESTIONS.map(s => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => send(s)}
-                      disabled={streaming}
-                      className="text-left text-[12px] text-foreground-muted px-3 py-2 rounded-lg border border-accent/20 hover:border-accent/40 hover:text-foreground hover:bg-accent/5 transition-colors disabled:opacity-50"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </>
+              <p className="text-[12px] text-foreground-muted leading-snug max-w-lg">
+                Ask anything — drafts and updates will appear in Inbox.
+              </p>
             ) : (
-              <>
-                <div className="text-foreground-muted text-sm">Your chief of staff is ready.</div>
-                <div className="text-foreground-subtle text-xs space-y-1">
-                  {HOME_SUGGESTIONS.map(s => (
-                    <div key={s}>&ldquo;{s}&rdquo;</div>
-                  ))}
-                </div>
-              </>
+              <div className="text-foreground-muted text-sm">Your chief of staff is ready.</div>
             )}
           </div>
         )}

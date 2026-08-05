@@ -107,5 +107,19 @@ export function formatLlmError(err: unknown): string {
   if (/401|unauthorized/i.test(message)) {
     return 'AI API unauthorized — check your API key in Vercel environment variables';
   }
+  if (/credit balance is too low/i.test(message)) {
+    return 'LLM credits exhausted — add Anthropic credits or AI Gateway key to resume morning brief and inbox triage';
+  }
   return message;
+}
+
+/** True when scheduled LLM jobs should skip quietly instead of recording a failed run. */
+export function isLlmUnavailableError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/LLM not configured/i.test(message)) return true;
+  if (/credit balance is too low/i.test(message)) return true;
+  if (/forbidden/i.test(message)) return true;
+  if (/401|unauthorized/i.test(message)) return true;
+  if (/invalid.*api.*key/i.test(message)) return true;
+  return false;
 }

@@ -11,6 +11,7 @@ import { useSaveFeedback } from '@/hooks/useSaveFeedback';
 import { useConfirm } from '@/hooks/useConfirm';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 import { useChatConversations } from '@/hooks/useChatConversations';
+import { useBuilderNav } from '@/hooks/useBuilderNav';
 
 type SettingKey = 'anthropicApiKey' | 'braveSearchApiKey';
 
@@ -77,12 +78,15 @@ export default function SettingsPanel() {
   const { saving: resetting, saved: resetDone, runSave: runReset } = useSaveFeedback();
   const { refresh: refreshWorkFeed } = useWorkFeed();
   const { resetLocalChatStore } = useChatConversations();
+  const { builderNav, setBuilderNav } = useBuilderNav();
 
   const [nangoConfigured, setNangoConfigured] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
   const [connections, setConnections] = useState<NangoConnection[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [calendarConnecting, setCalendarConnecting] = useState(false);
+  const [calendarConnectError, setCalendarConnectError] = useState<string | null>(null);
   const [microsoftConnecting, setMicrosoftConnecting] = useState(false);
   const [microsoftConnectError, setMicrosoftConnectError] = useState<string | null>(null);
   const [strava, setStrava] = useState<{
@@ -152,7 +156,7 @@ export default function SettingsPanel() {
       const res = await fetch('/api/nango/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ integrations: ['google-mail'] }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { error?: string };
@@ -175,7 +179,43 @@ export default function SettingsPanel() {
     }
   };
 
-  const googleConnections = connections.filter(c => c.integrationId.startsWith('google'));
+  const handleConnectCalendar = async () => {
+    setCalendarConnecting(true);
+    setCalendarConnectError(null);
+    try {
+      const res = await fetch('/api/nango/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ integrations: ['google-calendar'] }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        setCalendarConnectError(err.error ?? `Failed to start Calendar connect (${res.status})`);
+        return;
+      }
+      const { sessionToken } = await res.json() as { sessionToken: string };
+      const nango = new Nango();
+      const connect = nango.openConnectUI({
+        onEvent: event => {
+          if (event.type === 'connect') void loadConnections();
+          if (event.type === 'close') setCalendarConnecting(false);
+        },
+      });
+      connect.setSessionToken(sessionToken);
+    } catch (err) {
+      setCalendarConnectError(err instanceof Error ? err.message : 'Failed to start Calendar connect');
+      setCalendarConnecting(false);
+    }
+  };
+
+  const gmailConnections = connections.filter(c => c.integrationId === 'google-mail');
+  const calendarConnections = connections.filter(c => c.integrationId === 'google-calendar');
+  const calendarEmails = new Set(
+    calendarConnections.map(c => c.email?.trim().toLowerCase()).filter(Boolean),
+  );
+  const gmailMissingCalendar = gmailConnections.filter(
+    g => g.email && !calendarEmails.has(g.email.trim().toLowerCase()),
+  );
   const microsoftConnections = connections.filter(c => c.integrationId.includes('microsoft'));
 
   const handleConnectMicrosoft = async () => {
@@ -353,17 +393,26 @@ export default function SettingsPanel() {
           <div>
             <h3 className="text-sm font-medium text-foreground">Google (Gmail &amp; Calendar)</h3>
             <p className="text-xs text-foreground-muted mt-1">
-              Connect via Nango — the same Google sign-in flow you use for other apps.
-              Connect each account separately (personal, work, etc.).
+              Gmail and Calendar are separate connections — connect each once for the Google accounts
+              that hold school mail and your main calendar.
             </p>
           </div>
-          <button
-            onClick={handleConnectGoogle}
-            disabled={connecting || !nangoConfigured}
-            className="btn-primary text-xs py-1.5 shrink-0"
-          >
-            {connecting ? 'Connecting…' : 'Connect Google'}
-          </button>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              onClick={handleConnectGoogle}
+              disabled={connecting || !nangoConfigured}
+              className="btn-primary text-xs py-1.5"
+            >
+              {connecting ? 'Connecting…' : 'Connect Gmail'}
+            </button>
+            <button
+              onClick={handleConnectCalendar}
+              disabled={calendarConnecting || !nangoConfigured}
+              className="btn-secondary text-xs py-1.5"
+            >
+              {calendarConnecting ? 'Connecting…' : 'Connect Calendar'}
+            </button>
+          </div>
         </div>
 
         {!nangoConfigured && (
@@ -379,6 +428,12 @@ export default function SettingsPanel() {
           </p>
         )}
 
+        {calendarConnectError && (
+          <p className="text-xs text-red-600 dark:text-red-400 whitespace-pre-wrap">
+            {calendarConnectError}
+          </p>
+        )}
+
         {nangoConfigured && (
           <p className="text-[11px] text-foreground-subtle font-mono">
             Nango integrations: google-mail, google-calendar. Gmail drafts/send need scope{' '}
@@ -386,9 +441,24 @@ export default function SettingsPanel() {
           </p>
         )}
 
-        {connections.length > 0 ? (
+        {gmailConnections.length > 0 || calendarConnections.length > 0 ? (
           <ul className="divide-y divide-border rounded-md border border-border">
-            {googleConnections.map(conn => (
+            {gmailConnections.map(conn => (
+              <li key={conn.connectionId} className="flex items-center gap-3 px-3 py-2 text-sm">
+                <StatusDot configured />
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium truncate">{connectionTitle(conn)}</div>
+                  <div className="text-[11px] text-foreground-subtle">{connectionSubtitle(conn)}</div>
+                </div>
+                <button
+                  onClick={() => handleDisconnect(conn)}
+                  className="text-xs text-foreground-muted hover:text-red-500"
+                >
+                  Disconnect
+                </button>
+              </li>
+            ))}
+            {calendarConnections.map(conn => (
               <li key={conn.connectionId} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <StatusDot configured />
                 <div className="min-w-0 flex-1">
@@ -407,6 +477,37 @@ export default function SettingsPanel() {
         ) : nangoConfigured ? (
           <p className="text-xs text-foreground-muted">No Google accounts connected yet.</p>
         ) : null}
+
+        {gmailMissingCalendar.length > 0 && nangoConfigured && (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 space-y-2">
+            <p className="text-xs text-amber-800 dark:text-amber-200 leading-snug">
+              These Gmail accounts don&apos;t have Calendar connected yet. School events for each child
+              are usually on the same Google account as their school mail — connect Calendar and
+              sign in with <span className="font-medium">that same account</span>, not a different one.
+            </p>
+            <ul className="space-y-1.5">
+              {gmailMissingCalendar.map(conn => (
+                <li key={conn.connectionId} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="font-medium text-foreground truncate">{conn.email}</span>
+                  <button
+                    type="button"
+                    onClick={handleConnectCalendar}
+                    disabled={calendarConnecting}
+                    className="btn-secondary text-[11px] py-1 shrink-0"
+                  >
+                    Connect Calendar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {gmailConnections.length > 0 && calendarConnections.length === 0 && nangoConfigured && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Gmail is connected but Calendar is not — school week view needs Calendar. Tap Connect Calendar above.
+          </p>
+        )}
       </div>
 
       <div className="card p-4 space-y-4">
@@ -512,6 +613,27 @@ export default function SettingsPanel() {
       <div className="card p-4 space-y-3">
         <h3 className="text-sm font-medium text-foreground">Queue activity</h3>
         <AuditTrailPanel />
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <h3 className="text-sm font-medium text-foreground">Advanced</h3>
+        <p className="text-xs text-foreground-muted">
+          Builder tools are for debugging multi-agent runs. The daily product is Home, Inbox, Profile, and Settings.
+        </p>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={builderNav}
+            onChange={e => setBuilderNav(e.target.checked)}
+            className="mt-0.5 rounded border-border"
+          />
+          <span className="text-sm text-foreground">
+            Show Studio &amp; Agents in navigation
+            <span className="block text-xs text-foreground-muted mt-0.5">
+              Also shows Run Company / Learning / Creator on Home
+            </span>
+          </span>
+        </label>
       </div>
 
       <div className="card border-danger/30 p-4 space-y-4">

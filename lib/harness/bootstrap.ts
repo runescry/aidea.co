@@ -2,7 +2,7 @@ import type { AgentOverridesMap } from '@/types/agent-overrides';
 import type { EntityConfig, EntityInput, HarnessContext, EntityState, SenderFn } from './types';
 import { DEFAULT_COST_CONFIG } from './types';
 import { createRegistry, registerAgent } from './registry';
-import { createEntityState, persistEntityState } from './state';
+import { createEntityState, persistEntityState, deleteEntityState } from './state';
 import { createMessageBus } from './bus';
 import { createCostTracker } from './cost';
 import {
@@ -23,12 +23,15 @@ import { enrichBriefMustDoFromGmail } from '@/lib/harness/morning-brief-enrich';
 import { normalizeMorningBrief } from '@/lib/harness/morning-brief-must-do';
 import { writeLatestBrief } from '@/lib/storage';
 import type { KnowledgeBase } from '@/types/knowledge-base';
+import { isLlmUnavailableError } from '@/lib/ai/provider';
 
 export interface BootstrapOptions {
   /** When set, use this mode and skip auto-upgrade to auto when Nango is connected. */
   realWorldMode?: import('./types').CostConfig['realWorldToolMode'];
   /** When set, use these overrides instead of loading from profile. */
   agentOverrides?: AgentOverridesMap;
+  /** Cron monitors: drop empty runs when the LLM is unavailable instead of surfacing failures. */
+  cronMonitor?: boolean;
 }
 
 export async function bootstrapEntity(
@@ -172,9 +175,13 @@ export async function bootstrapEntity(
         }
       }
       if (!ctx.state.data.morning_brief) {
-        state.status = 'error';
-        state.data.lastError = message;
-        if (!skipPersist) await persistEntityState(state);
+        if (options?.cronMonitor && isLlmUnavailableError(err)) {
+          if (!skipPersist) await deleteEntityState(entityId);
+        } else {
+          state.status = 'error';
+          state.data.lastError = message;
+          if (!skipPersist) await persistEntityState(state);
+        }
         send({
           type: 'entity_error',
           sessionId,
@@ -208,8 +215,12 @@ export async function bootstrapEntity(
         });
         return state;
       }
-      state.status = 'error';
-      if (!skipPersist) await persistEntityState(state);
+      if (options?.cronMonitor && isLlmUnavailableError(err)) {
+        if (!skipPersist) await deleteEntityState(entityId);
+      } else {
+        state.status = 'error';
+        if (!skipPersist) await persistEntityState(state);
+      }
       send({
         type: 'entity_error',
         sessionId,

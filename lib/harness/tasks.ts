@@ -333,7 +333,7 @@ export const STALE_DAILY_ENTITY_MS = 90 * 60 * 1000;
 export const STALE_EMPTY_RUN_MS = 5 * 60 * 1000;
 
 const BOOTSTRAP_DATA_KEYS = new Set([
-  'currentDate', 'currentTime', 'dayOfWeek', 'command', 'conversationHistory',
+  'currentDate', 'currentTime', 'dayOfWeek', 'userTimezone', 'command', 'conversationHistory',
   'dailyKickstartComplete', 'lastError',
 ]);
 
@@ -345,6 +345,12 @@ function entityHasMorningBrief(entity: EntityState): boolean {
 function entityHasRunProgress(entity: EntityState): boolean {
   if (entityHasMorningBrief(entity)) return true;
   return Object.keys(entity.data).some(key => !BOOTSTRAP_DATA_KEYS.has(key));
+}
+
+/** Failed cron runs that never produced artifacts — safe to hide and delete. */
+export function isEmptyFailedCronEntity(entity: EntityState): boolean {
+  if (entity.status !== 'error') return false;
+  return !entityHasRunProgress(entity);
 }
 
 export function isStaleRunningEntity(entity: EntityState, now = Date.now()): boolean {
@@ -392,6 +398,7 @@ export function buildUnifiedTaskFeed(input: {
   const queueTasks = input.actions.map(queueActionToTask);
 
   const entityTasks = input.entities
+    .filter(entity => !isEmptyFailedCronEntity(entity))
     .filter(entity => {
       const normalized = normalizeEntityForFeed(entity, nowMs);
       if (normalized.status === 'running' || normalized.status === 'paused') return true;

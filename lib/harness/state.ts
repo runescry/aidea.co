@@ -1,5 +1,5 @@
 import type { EntityState, EntityType } from './types';
-import { saveEntityState as persistState, loadEntityStates } from '@/lib/storage';
+import { deleteEntityState as removeEntityState, saveEntityState as persistState, loadEntityStates } from '@/lib/storage';
 
 export function createEntityState(
   entityId: string,
@@ -22,6 +22,10 @@ export function createEntityState(
 export async function persistEntityState(state: EntityState): Promise<void> {
   state.updatedAt = new Date().toISOString();
   await persistState(state);
+}
+
+export async function deleteEntityState(entityId: string): Promise<void> {
+  await removeEntityState(entityId);
 }
 
 export async function findEntityState(entityId: string): Promise<EntityState | undefined> {

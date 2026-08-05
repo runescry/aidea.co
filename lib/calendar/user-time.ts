@@ -1,12 +1,13 @@
 import type { KnowledgeBase } from '@/types/knowledge-base';
+import { addCalendarDays } from './dates';
 
-/** Profile identity.timezone → DEFAULT_USER_TIMEZONE env → UTC. */
+/** Profile identity.timezone → DEFAULT_USER_TIMEZONE env → Australia/Melbourne. */
 export function resolveUserTimezone(kb?: Pick<KnowledgeBase, 'identity'> | null): string {
   const profileTz = kb?.identity?.timezone?.trim();
   if (profileTz) return profileTz;
   const envTz = process.env.DEFAULT_USER_TIMEZONE?.trim();
   if (envTz) return envTz;
-  return 'UTC';
+  return 'Australia/Melbourne';
 }
 
 export function userDateYmd(now: Date, timeZone: string): string {
@@ -61,4 +62,35 @@ export function isUserLocalSameDay(
   const parsed = new Date(dateYmdOrIso);
   if (Number.isNaN(parsed.getTime())) return false;
   return userDateYmd(parsed, timeZone) === today;
+}
+
+/** UTC ISO for local midnight at the start of dateYmd in timeZone. */
+export function localMidnightUtcIso(dateYmd: string, timeZone: string): string {
+  const [year, month, day] = dateYmd.split('-').map(Number);
+  let ms = Date.UTC(year, month - 1, day, 0, 0, 0);
+  while (userDateYmd(new Date(ms), timeZone) < dateYmd) ms += 3600_000;
+  while (userDateYmd(new Date(ms - 3600_000), timeZone) === dateYmd) ms -= 3600_000;
+  return new Date(ms).toISOString();
+}
+
+/** Inclusive local-day window for Google Calendar API (timeMax exclusive). */
+export function calendarDayRangeInTimeZone(
+  anchorDateYmd: string,
+  spanDays: number,
+  timeZone: string,
+): { timeMin: string; timeMax: string } {
+  const days = Math.max(1, spanDays);
+  return {
+    timeMin: localMidnightUtcIso(anchorDateYmd, timeZone),
+    timeMax: localMidnightUtcIso(addCalendarDays(anchorDateYmd, days), timeZone),
+  };
+}
+
+/** Map a Google event start to the user's local calendar date. */
+export function eventDateYmdInTimeZone(start: string, timeZone: string): string {
+  if (!start) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(start)) return start;
+  const d = new Date(start);
+  if (Number.isNaN(d.getTime())) return start.slice(0, 10);
+  return userDateYmd(d, timeZone);
 }

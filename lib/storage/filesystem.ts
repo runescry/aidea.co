@@ -97,6 +97,13 @@ export function saveEntity(state: EntityState): void {
   writeJson('harness-state.json', file);
 }
 
+export function deleteEntity(entityId: string): void {
+  const file = readJson<StateFile>('harness-state.json', { version: '1.0', entities: [] });
+  const next = file.entities.filter(entity => entity.entityId !== entityId);
+  if (next.length === file.entities.length) return;
+  writeJson('harness-state.json', { ...file, entities: next });
+}
+
 export function readLatestBrief(): Record<string, unknown> | null {
   return readJson<Record<string, unknown> | null>('latest-brief.json', null);
 }

@@ -10,19 +10,17 @@ export interface SchoolProfile {
   microsoftDocsPath?: string;
 }
 
-/** Legacy fallback when KB has no per-child sender config. */
-export const DEFAULT_SCHOOL_PROFILES: SchoolProfile[] = [
+/** Explicit KB seed — Ivy & Sebastian with school email domains (not inferred from school name). */
+export const DEFAULT_SCHOOL_CHILDREN: ChildProfile[] = [
   {
-    school: 'Genazzano',
-    child: 'Ivy',
+    name: 'Ivy',
+    school: 'Genazzano FCJ College',
     senderDomains: ['genazzano.vic.edu.au'],
-    senderPatterns: ['genazzano'],
   },
   {
+    name: 'Sebastian',
     school: 'Xavier College',
-    child: 'Sebastian',
     senderDomains: ['xavier.vic.edu.au'],
-    senderPatterns: ['xavier'],
   },
 ];
 
@@ -46,13 +44,6 @@ function childToSchoolProfile(child: ChildProfile): SchoolProfile | null {
   const patterns = (child.senderPatterns ?? [])
     .map(p => p.trim())
     .filter(Boolean);
-
-  if (domains.length === 0 && patterns.length === 0) {
-    const guess = school.split(/\s+/)[0]?.toLowerCase();
-    if (guess && guess.length >= 3) {
-      patterns.push(guess);
-    }
-  }
 
   return {
     school,
@@ -87,16 +78,22 @@ function profileMatchesFrom(profile: SchoolProfile, from: string): boolean {
   return false;
 }
 
-/** Load school profiles from KB children, falling back to defaults when none configured. */
-export function loadSchoolProfiles(kb?: KnowledgeBase | Record<string, unknown> | null): SchoolProfile[] {
-  const family = kb && typeof kb === 'object' ? (kb as KnowledgeBase).family : undefined;
-  const children = family?.children ?? [];
-  const fromKb = children
+function profilesFromChildren(children: ChildProfile[]): SchoolProfile[] {
+  return children
     .map(childToSchoolProfile)
     .filter((p): p is SchoolProfile => p != null);
+}
 
-  if (fromKb.length === 0) return [...DEFAULT_SCHOOL_PROFILES];
-  return fromKb;
+/** Runtime fallback when callers have not loaded KB yet (e.g. Gmail exclude during agent tool setup). */
+export const DEFAULT_SCHOOL_PROFILES: SchoolProfile[] = profilesFromChildren(DEFAULT_SCHOOL_CHILDREN);
+
+/** Load school profiles from KB children. Pass null/undefined only for legacy callers without KB. */
+export function loadSchoolProfiles(kb?: KnowledgeBase | Record<string, unknown> | null): SchoolProfile[] {
+  if (kb == null) return [...DEFAULT_SCHOOL_PROFILES];
+
+  const family = (kb as KnowledgeBase).family;
+  const children = family?.children ?? [];
+  return profilesFromChildren(children);
 }
 
 export function schoolFromSender(

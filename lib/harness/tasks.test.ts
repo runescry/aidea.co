@@ -13,6 +13,7 @@ import {
   latestHealthBriefToTask,
   insertHealthTask,
   normalizeEntityForFeed,
+  isEmptyFailedCronEntity,
   isStaleRunningEntity,
   STALE_DAILY_ENTITY_MS,
 } from './tasks';
@@ -394,6 +395,36 @@ describe('taskToChatPrompt', () => {
     expect(prompt).toContain('Why did you draft this?');
     expect(prompt).toContain('Reply to Sarah');
     expect(prompt).toContain('Draft body here');
+  });
+});
+
+describe('isEmptyFailedCronEntity', () => {
+  it('flags failed runs with only bootstrap context', () => {
+    const entity: EntityState = {
+      entityId: 'e-empty',
+      entityType: 'daily',
+      entityName: 'Inbox triage (lite)',
+      status: 'error',
+      data: { dayOfWeek: 'Tuesday', currentDate: '2026-08-04' },
+      decisions: [],
+      createdAt: '2026-08-04T04:08:00.000Z',
+      updatedAt: '2026-08-04T04:08:01.113Z',
+    };
+    expect(isEmptyFailedCronEntity(entity)).toBe(true);
+  });
+
+  it('keeps failed runs that wrote artifacts', () => {
+    const entity: EntityState = {
+      entityId: 'e-brief',
+      entityType: 'daily',
+      entityName: 'Daily OS (lite)',
+      status: 'error',
+      data: { morning_brief: { date: '2026-08-04', mustDo: [] }, lastError: 'news step failed' },
+      decisions: [],
+      createdAt: '2026-08-04T04:08:00.000Z',
+      updatedAt: '2026-08-04T04:08:01.113Z',
+    };
+    expect(isEmptyFailedCronEntity(entity)).toBe(false);
   });
 });
 

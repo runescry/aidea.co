@@ -1,6 +1,6 @@
 'use client';
 
-import { decodeBriefText, mustDoHeadline } from '@/lib/harness/morning-brief-must-do';
+import { decodeBriefText, mustDoCardLines } from '@/lib/harness/morning-brief-must-do';
 
 interface MustDoItem {
   priority: number;
@@ -105,33 +105,36 @@ export default function MorningBriefRenderer({ data }: { data: MorningBriefData 
       <Section title="Must do today" empty={!data.mustDo?.length}>
         <div className="space-y-2">
           {data.mustDo?.map((item, i) => {
-            const headline = decodeBriefText(mustDoHeadline(item as unknown as Record<string, unknown>));
+            const lines = mustDoCardLines(item as unknown as Record<string, unknown>);
+            const title = decodeBriefText(lines.title);
+            const sender = lines.sender ? decodeBriefText(lines.sender) : undefined;
+            const subline = lines.subline ? decodeBriefText(lines.subline) : undefined;
+            const titleText = sender ? `${title} · ${sender}` : title;
             return (
             <div key={i} className="card p-3 space-y-1.5">
               <div className="flex items-start gap-3">
                 <span className="text-foreground-muted font-mono text-xs mt-0.5 w-4 shrink-0">{item.priority}.</span>
                 <div className="flex-1 min-w-0">
-                  {item.gmailUrl ? (
+                  {lines.gmailUrl ? (
                     <a
-                      href={item.gmailUrl}
+                      href={lines.gmailUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-accent font-medium hover:underline"
                     >
-                      {headline}
+                      {titleText}
                     </a>
                   ) : (
-                    <div className="text-sm text-foreground font-medium">{headline}</div>
+                    <div className="text-sm text-foreground font-medium">{titleText}</div>
                   )}
-                  {item.context && <div className="text-xs text-foreground-muted">{item.context}</div>}
                 </div>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${SOURCE_BADGE[item.source] ?? 'bg-surface-subtle text-foreground-subtle'}`}>
                   {item.source}
                 </span>
               </div>
-              {item.detail && (
-                <div className="text-xs text-foreground border-l-2 border-accent pl-2 ml-7 whitespace-pre-wrap">
-                  {item.detail}
+              {subline && (
+                <div className="text-xs text-foreground-muted border-l-2 border-accent pl-2 ml-7">
+                  {subline}
                 </div>
               )}
               {item.queueActionId && (

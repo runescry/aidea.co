@@ -99,6 +99,13 @@ export async function saveEntityState(state: EntityState): Promise<void> {
   else fs.saveEntity(state);
 }
 
+export async function deleteEntityState(entityId: string): Promise<void> {
+  await ready();
+  const userId = getUserId();
+  if (usePostgres()) await pg.deleteEntity(userId, entityId);
+  else fs.deleteEntity(entityId);
+}
+
 export async function readLatestBrief(): Promise<Record<string, unknown> | null> {
   await ready();
   const userId = getUserId();

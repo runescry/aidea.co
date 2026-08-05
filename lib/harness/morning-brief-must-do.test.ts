@@ -3,6 +3,7 @@ import {
   fallbackHeadlineFromSnippet,
   finalizeMustDoList,
   inferHeadlineFromSnippet,
+  mustDoCardLines,
   mustDoHeadline,
   normalizeMorningBrief,
   normalizeMustDoItem,
@@ -26,11 +27,24 @@ describe('morning-brief-must-do', () => {
     )).toContain('telephone number');
   });
 
-  it('treats stored Review email action as generic', () => {
-    expect(mustDoHeadline({
-      action: 'Review email',
+  it('splits subject/sender from action subline for card display', () => {
+    const lines = mustDoCardLines({
+      subject: 'RE: Phone confirmation',
+      from: 'Leonie Spragg <office@gateley.com>',
+      snippet: 'Hi Marcus Thank you – can you provide your telephone number please.',
+    });
+    expect(lines.title).toBe('RE: Phone confirmation');
+    expect(lines.sender).toContain('Leonie Spragg');
+    expect(lines.subline).toContain('telephone number');
+  });
+
+  it('uses sender as title when subject is missing', () => {
+    const lines = mustDoCardLines({
+      from: 'Recruiter <jobs@example.com>',
       snippet: 'Hey Marcus, Great news, we are keen to make you an offer to join us in Australia!',
-    })).toContain('Great news');
+    });
+    expect(lines.title).toContain('Recruiter');
+    expect(lines.subline).toContain('Great news');
   });
 
   it('extracts school notification title from snippet', () => {
@@ -39,15 +53,15 @@ describe('morning-brief-must-do', () => {
     )).toContain('Save the date');
   });
 
-  it('adds school context from sender', () => {
+  it('adds school context from sender domain', () => {
     const item = normalizeMustDoItem({
       subject: 'Save the date for the Music Event',
-      from: 'Genazzano FCJ College',
+      from: 'Genazzano FCJ College <office@genazzano.vic.edu.au>',
       messageId: 'g1',
       threadId: 't1',
       account: 'parent@gmail.com',
     });
-    expect(item.context).toBe('Genazzano · Ivy');
+    expect(item.context).toBe('Genazzano FCJ College · Ivy');
     expect(String(item.gmailUrl)).toContain('authuser=parent%40gmail.com');
     expect(String(item.gmailUrl)).toContain('#all/t1');
   });
@@ -73,7 +87,7 @@ describe('morning-brief-must-do', () => {
     expect(out[0]?.action).toContain('Save the date');
   });
 
-  it('normalizes stored brief mustDo with inferred headline', () => {
+  it('normalizes stored brief mustDo with subject and action subline', () => {
     const brief = normalizeMorningBrief({
       date: '2026-06-25',
       mustDo: [
@@ -86,6 +100,8 @@ describe('morning-brief-must-do', () => {
         },
       ],
     });
-    expect((brief.mustDo as Array<{ action: string }>)[0]?.action).toBe('Gateley — phone confirmation');
+    const row = (brief.mustDo as Array<{ action: string; subject?: string }>)[0];
+    expect(row?.subject).toBe('Gateley — phone confirmation');
+    expect(row?.action).toBe('Please confirm your phone number');
   });
 });

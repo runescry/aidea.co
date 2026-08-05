@@ -163,9 +163,12 @@ export async function syncSchoolInbox(): Promise<SchoolInboxSyncResult> {
     });
 
     if (emails.length === 0) {
+      const existing = (kb as KnowledgeBase).family?.schoolFeed;
       const emptyFeed: SchoolFeed = {
         updatedAt: new Date().toISOString(),
         gmail: { roundups: [], actionRequired: [], fyi: [] },
+        ...(existing?.calendar ? { calendar: existing.calendar } : {}),
+        ...(existing?.sharepoint ? { sharepoint: existing.sharepoint } : {}),
       };
       await writeKB('family.schoolFeed', emptyFeed);
       return { ok: true, emailCount: 0, actionRequired: 0, fyi: 0, roundups: 0, query };
@@ -188,6 +191,7 @@ export async function syncSchoolInbox(): Promise<SchoolInboxSyncResult> {
 
     const kbTyped = kb as KnowledgeBase;
     const existingSharepoint = kbTyped.family?.schoolFeed?.sharepoint;
+    const existingCalendar = kbTyped.family?.schoolFeed?.calendar;
 
     const feed: SchoolFeed = {
       updatedAt: new Date().toISOString(),
@@ -196,6 +200,7 @@ export async function syncSchoolInbox(): Promise<SchoolInboxSyncResult> {
         actionRequired: actionRequired.map(toFeedRow),
         fyi: fyi.map(toFeedRow),
       },
+      ...(existingCalendar ? { calendar: existingCalendar } : {}),
       ...(existingSharepoint ? { sharepoint: existingSharepoint } : {}),
     };
 

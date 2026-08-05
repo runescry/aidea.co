@@ -5,7 +5,7 @@ import { listNangoConnectionsLite } from '@/lib/nango/connections';
 import { stravaConnectionStatus } from '@/lib/health/strava-sync';
 
 export interface IntegrationItem {
-  id: 'llm' | 'brave' | 'google' | 'microsoft' | 'strava';
+  id: 'llm' | 'brave' | 'google' | 'googleCalendar' | 'microsoft' | 'strava';
   label: string;
   configured: boolean;
   detail?: string;
@@ -22,14 +22,19 @@ export async function getIntegrationStatus(): Promise<IntegrationStatus> {
 
   let googleConfigured = false;
   let googleDetail: string | undefined;
+  let googleCalendarConfigured = false;
+  let googleCalendarDetail: string | undefined;
   if (nangoConfigured()) {
     const connections = await listNangoConnectionsLite();
-    const google = connections.filter(c =>
-      c.integrationId.startsWith('google'),
-    );
-    googleConfigured = google.length > 0;
+    const gmail = connections.filter(c => c.integrationId === 'google-mail' || c.integrationId.startsWith('google-mail'));
+    const calendar = connections.filter(c => c.integrationId === 'google-calendar' || c.integrationId.startsWith('google-calendar'));
+    googleConfigured = gmail.length > 0;
+    googleCalendarConfigured = calendar.length > 0;
     if (googleConfigured) {
-      googleDetail = google.map(c => c.email ?? c.integrationId).join(', ');
+      googleDetail = gmail.map(c => c.email ?? c.integrationId).join(', ');
+    }
+    if (googleCalendarConfigured) {
+      googleCalendarDetail = calendar.map(c => c.email ?? c.integrationId).join(', ');
     }
   }
 
@@ -55,9 +60,15 @@ export async function getIntegrationStatus(): Promise<IntegrationStatus> {
     },
     {
       id: 'google',
-      label: 'Google',
+      label: 'Gmail',
       configured: googleConfigured,
       detail: googleDetail,
+    },
+    {
+      id: 'googleCalendar',
+      label: 'Google Calendar',
+      configured: googleCalendarConfigured,
+      detail: googleCalendarDetail,
     },
     {
       id: 'microsoft',

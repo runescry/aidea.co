@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { HarnessEvent } from '@/lib/harness/types';
 import { bootstrapEntity } from '@/lib/harness/bootstrap';
 import { dailyEntityConfig, dailyLiteEntityConfig, inboxLiteEntityConfig } from '@/lib/entities/daily';
-import { hasApiKey } from '@/lib/ai/provider';
+import { formatLlmError, hasApiKey, isLlmUnavailableError } from '@/lib/ai/provider';
 import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { recordRelationshipMonitorSignals } from '@/lib/contacts/sync-signals';
-import { syncSchoolInbox } from '@/lib/harness/school-inbox-sync';
 import { syncSchoolSharePoint } from '@/lib/harness/school-sharepoint-sync';
+import { syncSchoolFeed } from '@/lib/harness/school-feed-sync';
 
 export const runtime = 'nodejs';
 export const maxDuration = 1800;
@@ -28,6 +28,10 @@ function authorizeCron(req: NextRequest): boolean {
   return auth === `Bearer ${secret}`;
 }
 
+function llmSkippedResponse(reason: string) {
+  return NextResponse.json({ ok: true, skipped: true, reason });
+}
+
 export async function GET(req: NextRequest) {
   if (!authorizeCron(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -39,8 +43,8 @@ export async function GET(req: NextRequest) {
   if (SYNC_MONITORS.has(name)) {
     try {
       if (name === 'school-inbox') {
-        const result = await syncSchoolInbox();
-        return NextResponse.json(result);
+        const { inbox: result, calendar } = await syncSchoolFeed();
+        return NextResponse.json({ ...result, calendar });
       }
       if (name === 'school-sync') {
         const result = await syncSchoolSharePoint();
@@ -60,9 +64,8 @@ export async function GET(req: NextRequest) {
   }
 
   if (!hasApiKey()) {
-    return NextResponse.json(
-      { error: 'LLM not configured — set AI_GATEWAY_API_KEY (recommended) or ANTHROPIC_API_KEY in environment' },
-      { status: 500 }
+    return llmSkippedResponse(
+      'LLM not configured — set AI_GATEWAY_API_KEY or ANTHROPIC_API_KEY to resume morning brief and inbox triage',
     );
   }
 
@@ -80,7 +83,7 @@ export async function GET(req: NextRequest) {
               ...dailyEntityConfig,
               rootAgentId: MONITORS[name],
             };
-    const state = await bootstrapEntity(config, {}, send, sessionId);
+    const state = await bootstrapEntity(config, {}, send, sessionId, { cronMonitor: true });
 
     if (name === 'relationships' && state.data.relationship_monitor) {
       const monitor = state.data.relationship_monitor as {
@@ -95,9 +98,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, eventCount: events.length });
   } catch (err) {
+    if (isLlmUnavailableError(err)) {
+      return llmSkippedResponse(formatLlmError(err));
+    }
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

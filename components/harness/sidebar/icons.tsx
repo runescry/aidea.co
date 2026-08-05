@@ -81,3 +81,27 @@ export function IconPlus({ className = 'w-4 h-4' }: IconProps) {
     </svg>
   );
 }
+
+export function IconExpand({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 3H3v5M16 3h5v5M16 21h5v-5M8 21H3v-5" />
+    </svg>
+  );
+}
+
+export function IconMinimize({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 14h6v6M14 4h6v6M14 20h6v-6M4 10h6V4" />
+    </svg>
+  );
+}
+
+export function IconRefresh({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20 12a8 8 0 10-2.34 5.66M20 12V7m0 5h-5" />
+    </svg>
+  );
+}

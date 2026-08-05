@@ -47,14 +47,15 @@ const WorkFeedContext = createContext<WorkFeedContextValue | null>(null);
 interface ProviderProps {
   children: ReactNode;
   homeActive: boolean;
+  inboxActive?: boolean;
   profileActive?: boolean;
   agentsRunning: boolean;
   chatStreaming: boolean;
   refreshKey?: number;
 }
 
-function feedSurfaceActive(homeActive: boolean, profileActive: boolean): boolean {
-  return homeActive || profileActive;
+function feedSurfaceActive(homeActive: boolean, profileActive: boolean, inboxActive: boolean): boolean {
+  return homeActive || profileActive || inboxActive;
 }
 
 function pollDelayMs(surfaceActive: boolean, active: boolean): number {
@@ -65,6 +66,7 @@ function pollDelayMs(surfaceActive: boolean, active: boolean): number {
 export function WorkFeedProvider({
   children,
   homeActive,
+  inboxActive = false,
   profileActive = false,
   agentsRunning,
   chatStreaming,
@@ -73,10 +75,10 @@ export function WorkFeedProvider({
   const [data, setData] = useState<WorkFeedPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const fetchGenRef = useRef(0);
-  const surfaceActiveRef = useRef(feedSurfaceActive(homeActive, profileActive));
+  const surfaceActiveRef = useRef(feedSurfaceActive(homeActive, profileActive, inboxActive));
   const activeRef = useRef(agentsRunning || chatStreaming);
 
-  surfaceActiveRef.current = feedSurfaceActive(homeActive, profileActive);
+  surfaceActiveRef.current = feedSurfaceActive(homeActive, profileActive, inboxActive);
   activeRef.current = agentsRunning || chatStreaming;
 
   const fetchFeed = useCallback(async (full: boolean) => {
@@ -133,8 +135,8 @@ export function WorkFeedProvider({
 
   useEffect(() => {
     setLoading(true);
-    void fetchFeed(feedSurfaceActive(homeActive, profileActive));
-  }, [homeActive, profileActive, fetchFeed]);
+    void fetchFeed(feedSurfaceActive(homeActive, profileActive, inboxActive));
+  }, [homeActive, inboxActive, profileActive, fetchFeed]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;

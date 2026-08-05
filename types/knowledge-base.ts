@@ -76,6 +76,26 @@ export interface SchoolFeedRoundup {
   messageIds: string[];
 }
 
+export type SchoolCalendarEventType = 'sport' | 'library' | 'excursion' | 'other';
+
+export interface SchoolCalendarEventRow {
+  title: string;
+  date: string;
+  time: string;
+  child: string;
+  school: string;
+  eventType: SchoolCalendarEventType;
+  location?: string;
+  calendarUrl?: string;
+}
+
+export interface SchoolFeedCalendar {
+  updatedAt: string;
+  weekStart: string;
+  weekEnd: string;
+  events: SchoolCalendarEventRow[];
+}
+
 export interface SchoolFeed {
   updatedAt: string;
   gmail: {
@@ -83,6 +103,7 @@ export interface SchoolFeed {
     actionRequired: SchoolFeedEmailRow[];
     fyi: SchoolFeedEmailRow[];
   };
+  calendar?: SchoolFeedCalendar;
   sharepoint?: {
     news: Array<{ title: string; publishedAt: string; url: string; summary?: string }>;
     documents: Array<{ name: string; url: string; excerpt?: string; child?: string }>;

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listActionsForFeed, scrubQueuePayloadBloat } from '@/lib/harness/queue-feed';
-import { buildUnifiedTaskFeed, isStaleRunningEntity, normalizeEntityForFeed } from '@/lib/harness/tasks';
+import { buildUnifiedTaskFeed, isEmptyFailedCronEntity, isStaleRunningEntity, normalizeEntityForFeed } from '@/lib/harness/tasks';
 import type { KnowledgeBase } from '@/types/knowledge-base';
 import { readAllKB } from '@/lib/harness/knowledge-base';
-import { countPendingQueuedActions, loadEntityStates, readLatestBrief, readProfile, saveEntityState, writeLatestBrief } from '@/lib/storage';
+import { countPendingQueuedActions, deleteEntityState, loadEntityStates, readLatestBrief, readProfile, saveEntityState, writeLatestBrief } from '@/lib/storage';
 import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { readProactiveHygiene, autonomyHint, autonomyLabel } from '@/lib/harness/proactive-tasks';
 import { listQueueAudit } from '@/lib/harness/queue-audit';
@@ -72,7 +72,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const stale = rawEntities.filter(isStaleRunningEntity);
+  const emptyFailedCron = rawEntities.filter(isEmptyFailedCronEntity);
+  if (emptyFailedCron.length > 0) {
+    invalidateDevTasksCache();
+    void Promise.all(emptyFailedCron.map(entity => deleteEntityState(entity.entityId)));
+  }
+
+  const entitiesSource = rawEntities.filter(entity => !isEmptyFailedCronEntity(entity));
+  const stale = entitiesSource.filter(isStaleRunningEntity);
   if (stale.length > 0) {
     void Promise.all(
       stale.map(entity =>
@@ -88,7 +95,7 @@ export async function GET(req: NextRequest) {
       ),
     );
   }
-  const entities = rawEntities.map(entity => normalizeEntityForFeed(
+  const entities = entitiesSource.map(entity => normalizeEntityForFeed(
     isStaleRunningEntity(entity)
       ? { ...entity, updatedAt: new Date().toISOString() }
       : entity,

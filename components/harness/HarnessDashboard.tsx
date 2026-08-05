@@ -10,6 +10,7 @@ import AppSidebar, { type MainView } from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import ConversationDrawer from './sidebar/ConversationDrawer';
 import HomeScreen from './home/HomeScreen';
+import TaskFeed from './home/TaskFeed';
 import RunStudio from './RunStudio';
 import ProfilePage from './ProfilePage';
 import SettingsPanel from './SettingsPanel';
@@ -17,6 +18,8 @@ import AgentLibrary from './AgentLibrary';
 import OnboardingWizard from './onboarding/OnboardingWizard';
 import QuickStartOnboarding from './onboarding/QuickStartOnboarding';
 import HumanInputOverlay from './HumanInputOverlay';
+import { useBuilderNav } from '@/hooks/useBuilderNav';
+import { isBuilderView } from '@/lib/client/builder-nav';
 
 export default function HarnessDashboard() {
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
@@ -96,6 +99,7 @@ function DashboardBody({
   return (
     <WorkFeedProvider
       homeActive={view === 'home'}
+      inboxActive={view === 'inbox'}
       profileActive={view === 'profile'}
       agentsRunning={agentsRunning}
       chatStreaming={chatStreaming}
@@ -147,6 +151,7 @@ function DashboardChrome({
   setOnboardingMode: (m: 'quick' | 'full') => void;
 }) {
   const { needsYou, refresh: refreshWorkFeed } = useWorkFeed();
+  const { builderNav } = useBuilderNav();
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const [homeChatPrefill, setHomeChatPrefill] = useState<string | null>(null);
 
@@ -160,16 +165,38 @@ function DashboardChrome({
   }, [refreshWorkFeed, setTaskRefreshKey]);
 
   const navigate = (next: MainView) => {
+    if (!builderNav && isBuilderView(next)) return;
     setView(next);
     setChatDrawerOpen(false);
     if (next === 'profile') setTaskRefreshKey(k => k + 1);
   };
+
+  useEffect(() => {
+    if (!builderNav && isBuilderView(view)) {
+      setView('home');
+    }
+  }, [builderNav, view, setView]);
 
   const openChatWithDraft = useCallback((draft: string) => {
     setHomeChatPrefill(draft);
     setView('home');
     setChatDrawerOpen(false);
   }, [setView]);
+
+  const inboxInitialFilter = needsYou > 0 ? 'approval' as const : 'all' as const;
+
+  const taskFeedProps = {
+    session: {
+      status: state.status,
+      entityType: state.entityType,
+      entityId: state.entityId,
+      activeAgents,
+    },
+    onOpenStudio: builderNav ? () => setView('studio') : undefined,
+    onDiscussInChat: openChatWithDraft,
+    onTasksChanged: bumpWorkFeed,
+    humanInputPending,
+  };
 
   return (
     <div className="h-[100dvh] bg-surface-muted text-foreground flex overflow-hidden">
@@ -186,7 +213,7 @@ function DashboardChrome({
         view={view}
         onNavigate={navigate}
         agentsRunning={agentsRunning}
-        onOpenStudio={() => setView('studio')}
+        onOpenStudio={builderNav ? () => setView('studio') : undefined}
         workPendingCount={needsYou}
       />
 
@@ -198,30 +225,31 @@ function DashboardChrome({
       <main className="flex-1 flex flex-col min-w-0 min-h-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
         {view === 'home' && (
           <HomeScreen
-            session={{
-              status: state.status,
-              entityType: state.entityType,
-              entityId: state.entityId,
-              activeAgents,
-            }}
-            onOpenStudio={() => setView('studio')}
             onOpenSettings={() => setView('settings')}
             onOpenChats={() => setChatDrawerOpen(true)}
-            onStartRun={(entityType, input) => {
+            onOpenInbox={() => setView('inbox')}
+            onStartRun={builderNav ? (entityType, input) => {
               startSession(entityType, input);
               bumpWorkFeed();
-            }}
+            } : undefined}
             runInProgress={agentsRunning}
             onTaskRefresh={bumpWorkFeed}
-            humanInputPending={humanInputPending}
             chatPrefill={homeChatPrefill}
             onChatPrefillApplied={() => setHomeChatPrefill(null)}
           />
         )}
 
-        {view === 'agents' && <AgentLibrary />}
+        {view === 'inbox' && (
+          <TaskFeed
+            key={`inbox-${inboxInitialFilter}`}
+            {...taskFeedProps}
+            initialFilter={inboxInitialFilter}
+          />
+        )}
 
-        {view === 'studio' && (
+        {view === 'agents' && builderNav && <AgentLibrary />}
+
+        {view === 'studio' && builderNav && (
           <RunStudio state={state} startSession={startSession} reset={reset} />
         )}
 

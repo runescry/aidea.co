@@ -17,6 +17,7 @@ import { Label, TextArea, TextField } from '@/components/harness/forms';
 import MorningBriefRenderer from '@/components/harness/MorningBriefRenderer';
 import HealthBriefRenderer from '@/components/harness/HealthBriefRenderer';
 import type { PendingHumanInput } from '@/lib/client/human-input';
+import { IconExpand, IconMinimize } from '@/components/harness/sidebar/icons';
 
 type Filter = 'all' | 'approval' | 'suggestions' | 'running' | 'done' | 'yesterday';
 
@@ -59,6 +60,8 @@ interface Props {
   initialFilter?: Filter;
   onClose?: () => void;
   humanInputPending?: PendingHumanInput | null;
+  panelExpanded?: boolean;
+  onTogglePanelExpand?: () => void;
 }
 
 function isBulkEligible(task: TaskItem): boolean {
@@ -411,7 +414,9 @@ function TaskDetail({
         {task.source === 'session' && task.status === 'running' && (
           <div className="space-y-3">
             <p className="text-sm text-foreground-muted leading-relaxed">
-              Agents are working in Studio. Open it to watch progress, inspect artifacts, and debug.
+              {onOpenStudio
+                ? 'Agents are working in Studio. Open it to watch progress, inspect artifacts, and debug.'
+                : 'Background agents are running. Check back in Inbox when they finish.'}
             </p>
             {onOpenStudio && (
               <button type="button" onClick={onOpenStudio} className="btn-primary text-sm">
@@ -426,10 +431,14 @@ function TaskDetail({
             <p className="text-sm text-foreground-muted leading-relaxed">
               {task.subtitle ?? task.preview ?? 'The run ended before a morning brief was saved.'}
             </p>
-            {onOpenStudio && (
+            {onOpenStudio ? (
               <button type="button" onClick={onOpenStudio} className="btn-primary text-sm">
                 Retry in Studio
               </button>
+            ) : (
+              <p className="text-xs text-foreground-subtle">
+                Enable builder tools in Settings if you need to debug agent runs.
+              </p>
             )}
           </div>
         )}
@@ -690,6 +699,8 @@ export default function TaskFeed({
   initialFilter = 'all',
   onClose,
   humanInputPending,
+  panelExpanded = false,
+  onTogglePanelExpand,
 }: Props) {
   const [filter, setFilter] = useState<Filter>(initialFilter);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -877,6 +888,17 @@ export default function TaskFeed({
         <div className="flex items-center justify-between mb-3 gap-2">
           <h2 className="text-[13px] font-semibold text-foreground tracking-tight">Inbox</h2>
           <div className="flex items-center gap-2 shrink-0">
+            {onTogglePanelExpand && (
+              <button
+                type="button"
+                onClick={onTogglePanelExpand}
+                className="p-1.5 rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-subtle border border-transparent hover:border-border transition-colors"
+                aria-label={panelExpanded ? 'Restore split view' : 'Expand Inbox'}
+                title={panelExpanded ? 'Restore split view' : 'Expand to full screen'}
+              >
+                {panelExpanded ? <IconMinimize className="w-4 h-4" /> : <IconExpand className="w-4 h-4" />}
+              </button>
+            )}
             {onClose && (
               <button
                 type="button"

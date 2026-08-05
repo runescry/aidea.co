@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useChatConversations } from '@/hooks/useChatConversations';
+import { useBuilderNav } from '@/hooks/useBuilderNav';
+import { navItemsForMode, type MainView } from '@/lib/client/builder-nav';
 import ConversationList from './sidebar/ConversationList';
 import {
   IconAgents,
+  IconBriefcase,
   IconContext,
   IconHome,
   IconPanelLeft,
@@ -13,21 +16,18 @@ import {
   IconStudio,
 } from './sidebar/icons';
 
-export type MainView = 'home' | 'agents' | 'studio' | 'profile' | 'settings';
+export type { MainView };
 
 const STORAGE_KEY = 'aidea-sidebar-expanded';
 
-const NAV: Array<{
-  id: MainView;
-  label: string;
-  Icon: typeof IconHome;
-}> = [
-  { id: 'home', label: 'Home', Icon: IconHome },
-  { id: 'agents', label: 'Agents', Icon: IconAgents },
-  { id: 'studio', label: 'Studio', Icon: IconStudio },
-  { id: 'profile', label: 'Profile', Icon: IconContext },
-  { id: 'settings', label: 'Settings', Icon: IconSettings },
-];
+const NAV_META: Record<MainView, { label: string; Icon: typeof IconHome }> = {
+  home: { label: 'Home', Icon: IconHome },
+  inbox: { label: 'Inbox', Icon: IconBriefcase },
+  agents: { label: 'Agents', Icon: IconAgents },
+  studio: { label: 'Studio', Icon: IconStudio },
+  profile: { label: 'Profile', Icon: IconContext },
+  settings: { label: 'Settings', Icon: IconSettings },
+};
 
 interface Props {
   view: MainView;
@@ -40,6 +40,8 @@ interface Props {
 export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStudio, workPendingCount = 0 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const { createConversation, streaming } = useChatConversations();
+  const { builderNav } = useBuilderNav();
+  const navIds = navItemsForMode(builderNav);
 
   useEffect(() => {
     try {
@@ -90,7 +92,8 @@ export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStud
       </div>
 
       <nav className="shrink-0 p-2 space-y-0.5">
-        {NAV.map(({ id, label, Icon }) => {
+        {navIds.map(id => {
+          const { label, Icon } = NAV_META[id];
           const active = view === id;
           return (
             <button
@@ -108,7 +111,7 @@ export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStud
             >
               <Icon className="w-5 h-5 shrink-0" />
               {expanded && <span className="text-[13px] truncate">{label}</span>}
-              {id === 'home' && workPendingCount > 0 && (
+              {id === 'inbox' && workPendingCount > 0 && (
                 <span
                   className={`absolute flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-[10px] font-semibold text-accent-foreground tabular-nums ${
                     expanded ? 'right-2 top-1/2 -translate-y-1/2' : 'top-1 right-1'
@@ -117,7 +120,7 @@ export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStud
                   {workPendingCount > 9 ? '9+' : workPendingCount}
                 </span>
               )}
-              {!expanded && id === 'studio' && agentsRunning && (
+              {!expanded && id === 'studio' && builderNav && agentsRunning && (
                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-accent animate-pulse" />
               )}
             </button>
@@ -161,7 +164,7 @@ export default function AppSidebar({ view, onNavigate, agentsRunning, onOpenStud
             <IconPanelLeft className="w-5 h-5 scale-x-[-1]" />
           </button>
         )}
-        {expanded && agentsRunning && view !== 'studio' && (
+        {expanded && builderNav && agentsRunning && view !== 'studio' && onOpenStudio && (
           <button
             type="button"
             onClick={onOpenStudio}

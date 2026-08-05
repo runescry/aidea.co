@@ -89,6 +89,13 @@ export async function saveEntity(userId: string, state: EntityState): Promise<vo
   `;
 }
 
+export async function deleteEntity(userId: string, entityId: string): Promise<void> {
+  const sql = getSql();
+  await sql`
+    DELETE FROM harness_entities WHERE id = ${entityId} AND user_id = ${userId}
+  `;
+}
+
 export async function readLatestBrief(userId: string): Promise<Record<string, unknown> | null> {
   const sql = getSql();
   const rows = await sql<{ data: Record<string, unknown> }[]>`

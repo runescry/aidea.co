@@ -13,9 +13,13 @@ import { readGmailMessages } from '@/lib/nango/gmail';
 import { readAllKB, writeKB } from '@/lib/harness/knowledge-base';
 import { syncSchoolInbox } from './school-inbox-sync';
 
+import { DEFAULT_SCHOOL_CHILDREN } from './school-config';
+
 describe('syncSchoolInbox', () => {
   beforeEach(() => {
-    vi.mocked(readAllKB).mockResolvedValue({ family: { children: [] } });
+    vi.mocked(readAllKB).mockResolvedValue({
+      family: { children: DEFAULT_SCHOOL_CHILDREN.map(c => ({ ...c })) },
+    });
     vi.mocked(writeKB).mockResolvedValue(undefined);
   });
 
@@ -60,7 +64,7 @@ describe('syncSchoolInbox', () => {
       expect.objectContaining({
         gmail: expect.objectContaining({
           actionRequired: expect.arrayContaining([
-            expect.objectContaining({ school: 'Genazzano', child: 'Ivy' }),
+            expect.objectContaining({ school: 'Genazzano FCJ College', child: 'Ivy' }),
           ]),
         }),
       }),

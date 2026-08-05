@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calendarDayRangeInTimeZone,
+  eventDateYmdInTimeZone,
   isUserLocalSameDay,
   resolveUserTimezone,
   userDateContext,
@@ -32,5 +34,16 @@ describe('user-time', () => {
     const now = new Date('2026-06-21T22:30:00.000Z');
     expect(isUserLocalSameDay('2026-06-22', now, 'Australia/Sydney')).toBe(true);
     expect(isUserLocalSameDay('2026-06-21', now, 'Australia/Sydney')).toBe(false);
+  });
+
+  it('builds Melbourne-local day bounds for Google Calendar', () => {
+    const { timeMin, timeMax } = calendarDayRangeInTimeZone('2026-08-05', 7, 'Australia/Melbourne');
+    expect(timeMin).toBe('2026-08-04T14:00:00.000Z');
+    expect(timeMax).toBe('2026-08-11T14:00:00.000Z');
+  });
+
+  it('maps morning Melbourne events to local date', () => {
+    // 2026-08-04 21:15 UTC = 2026-08-05 07:15 Melbourne
+    expect(eventDateYmdInTimeZone('2026-08-04T21:15:00.000Z', 'Australia/Melbourne')).toBe('2026-08-05');
   });
 });

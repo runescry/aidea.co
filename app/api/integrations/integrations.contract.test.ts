@@ -11,7 +11,8 @@ describe('GET /api/integrations', () => {
       missingCount: number;
     };
     expect(Array.isArray(body.integrations)).toBe(true);
-    expect(body.integrations.length).toBe(5);
+    expect(body.integrations.length).toBe(6);
+    expect(body.integrations.some(i => i.id === 'googleCalendar')).toBe(true);
     expect(body.integrations.some(i => i.id === 'microsoft')).toBe(true);
     expect(typeof body.missingCount).toBe('number');
   });
