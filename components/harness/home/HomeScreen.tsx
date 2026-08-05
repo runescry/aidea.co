@@ -1,15 +1,24 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import ChatInterface from '../ChatInterface';
 import TaskFeed from './TaskFeed';
 import IntegrationStatusBar from './IntegrationStatusBar';
 import EntityRunLauncher from './EntityRunLauncher';
 import MorningBriefCard from './MorningBriefCard';
+import FamilyWeekView from './family/FamilyWeekView';
 import { IconBriefcase, IconMenu } from '../sidebar/icons';
 import { type HomeRunnableEntity } from '@/lib/entities/run-meta';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 import type { PendingHumanInput } from '@/lib/client/human-input';
+import { buildFamilyWeekView, formatFullDate } from '@/lib/harness/family-week';
+
+const HOME_MODE_STORAGE_KEY = 'aidea-home-mode';
+type HomeMode = 'family' | 'admin';
+
+function isHomeMode(value: string | null): value is HomeMode {
+  return value === 'family' || value === 'admin';
+}
 
 interface SessionInfo {
   status: 'idle' | 'starting' | 'running' | 'paused' | 'complete' | 'error';
@@ -45,9 +54,23 @@ export default function HomeScreen({
 }: Props) {
   const [chatPrefill, setChatPrefill] = useState<string | null>(null);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [modeOverride, setModeOverride] = useState<HomeMode | null>(null);
   const { needsYou, tasks } = useWorkFeed();
 
   const briefTask = tasks.find(t => t.source === 'brief') ?? null;
+  const familyView = useMemo(() => buildFamilyWeekView(briefTask?.brief ?? null), [briefTask]);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(HOME_MODE_STORAGE_KEY);
+    if (isHomeMode(stored)) setModeOverride(stored);
+  }, []);
+
+  const switchMode = useCallback((mode: HomeMode) => {
+    setModeOverride(mode);
+    window.localStorage.setItem(HOME_MODE_STORAGE_KEY, mode);
+  }, []);
+
+  const familyMode = familyView.hasFamilyData && (modeOverride ?? 'family') === 'family';
 
   const inboxInitialFilter = needsYou > 0 ? 'approval' as const : 'all' as const;
 
@@ -63,6 +86,20 @@ export default function HomeScreen({
     onTasksChanged: onTaskRefresh,
     humanInputPending,
   };
+
+  if (familyMode) {
+    const briefDate = typeof briefTask?.brief?.date === 'string' ? briefTask.brief.date : '';
+    const dateLabel = formatFullDate(briefDate) || new Date().toLocaleDateString('en-GB', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+    return (
+      <div className="flex-1 flex flex-col min-h-0 bg-surface-muted">
+        <FamilyWeekView view={familyView} dateLabel={dateLabel} onManage={() => switchMode('admin')} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col lg:flex-row min-h-0">
@@ -84,6 +121,15 @@ export default function HomeScreen({
               Type below to delegate — drafts and updates appear in Inbox.
             </p>
           </div>
+          {familyView.hasFamilyData && (
+            <button
+              type="button"
+              onClick={() => switchMode('family')}
+              className="shrink-0 text-[12px] font-medium text-accent hover:text-accent/80 mr-1"
+            >
+              Family view
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setInboxOpen(true)}

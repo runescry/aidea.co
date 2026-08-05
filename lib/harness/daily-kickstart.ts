@@ -250,6 +250,10 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
     .map(item => normalizeScheduleItem(item, ''))
     .filter(Boolean);
 
+  const weekAhead = ((calendar?.weekAhead as unknown[]) ?? [])
+    .map(item => normalizeScheduleItem(item, ''))
+    .filter(Boolean);
+
   return {
     date: todayDate,
     dayOfWeek: ctx.state.data.dayOfWeek ?? '',
@@ -258,6 +262,7 @@ function assembleMorningBrief(ctx: HarnessContext): Record<string, unknown> {
     schedule,
     logistics,
     tomorrowPreview,
+    weekAhead,
     health: health ?? {},
     news: (news?.headlines as unknown[]) ?? [],
     workPrep: work ?? {},

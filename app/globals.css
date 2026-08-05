@@ -22,6 +22,11 @@
     --domain-people: 194 65 12;
     --domain-health: 21 128 61;
     --domain-profile: 120 53 15;
+    /* Family view — per-child accent, cycled in order of first appearance */
+    --child-1: 43 108 128;
+    --child-2: 154 58 104;
+    --child-3: 86 78 150;
+    --child-4: 150 108 20;
     --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   }
 

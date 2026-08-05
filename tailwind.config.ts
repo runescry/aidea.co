@@ -36,6 +36,12 @@ const config: Config = {
           health: 'rgb(var(--domain-health) / <alpha-value>)',
           profile: 'rgb(var(--domain-profile) / <alpha-value>)',
         },
+        child: {
+          1: 'rgb(var(--child-1) / <alpha-value>)',
+          2: 'rgb(var(--child-2) / <alpha-value>)',
+          3: 'rgb(var(--child-3) / <alpha-value>)',
+          4: 'rgb(var(--child-4) / <alpha-value>)',
+        },
       },
       borderColor: {
         DEFAULT: 'rgb(var(--border) / <alpha-value>)',
