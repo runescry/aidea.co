@@ -3,6 +3,7 @@ import { getCurrentNangoUserId, getCurrentUserId, setCurrentGoogleUser } from '@
 import { stableGoogleUserId } from '@/lib/auth/session-token';
 import { getConnectedGoogleIdentity, invalidateNangoConnectionsCache } from '@/lib/nango/connections';
 import { claimTenantData } from '@/lib/storage/tenant-copy';
+import { registerGoogleAccount } from '@/lib/auth/accounts';
 
 export const runtime = 'nodejs';
 
@@ -16,6 +17,8 @@ export async function POST() {
     const userId = await stableGoogleUserId(identity.email);
     await claimTenantData(temporaryUserId, userId);
     await setCurrentGoogleUser(userId, nangoUserId);
+    // Best-effort — a monitor-registration hiccup shouldn't fail the sign-in itself.
+    await registerGoogleAccount(userId, nangoUserId).catch(() => undefined);
     invalidateNangoConnectionsCache();
     return NextResponse.json({ ok: true, userId, email: identity.email, displayName: identity.displayName });
   } catch (error) {

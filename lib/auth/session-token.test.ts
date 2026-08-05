@@ -32,16 +32,33 @@ describe('signed app sessions', () => {
     expect(first).not.toContain('person');
   });
 
-  it('derives tenant ids from a secret independent of the session-signing secret', async () => {
+  it('without AIDEA_TENANT_DERIVATION_SECRET, stays coupled to the session secret (preserves existing tenant ids)', async () => {
     const before = process.env.AIDEA_SESSION_SECRET;
     try {
       const withoutOverride = await stableGoogleUserId('person@example.com');
       process.env.AIDEA_SESSION_SECRET = 'a-completely-different-session-secret';
       const withSessionSecretChanged = await stableGoogleUserId('person@example.com');
-      expect(withSessionSecretChanged).toBe(withoutOverride);
+      expect(withSessionSecretChanged).not.toBe(withoutOverride);
     } finally {
       if (before === undefined) delete process.env.AIDEA_SESSION_SECRET;
       else process.env.AIDEA_SESSION_SECRET = before;
+    }
+  });
+
+  it('once AIDEA_TENANT_DERIVATION_SECRET is set, becomes independent of the session secret', async () => {
+    const beforeTenant = process.env.AIDEA_TENANT_DERIVATION_SECRET;
+    const beforeSession = process.env.AIDEA_SESSION_SECRET;
+    try {
+      process.env.AIDEA_TENANT_DERIVATION_SECRET = 'a-dedicated-tenant-derivation-secret';
+      const withoutSessionOverride = await stableGoogleUserId('person@example.com');
+      process.env.AIDEA_SESSION_SECRET = 'a-completely-different-session-secret';
+      const withSessionSecretChanged = await stableGoogleUserId('person@example.com');
+      expect(withSessionSecretChanged).toBe(withoutSessionOverride);
+    } finally {
+      if (beforeTenant === undefined) delete process.env.AIDEA_TENANT_DERIVATION_SECRET;
+      else process.env.AIDEA_TENANT_DERIVATION_SECRET = beforeTenant;
+      if (beforeSession === undefined) delete process.env.AIDEA_SESSION_SECRET;
+      else process.env.AIDEA_SESSION_SECRET = beforeSession;
     }
   });
 });

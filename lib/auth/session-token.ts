@@ -21,14 +21,16 @@ function sessionSecret(): string {
   return DEV_SESSION_SECRET;
 }
 
-/** Separate from sessionSecret() so rotating one doesn't reshuffle the other's derived ids. */
+/**
+ * Falls back to sessionSecret() (this file's prior, only derivation source) when unset, so
+ * existing deployments keep deriving the same google:<id> for the same email — switching the
+ * default here would silently orphan every already-signed-in user's profile/KB/queue data under
+ * a new id. Set AIDEA_TENANT_DERIVATION_SECRET explicitly to opt into rotating it independently
+ * of the session-signing secret.
+ */
 function tenantDerivationSecret(): string {
   const configured = process.env.AIDEA_TENANT_DERIVATION_SECRET?.trim();
-  if (configured) return configured;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('AIDEA_TENANT_DERIVATION_SECRET is required in production');
-  }
-  return DEV_SESSION_SECRET;
+  return configured || sessionSecret();
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
