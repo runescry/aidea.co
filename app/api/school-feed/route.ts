@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
-import { readAllKB } from '@/lib/harness/knowledge-base';
-import type { KnowledgeBase } from '@/types/knowledge-base';
+import { readSchoolFeed } from '@/lib/harness/school-feed-read';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const kb = await readAllKB() as KnowledgeBase;
-  const feed = kb.family?.schoolFeed ?? null;
+  const feed = await readSchoolFeed();
   return NextResponse.json({ feed });
 }

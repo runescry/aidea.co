@@ -16,7 +16,7 @@ describe('signed app sessions', () => {
       verified: true,
       nangoUserId: 'google:temporary-id',
     });
-    await expect(verifySessionToken(`${token.slice(0, -1)}x`, 2_000)).resolves.toBeNull();
+    await expect(verifySessionToken(`${token}x`, 2_000)).resolves.toBeNull();
   });
 
   it('rejects expired sessions', async () => {

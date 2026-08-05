@@ -9,6 +9,7 @@ import SchoolCard from './SchoolCard';
 import SchoolWeekPanel from './SchoolWeekPanel';
 import HomeSectionHeader from './HomeSectionHeader';
 import FamilyWeekView from './family/FamilyWeekView';
+import FamilyHomeFallback from './FamilyHomeFallback';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
 import { IconBriefcase, IconMenu } from '../sidebar/icons';
 import { type HomeRunnableEntity } from '@/lib/entities/run-meta';
@@ -31,6 +32,10 @@ function todayYmdLocal(): string {
 }
 
 interface Props {
+  /** Hydrated on the server for PPR — avoids admin→family flash on load. */
+  initialFeed?: SchoolFeed | null;
+  /** PPR Suspense fallback — prefer family skeleton over admin chrome. */
+  feedPending?: boolean;
   onOpenChats?: () => void;
   onOpenSettings?: () => void;
   onOpenInbox?: () => void;
@@ -42,6 +47,8 @@ interface Props {
 }
 
 export default function HomeScreen({
+  initialFeed = null,
+  feedPending = false,
   onOpenChats,
   onOpenSettings,
   onOpenInbox,
@@ -56,7 +63,7 @@ export default function HomeScreen({
   const [schoolRefreshKey, setSchoolRefreshKey] = useState(0);
   const [schoolSyncing, setSchoolSyncing] = useState(false);
   const [schoolSyncError, setSchoolSyncError] = useState<string | null>(null);
-  const [feed, setFeed] = useState<SchoolFeed | null>(null);
+  const [feed, setFeed] = useState<SchoolFeed | null>(initialFeed);
   const [modeOverride, setModeOverride] = useState<HomeMode | null>(null);
   const { needsYou, tasks } = useWorkFeed();
   const { builderNav } = useBuilderNav();
@@ -85,19 +92,6 @@ export default function HomeScreen({
     setModeOverride(mode);
     window.localStorage.setItem(HOME_MODE_STORAGE_KEY, mode);
   }, []);
-
-  // An incoming chat prefill (e.g. "Discuss in chat" from Inbox) always needs the chat surface
-  // visible — family mode doesn't mount ChatInterface, so it would otherwise swallow the draft.
-  const familyMode = familyView.hasFamilyData && !externalChatPrefill && (modeOverride ?? 'family') === 'family';
-
-  const schoolExpanded = panelFocus === 'school';
-  const chatExpanded = panelFocus === 'chat';
-  const showSchool = panelFocus !== 'chat';
-  const showChat = panelFocus !== 'school';
-
-  const togglePanel = (panel: HomePanelFocus) => {
-    setPanelFocus(current => toggleHomePanelFocus(current, panel));
-  };
 
   const handleSchoolSync = useCallback(async () => {
     setSchoolSyncing(true);
@@ -139,7 +133,33 @@ export default function HomeScreen({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  if (familyMode) {
+  useEffect(() => {
+    if (initialFeed !== null) setFeed(initialFeed);
+  }, [initialFeed]);
+
+  // An incoming chat prefill (e.g. "Discuss in chat" from Inbox) always needs the chat surface
+  // visible — family mode doesn't mount ChatInterface, so it would otherwise swallow the draft.
+  const prefersFamily = (modeOverride ?? 'family') === 'family';
+  const familyMode = !externalChatPrefill && prefersFamily && (feedPending || familyView.hasFamilyData);
+
+  const schoolExpanded = panelFocus === 'school';
+  const chatExpanded = panelFocus === 'chat';
+  const showSchool = panelFocus !== 'chat';
+  const showChat = panelFocus !== 'school';
+
+  const togglePanel = (panel: HomePanelFocus) => {
+    setPanelFocus(current => toggleHomePanelFocus(current, panel));
+  };
+
+  if (familyMode && feedPending && !familyView.hasFamilyData) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0 bg-surface-muted">
+        <FamilyHomeFallback />
+      </div>
+    );
+  }
+
+  if (familyMode && familyView.hasFamilyData) {
     return (
       <div className="flex-1 flex flex-col min-h-0 bg-surface-muted">
         <FamilyWeekView

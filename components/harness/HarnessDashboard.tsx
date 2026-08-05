@@ -21,8 +21,19 @@ import HumanInputOverlay from './HumanInputOverlay';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
 import { isBuilderView } from '@/lib/client/builder-nav';
 import WelcomeScreen from './WelcomeScreen';
+import type { SchoolFeed } from '@/types/knowledge-base';
 
-export default function HarnessDashboard() {
+interface HarnessDashboardProps {
+  /** Server-streamed school feed for Home (PPR dynamic segment). */
+  initialSchoolFeed?: SchoolFeed | null;
+  /** True while the PPR Suspense boundary for school feed is unresolved. */
+  homeFeedPending?: boolean;
+}
+
+export default function HarnessDashboard({
+  initialSchoolFeed = null,
+  homeFeedPending = false,
+}: HarnessDashboardProps) {
   // Both start matching the server render (no localStorage there) — corrected from the cache
   // synchronously on mount, before the /api/onboarding fetch resolves. A returning visitor
   // (any non-null cache) would otherwise mismatch the server's WelcomeScreen render.
@@ -100,6 +111,8 @@ export default function HarnessDashboard() {
         <DashboardBody
           setShowOnboarding={setShowOnboarding}
           setOnboardingMode={setOnboardingMode}
+          initialSchoolFeed={initialSchoolFeed}
+          homeFeedPending={homeFeedPending}
         />
       </ChatProvider>
     </ConfirmProvider>
@@ -109,9 +122,13 @@ export default function HarnessDashboard() {
 function DashboardBody({
   setShowOnboarding,
   setOnboardingMode,
+  initialSchoolFeed,
+  homeFeedPending,
 }: {
   setShowOnboarding: (v: boolean) => void;
   setOnboardingMode: (m: 'quick' | 'full') => void;
+  initialSchoolFeed: SchoolFeed | null;
+  homeFeedPending: boolean;
 }) {
   const { state, startSession, reset, clearPendingInput } = useHarnessSession();
   const {
@@ -146,6 +163,8 @@ function DashboardBody({
         clearChatPendingInput={clearChatPendingInput}
         setShowOnboarding={setShowOnboarding}
         setOnboardingMode={setOnboardingMode}
+        initialSchoolFeed={initialSchoolFeed}
+        homeFeedPending={homeFeedPending}
       />
     </WorkFeedProvider>
   );
@@ -164,6 +183,8 @@ function DashboardChrome({
   clearChatPendingInput,
   setShowOnboarding,
   setOnboardingMode,
+  initialSchoolFeed,
+  homeFeedPending,
 }: {
   view: MainView;
   setView: (v: MainView) => void;
@@ -177,6 +198,8 @@ function DashboardChrome({
   clearChatPendingInput: ReturnType<typeof useChatConversations>['clearPendingInput'];
   setShowOnboarding: (v: boolean) => void;
   setOnboardingMode: (m: 'quick' | 'full') => void;
+  initialSchoolFeed: SchoolFeed | null;
+  homeFeedPending: boolean;
 }) {
   const { needsYou, refresh: refreshWorkFeed } = useWorkFeed();
   const { builderNav } = useBuilderNav();
@@ -253,6 +276,8 @@ function DashboardChrome({
       <main className="flex-1 flex flex-col min-w-0 min-h-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
         {view === 'home' && (
           <HomeScreen
+            initialFeed={initialSchoolFeed}
+            feedPending={homeFeedPending}
             onOpenSettings={() => setView('settings')}
             onOpenChats={() => setChatDrawerOpen(true)}
             onOpenInbox={() => setView('inbox')}
