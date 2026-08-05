@@ -5,8 +5,6 @@ import { useHarnessSession } from '@/hooks/useHarnessSession';
 import { ChatProvider, useChatConversations } from '@/hooks/useChatConversations';
 import { ConfirmProvider } from '@/hooks/useConfirm';
 import { WorkFeedProvider, useWorkFeed } from '@/hooks/useWorkFeed';
-import { fetchSessionAuthenticated } from '@/lib/client/onboarding-cache';
-import { writeLastGoogleUserId } from '@/lib/client/google-login-cache';
 import AppSidebar, { type MainView } from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import ConversationDrawer from './sidebar/ConversationDrawer';
@@ -20,7 +18,10 @@ import HumanInputOverlay from './HumanInputOverlay';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
 import { isBuilderView } from '@/lib/client/builder-nav';
 import WelcomeScreen from './WelcomeScreen';
+import GoogleConnectScreen from './GoogleConnectScreen';
 import type { SchoolFeed } from '@/types/knowledge-base';
+
+type AuthGate = 'loading' | 'welcome' | 'google-connect' | 'app';
 
 interface HarnessDashboardProps {
   /** Server-streamed school feed for Home (PPR dynamic segment). */
@@ -29,34 +30,75 @@ interface HarnessDashboardProps {
   homeFeedPending?: boolean;
 }
 
+function readWelcomeError(): string | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const error = params.get('google_error');
+  if (!error) return null;
+  params.delete('google_error');
+  const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+  window.history.replaceState({}, '', next);
+  return error;
+}
+
+function wantsGoogleConnect(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('google_connect') !== '1') return false;
+  params.delete('google_connect');
+  const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+  window.history.replaceState({}, '', next);
+  return true;
+}
+
 export default function HarnessDashboard({
   initialSchoolFeed = null,
   homeFeedPending = false,
 }: HarnessDashboardProps) {
-  const [showWelcome, setShowWelcome] = useState(true);
-  const [sessionChecked, setSessionChecked] = useState(false);
+  const [gate, setGate] = useState<AuthGate>('loading');
+  const [welcomeError, setWelcomeError] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const authenticated = await fetchSessionAuthenticated();
-      if (authenticated) setShowWelcome(false);
-      setSessionChecked(true);
+      setWelcomeError(readWelcomeError());
+      const res = await fetch('/api/auth/session');
+      const data = res.ok
+        ? await res.json() as { authenticated?: boolean; mode?: string; userId?: string }
+        : { authenticated: false };
+
+      if (data.authenticated) {
+        setGate('app');
+        return;
+      }
+
+      if (data.mode === 'google' && data.userId?.startsWith('google:')) {
+        wantsGoogleConnect();
+        setGate('google-connect');
+        return;
+      }
+
+      setGate('welcome');
     })();
   }, []);
 
   const handleSignedIn = useCallback(() => {
-    setShowWelcome(false);
+    setGate('app');
   }, []);
 
-  if (!sessionChecked || showWelcome) {
-    if (showWelcome) {
-      return <WelcomeScreen onSignedIn={handleSignedIn} />;
-    }
+  if (gate === 'loading') {
     return (
       <main className="min-h-[100dvh] bg-surface-muted flex items-center justify-center">
         <p className="text-sm text-foreground-muted">Loading…</p>
       </main>
     );
+  }
+
+  if (gate === 'welcome') {
+    return <WelcomeScreen onSignedIn={handleSignedIn} initialError={welcomeError} />;
+  }
+
+  if (gate === 'google-connect') {
+    return <GoogleConnectScreen onConnected={handleSignedIn} />;
   }
 
   return (

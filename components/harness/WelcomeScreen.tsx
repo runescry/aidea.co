@@ -1,98 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import Nango from '@nangohq/frontend';
-import { readLastGoogleUserId, writeLastGoogleUserId } from '@/lib/client/google-login-cache';
 
 interface Props {
   onSignedIn: () => void | Promise<void>;
+  initialError?: string | null;
 }
 
-async function finishGoogleSignIn(onSignedIn: () => void | Promise<void>) {
-  const completeRes = await fetch('/api/auth/google/complete', { method: 'POST' });
-  if (!completeRes.ok) {
-    const body = await completeRes.json().catch(() => ({})) as { error?: string };
-    throw new Error(body.error ?? 'Unable to finish Google sign-in');
-  }
-  const body = await completeRes.json() as { userId?: string };
-  if (body.userId) writeLastGoogleUserId(body.userId);
-  await onSignedIn();
-}
-
-export default function WelcomeScreen({ onSignedIn }: Props) {
-  const [connecting, setConnecting] = useState(false);
+export default function WelcomeScreen({ onSignedIn, initialError = null }: Props) {
   const [loadingDemo, setLoadingDemo] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
 
-  const connectGoogle = async () => {
-    setConnecting(true);
+  const connectGoogle = () => {
     setError(null);
-    try {
-      const lastUserId = readLastGoogleUserId();
-      if (lastUserId) {
-        const resumeRes = await fetch('/api/auth/google/resume', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: lastUserId }),
-        });
-        if (resumeRes.ok) {
-          setConnecting(false);
-          await onSignedIn();
-          return;
-        }
-      }
-
-      const authRes = await fetch('/api/auth/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'google' }),
-      });
-      if (!authRes.ok) throw new Error('Failed to start Google session');
-
-      if (lastUserId) {
-        await fetch('/api/auth/google/prepare', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: lastUserId }),
-        }).catch(() => undefined);
-      }
-
-      const res = await fetch('/api/nango/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string };
-        const msg = body.error ?? `Failed to start Google sign-in (${res.status})`;
-        if (/maximum number of allowed connections/i.test(msg)) {
-          throw new Error(
-            'Google connection limit reached in Nango. Delete unused connections at app.nango.dev → Connections, or upgrade your Nango plan.',
-          );
-        }
-        throw new Error(msg);
-      }
-      const { sessionToken } = await res.json() as { sessionToken: string };
-      const nango = new Nango();
-      const connect = nango.openConnectUI({
-        onEvent: async event => {
-          if (event.type === 'connect') {
-            try {
-              setConnecting(false);
-              await finishGoogleSignIn(onSignedIn);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : 'Unable to finish Google sign-in');
-              setConnecting(false);
-            }
-          }
-          if (event.type === 'close') setConnecting(false);
-        },
-      });
-      connect.setSessionToken(sessionToken);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start Google sign-in');
-      setConnecting(false);
-    }
+    window.location.assign('/api/auth/google/authorize');
   };
 
   const useDemo = async () => {
@@ -130,13 +51,13 @@ export default function WelcomeScreen({ onSignedIn }: Props) {
           <div className="text-display text-foreground">aidea</div>
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">Log in or sign up</h1>
           <p className="mt-3 text-sm leading-6 text-foreground-muted">
-            Continue with Google to connect Gmail and Calendar. Returning on this device skips reconnect when your accounts are already linked.
+            Sign in with Google. If this account already has Gmail and Calendar linked, you&apos;ll go straight in — on any device.
           </p>
         </div>
 
-        <button type="button" className="btn-primary w-full justify-center" onClick={connectGoogle} disabled={connecting || loadingDemo}>
+        <button type="button" className="btn-primary w-full justify-center" onClick={connectGoogle} disabled={loadingDemo}>
           <span className="mr-2 font-semibold" aria-hidden="true">G</span>
-          {connecting ? 'Signing in…' : 'Continue with Google'}
+          Continue with Google
         </button>
 
         <div className="my-6 flex items-center gap-3 text-xs text-foreground-subtle">
@@ -145,7 +66,7 @@ export default function WelcomeScreen({ onSignedIn }: Props) {
           <span className="h-px flex-1 bg-border" />
         </div>
 
-        <button type="button" className="btn-secondary w-full justify-center" onClick={useDemo} disabled={connecting || loadingDemo}>
+        <button type="button" className="btn-secondary w-full justify-center" onClick={useDemo} disabled={loadingDemo}>
           {loadingDemo ? 'Loading demo…' : 'Use Demo Login'}
         </button>
         <p className="mt-3 text-center text-xs leading-5 text-foreground-subtle">
