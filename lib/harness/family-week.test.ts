@@ -103,6 +103,52 @@ describe('buildFamilyWeekView', () => {
     expect(view.goodToKnow).toEqual([{ id: 'x2', title: 'Term 3 canteen menu & hours', childKey: 'sebastian' }]);
   });
 
+  it('folds in standalone (unbundled) gmail.actionRequired/fyi rows alongside roundups', () => {
+    const view = buildFamilyWeekView(
+      feedWith({
+        gmail: {
+          roundups: [
+            {
+              school: 'Xavier College',
+              child: 'Sebastian',
+              emailCount: 1,
+              needsYou: [emailRow({ messageId: 'x1', subject: 'Pay swimming carnival note' })],
+              fyi: [],
+              messageIds: ['x1'],
+            },
+          ],
+          actionRequired: [emailRow({
+            messageId: 'g1',
+            subject: 'Permission slip due',
+            school: 'Genazzano',
+            child: 'Ivy',
+            gmailUrl: 'https://mail.google.com/mail/u/0/#inbox/g1',
+          })],
+          fyi: [emailRow({ messageId: 'g2', subject: 'Newsletter', school: 'Genazzano', child: 'Ivy' })],
+        },
+      }),
+      '2026-08-10',
+    );
+    expect(view.children).toEqual([
+      { key: 'sebastian', name: 'Sebastian', colorIndex: 0 },
+      { key: 'ivy', name: 'Ivy', colorIndex: 1 },
+    ]);
+    expect(view.needsDoing.map(i => i.id)).toEqual(['x1', 'g1']);
+    expect(view.needsDoing[1]).toMatchObject({ title: 'Permission slip due', childKey: 'ivy' });
+    expect(view.goodToKnow).toEqual([{ id: 'g2', title: 'Newsletter', childKey: 'ivy' }]);
+  });
+
+  it('has family data from standalone emails alone, with no roundups or calendar events', () => {
+    const view = buildFamilyWeekView(
+      feedWith({
+        gmail: { roundups: [], actionRequired: [emailRow({ messageId: 'g1' })], fyi: [] },
+      }),
+      '2026-08-10',
+    );
+    expect(view.hasFamilyData).toBe(true);
+    expect(view.needsDoing).toHaveLength(1);
+  });
+
   it('builds today items via the shared school-today-digest phrasing', () => {
     const view = buildFamilyWeekView(
       feedWith({

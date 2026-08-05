@@ -86,7 +86,9 @@ export default function HomeScreen({
     window.localStorage.setItem(HOME_MODE_STORAGE_KEY, mode);
   }, []);
 
-  const familyMode = familyView.hasFamilyData && (modeOverride ?? 'family') === 'family';
+  // An incoming chat prefill (e.g. "Discuss in chat" from Inbox) always needs the chat surface
+  // visible — family mode doesn't mount ChatInterface, so it would otherwise swallow the draft.
+  const familyMode = familyView.hasFamilyData && !externalChatPrefill && (modeOverride ?? 'family') === 'family';
 
   const schoolExpanded = panelFocus === 'school';
   const chatExpanded = panelFocus === 'chat';

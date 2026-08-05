@@ -106,7 +106,13 @@ function needItemFromRow(row: SchoolFeedEmailRow, children: FamilyChild[]): Fami
 export function buildFamilyWeekView(feed: SchoolFeed | null | undefined, todayYmd: string): FamilyWeekView {
   const roundups = feed?.gmail?.roundups ?? [];
   const rawEvents = feed?.calendar?.events ?? [];
-  if (roundups.length === 0 && rawEvents.length === 0) return EMPTY_VIEW;
+  // actionRequired/fyi carry standalone school emails that didn't bundle into a roundup
+  // (SchoolCard renders these as siblings of roundups — same source, same priority).
+  const standaloneAction = feed?.gmail?.actionRequired ?? [];
+  const standaloneFyi = feed?.gmail?.fyi ?? [];
+  if (roundups.length === 0 && rawEvents.length === 0 && standaloneAction.length === 0 && standaloneFyi.length === 0) {
+    return EMPTY_VIEW;
+  }
 
   const children: FamilyChild[] = [];
   const seen = new Set<string>();
@@ -117,14 +123,19 @@ export function buildFamilyWeekView(feed: SchoolFeed | null | undefined, todayYm
     children.push({ key, name, colorIndex: children.length % CHILD_COLOR_COUNT });
   };
   for (const roundup of roundups) addChild(roundup.child);
+  for (const row of standaloneAction) addChild(row.child);
+  for (const row of standaloneFyi) addChild(row.child);
   for (const event of rawEvents) addChild(event.child);
 
-  const needsDoing = roundups.flatMap(r => r.needsYou).map(row => needItemFromRow(row, children));
-  const goodToKnow = roundups.flatMap(r => r.fyi).map(row => ({
+  const goodToKnowRow = (row: SchoolFeedEmailRow) => ({
     id: row.messageId,
     title: decodeBriefText(row.subject),
     childKey: children.find(c => c.name === row.child)?.key,
-  }));
+  });
+
+  const needsDoing = [...roundups.flatMap(r => r.needsYou), ...standaloneAction]
+    .map(row => needItemFromRow(row, children));
+  const goodToKnow = [...roundups.flatMap(r => r.fyi), ...standaloneFyi].map(goodToKnowRow);
 
   const events = dedupeSchoolCalendarEvents(rawEvents);
 
