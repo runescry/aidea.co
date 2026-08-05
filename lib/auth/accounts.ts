@@ -10,10 +10,18 @@ export async function registerGoogleAccount(userId: string, nangoUserId: string)
     INSERT INTO user_accounts (user_id, nango_user_id, mode, monitors_enabled, updated_at)
     VALUES (${userId}, ${nangoUserId}, 'google', TRUE, NOW())
     ON CONFLICT (user_id) DO UPDATE SET
-      nango_user_id = EXCLUDED.nango_user_id,
-      mode = EXCLUDED.mode,
       updated_at = NOW()
   `;
+}
+
+export async function getRegisteredNangoUserId(userId: string): Promise<string | null> {
+  if (!hasDatabase()) return null;
+  await ensureMigrated();
+  const sql = getSql();
+  const rows = await sql<Array<{ nango_user_id: string }>>`
+    SELECT nango_user_id FROM user_accounts WHERE user_id = ${userId} LIMIT 1
+  `;
+  return rows[0]?.nango_user_id ?? null;
 }
 
 export async function listMonitorAccounts(): Promise<UserExecutionContext[]> {

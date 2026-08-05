@@ -30,7 +30,13 @@ export default function WelcomeScreen({ onSignedIn }: Props) {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(body.error ?? `Failed to start Google sign-in (${res.status})`);
+        const msg = body.error ?? `Failed to start Google sign-in (${res.status})`;
+        if (/maximum number of allowed connections/i.test(msg)) {
+          throw new Error(
+            'Google connection limit reached in Nango. Delete unused connections at app.nango.dev → Connections, or upgrade your Nango plan.',
+          );
+        }
+        throw new Error(msg);
       }
       const { sessionToken } = await res.json() as { sessionToken: string };
       const nango = new Nango();

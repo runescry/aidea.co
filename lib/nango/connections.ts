@@ -346,3 +346,22 @@ export async function deleteNangoConnection(connectionId: string, integrationId:
   const nango = getNango();
   await nango.deleteConnection(integrationId, connectionId);
 }
+
+/** Remove all Nango connections tagged to an end-user (e.g. abandoned login temp ids). */
+export async function deleteAllConnectionsForEndUser(endUserId: string): Promise<number> {
+  if (!nangoConfigured()) return 0;
+  const nango = getNango();
+  const res = await nango.listConnections({ tags: { end_user_id: endUserId } });
+  const connections = res.connections ?? [];
+  let deleted = 0;
+  for (const conn of connections) {
+    try {
+      await nango.deleteConnection(conn.provider_config_key, conn.connection_id);
+      deleted += 1;
+    } catch {
+      // best-effort cleanup
+    }
+  }
+  invalidateNangoConnectionsCache();
+  return deleted;
+}
