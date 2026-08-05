@@ -23,14 +23,20 @@ import { isBuilderView } from '@/lib/client/builder-nav';
 import WelcomeScreen from './WelcomeScreen';
 
 export default function HarnessDashboard() {
-  const [showWelcome, setShowWelcome] = useState<boolean>(() => readOnboardingCache() === null);
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
-    const cached = readOnboardingCache();
-    return cached === false;
-  });
+  // Both start matching the server render (no localStorage there) — corrected from the cache
+  // synchronously on mount, before the /api/onboarding fetch resolves. A returning visitor
+  // (any non-null cache) would otherwise mismatch the server's WelcomeScreen render.
+  const [showWelcome, setShowWelcome] = useState<boolean>(true);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
   const [onboardingMode, setOnboardingMode] = useState<'quick' | 'full'>('quick');
 
   useEffect(() => {
+    const cached = readOnboardingCache();
+    if (cached !== null) {
+      setShowWelcome(false);
+      setShowOnboarding(cached === false);
+    }
+
     fetch('/api/onboarding')
       .then(r => r.json())
       .then(d => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import ChatInterface from '../ChatInterface';
 import IntegrationStatusBar from './IntegrationStatusBar';
 import EntityRunLauncher from './EntityRunLauncher';
@@ -8,12 +8,27 @@ import MorningBriefCard from './MorningBriefCard';
 import SchoolCard from './SchoolCard';
 import SchoolWeekPanel from './SchoolWeekPanel';
 import HomeSectionHeader from './HomeSectionHeader';
+import FamilyWeekView from './family/FamilyWeekView';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
 import { IconBriefcase, IconMenu } from '../sidebar/icons';
 import { type HomeRunnableEntity } from '@/lib/entities/run-meta';
 import { useWorkFeed } from '@/hooks/useWorkFeed';
 import type { HomePanelFocus } from '@/lib/client/home-panel-focus';
 import { toggleHomePanelFocus } from '@/lib/client/home-panel-focus';
+import type { SchoolFeed } from '@/types/knowledge-base';
+import { buildFamilyWeekView, formatFullDate } from '@/lib/harness/family-week';
+
+const HOME_MODE_STORAGE_KEY = 'aidea-home-mode';
+type HomeMode = 'family' | 'admin';
+
+function isHomeMode(value: string | null): value is HomeMode {
+  return value === 'family' || value === 'admin';
+}
+
+/** Browser-local YYYY-MM-DD — matches SchoolTodayPanel's own "today" so the two never disagree. */
+function todayYmdLocal(): string {
+  return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
 
 interface Props {
   onOpenChats?: () => void;
@@ -41,10 +56,39 @@ export default function HomeScreen({
   const [schoolRefreshKey, setSchoolRefreshKey] = useState(0);
   const [schoolSyncing, setSchoolSyncing] = useState(false);
   const [schoolSyncError, setSchoolSyncError] = useState<string | null>(null);
+  const [feed, setFeed] = useState<SchoolFeed | null>(null);
+  const [modeOverride, setModeOverride] = useState<HomeMode | null>(null);
   const { needsYou, tasks } = useWorkFeed();
   const { builderNav } = useBuilderNav();
 
   const briefTask = tasks.find(t => t.source === 'brief') ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch('/api/school-feed')
+      .then(res => (res.ok ? res.json() : null))
+      .then((data: { feed: SchoolFeed | null } | null) => {
+        if (!cancelled) setFeed(data?.feed ?? null);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [schoolRefreshKey]);
+
+  const familyView = useMemo(() => buildFamilyWeekView(feed, todayYmdLocal()), [feed]);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(HOME_MODE_STORAGE_KEY);
+    if (isHomeMode(stored)) setModeOverride(stored);
+  }, []);
+
+  const switchMode = useCallback((mode: HomeMode) => {
+    setModeOverride(mode);
+    window.localStorage.setItem(HOME_MODE_STORAGE_KEY, mode);
+  }, []);
+
+  // An incoming chat prefill (e.g. "Discuss in chat" from Inbox) always needs the chat surface
+  // visible — family mode doesn't mount ChatInterface, so it would otherwise swallow the draft.
+  const familyMode = familyView.hasFamilyData && !externalChatPrefill && (modeOverride ?? 'family') === 'family';
 
   const schoolExpanded = panelFocus === 'school';
   const chatExpanded = panelFocus === 'chat';
@@ -95,6 +139,18 @@ export default function HomeScreen({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  if (familyMode) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0 bg-surface-muted">
+        <FamilyWeekView
+          view={familyView}
+          dateLabel={formatFullDate(todayYmdLocal())}
+          onManage={() => switchMode('admin')}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col lg:flex-row min-h-0">
       <section className="flex flex-col min-w-0 min-h-0 flex-1 bg-surface lg:border-r border-border">
@@ -115,6 +171,15 @@ export default function HomeScreen({
               School mail & chat · calendar on the right
             </p>
           </div>
+          {familyView.hasFamilyData && (
+            <button
+              type="button"
+              onClick={() => switchMode('family')}
+              className="shrink-0 text-[12px] font-medium text-accent hover:text-accent/80"
+            >
+              Family view
+            </button>
+          )}
           {onOpenInbox && (
             <button
               type="button"
