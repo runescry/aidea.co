@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FamilyChild, FamilyNeedItem } from '@/lib/harness/family-week';
-import { openGmailMessage } from '@/lib/client/open-gmail';
+import { openGmailMessage, prefetchConnectedGmailAccount } from '@/lib/client/open-gmail';
 import { childDotClass } from './childColors';
 
 function NeedRow({ item, child }: { item: FamilyNeedItem; child: FamilyChild | undefined }) {
@@ -28,14 +28,13 @@ function NeedRow({ item, child }: { item: FamilyNeedItem; child: FamilyChild | u
           {item.detail && <p className="text-[13.5px] text-foreground-muted leading-snug">{item.detail}</p>}
           {(item.gmailLink || item.gmailUrl) && (
             <a
-              href={item.gmailUrl ?? '#'}
+              href="#"
               onClick={event => {
-                if (!item.gmailLink) return;
                 event.preventDefault();
-                void openGmailMessage({ id: item.gmailLink.messageId, ...item.gmailLink });
+                const link = item.gmailLink ?? { messageId: item.id, from: '', subject: item.title };
+                const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
+                void openGmailMessage({ id: link.messageId, ...link }, popup);
               }}
-              target="_blank"
-              rel="noopener noreferrer"
               className="inline-block text-[12.5px] font-medium text-accent hover:underline"
             >
               View original email ↗
@@ -54,6 +53,10 @@ export default function NeedsDoingCard({
   items: FamilyNeedItem[];
   children: FamilyChild[];
 }) {
+  useEffect(() => {
+    prefetchConnectedGmailAccount();
+  }, []);
+
   if (items.length === 0) return null;
   const byChild = new Map(children.map(c => [c.key, c]));
 

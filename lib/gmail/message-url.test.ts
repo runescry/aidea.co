@@ -9,7 +9,7 @@ describe('gmailMessageUrl', () => {
         account: 'me@gmail.com',
       }),
     ).toBe(
-      'https://mail.google.com/mail/?authuser=me%40gmail.com#search/rfc822msgid%3Aabc123%40mail.gmail.com',
+      'https://mail.google.com/mail/u/me%40gmail.com/#search/rfc822msgid%3Aabc123%40mail.gmail.com',
     );
   });
 
@@ -28,7 +28,7 @@ describe('gmailMessageUrl', () => {
       subject: 'Invitation for Sebastian',
       account: 'parent@gmail.com',
     });
-    expect(url).toContain('authuser=parent%40gmail.com');
+    expect(url).toContain('/mail/u/parent%40gmail.com/');
     expect(url).toContain('#search/');
     expect(url).toContain('from%3Anoreply%40xavier.vic.edu.au');
     expect(url).toContain('Invitation');
@@ -41,7 +41,21 @@ describe('gmailMessageUrl', () => {
     );
   });
 
-  it('uses mobile Gmail web path when target is mobile', () => {
+  it('uses mobile Gmail web path when target is mobile without account', () => {
+    const url = gmailMessageUrlFromEmail(
+      {
+        id: 'msg-1',
+        from: 'Consent2Go <noreply@xavier.vic.edu.au>',
+        subject: 'Invitation for Sebastian',
+      },
+      'mobile',
+    );
+    expect(url).toContain('/mail/mu/mp/');
+    expect(url).toContain('#tl/search/');
+    expect(url).not.toContain('subject%3A%22');
+  });
+
+  it('uses account path on mobile when mailbox is known', () => {
     const url = gmailMessageUrlFromEmail(
       {
         id: 'msg-1',
@@ -51,10 +65,9 @@ describe('gmailMessageUrl', () => {
       },
       'mobile',
     );
-    expect(url).toContain('/mail/mu/mp/');
-    expect(url).toContain('#tl/search/');
-    expect(url).toContain('authuser=parent%40gmail.com');
-    expect(url).not.toContain('subject%3A%22');
+    expect(url).toContain('/mail/u/parent%40gmail.com/');
+    expect(url).toContain('#search/');
+    expect(url).not.toContain('/mail/mu/mp/');
   });
 
   it('builds Android intent wrapper', () => {
@@ -74,7 +87,7 @@ describe('gmailMessageUrl', () => {
       subject: 'Year 1 Strings',
       from: 'school@genazzano.vic.edu.au',
     });
-    expect(url).toContain('authuser=z%40example.com');
+    expect(url).toContain('/mail/u/z%40example.com/');
     expect(url).toContain('#search/');
     expect(url).toContain('Year+1+Strings');
   });

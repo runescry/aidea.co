@@ -36,6 +36,17 @@ function encodeGmailSearchHash(query: string): string {
   return encodeURIComponent(query).replace(/%20/g, '+');
 }
 
+/** Gmail multi-login: email in /u/{account}/ path is more reliable than authuser on mobile. */
+function gmailAccountBase(account: string | undefined, accountIndex: number, target: GmailLinkTarget): string {
+  if (account?.includes('@')) {
+    return `https://mail.google.com/mail/u/${encodeURIComponent(account)}/`;
+  }
+  if (target === 'mobile') {
+    return 'https://mail.google.com/mail/mu/mp/0/';
+  }
+  return `https://mail.google.com/mail/u/${accountIndex}/`;
+}
+
 function gmailSearchUrl(
   query: string,
   target: GmailLinkTarget,
@@ -43,20 +54,11 @@ function gmailSearchUrl(
   accountIndex = 0,
 ): string {
   const hash = encodeGmailSearchHash(query);
-  const searchPath = target === 'mobile' ? `#tl/search/${hash}` : `#search/${hash}`;
-
-  if (account?.includes('@')) {
-    const params = new URLSearchParams({ authuser: account });
-    const base = target === 'mobile'
-      ? `https://mail.google.com/mail/mu/mp/0/?${params.toString()}`
-      : `https://mail.google.com/mail/?${params.toString()}`;
-    return `${base}${searchPath}`;
-  }
-
-  const base = target === 'mobile'
-    ? 'https://mail.google.com/mail/mu/mp/0/'
-    : `https://mail.google.com/mail/u/${accountIndex}/`;
-  return `${base}${searchPath}`;
+  const hasAccount = Boolean(account?.includes('@'));
+  const searchPath = hasAccount || target === 'desktop'
+    ? `#search/${hash}`
+    : `#tl/search/${hash}`;
+  return `${gmailAccountBase(account, accountIndex, target)}${searchPath}`;
 }
 
 function subjectSearchQuery(from: string, subject: string, target: GmailLinkTarget): string {
@@ -116,12 +118,7 @@ export function gmailMessageUrl(
   const openId = (opts.threadId ?? messageId).trim();
   if (!openId) return '';
 
-  if (opts.account?.includes('@')) {
-    const params = new URLSearchParams({ authuser: opts.account });
-    return `https://mail.google.com/mail/?${params.toString()}#all/${openId}`;
-  }
-
-  return `https://mail.google.com/mail/u/${accountIndex}/#all/${openId}`;
+  return `${gmailAccountBase(opts.account, accountIndex, target)}#all/${openId}`;
 }
 
 export function gmailMessageUrlFromEmail(
