@@ -12,3 +12,8 @@ export function writeOnboardingCache(complete: boolean): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(KEY, complete ? '1' : '0');
 }
+
+export function clearOnboardingCache(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(KEY);
+}

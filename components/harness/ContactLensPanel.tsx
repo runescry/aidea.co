@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { KnowledgeBase } from '@/types/knowledge-base';
-import { buildContactGraph, findContactEntry, type ContactGraphEntry } from '@/lib/contacts/interaction-graph';
+import { buildContactGraph, findContactEntry, recentContactInteractions, type ContactGraphEntry } from '@/lib/contacts/interaction-graph';
 import { Label, TextField } from './forms';
 
 function formatTouch(iso?: string): string {
@@ -13,7 +13,7 @@ function formatTouch(iso?: string): string {
 }
 
 function ContactDetail({ entry }: { entry: ContactGraphEntry }) {
-  const interactions = (entry.interactions ?? []).slice(0, 5);
+  const interactions = recentContactInteractions(entry, 5);
   return (
     <div className="rounded-lg bg-surface-subtle/80 p-3 border border-border/50 space-y-2">
       <div>

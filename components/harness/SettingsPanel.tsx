@@ -9,9 +9,10 @@ import DomainAutonomyPanel from './DomainAutonomyPanel';
 import HarnessCostPanel from './HarnessCostPanel';
 import { useSaveFeedback } from '@/hooks/useSaveFeedback';
 import { useConfirm } from '@/hooks/useConfirm';
-import { useWorkFeed } from '@/hooks/useWorkFeed';
+import { clearCachedWorkFeed, useWorkFeed } from '@/hooks/useWorkFeed';
 import { useChatConversations } from '@/hooks/useChatConversations';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
+import { clearOnboardingCache } from '@/lib/client/onboarding-cache';
 
 type SettingKey = 'anthropicApiKey' | 'braveSearchApiKey';
 
@@ -76,12 +77,15 @@ export default function SettingsPanel() {
   const [values, setValues] = useState<Partial<Record<SettingKey, string>>>({});
   const { saving, saved, runSave } = useSaveFeedback();
   const { saving: resetting, saved: resetDone, runSave: runReset } = useSaveFeedback();
+  const { saving: seeding, saved: seedDone, runSave: runSeed } = useSaveFeedback();
+  const { saving: loggingOut, runSave: runLogout } = useSaveFeedback();
   const { refresh: refreshWorkFeed } = useWorkFeed();
   const { resetLocalChatStore } = useChatConversations();
   const { builderNav, setBuilderNav } = useBuilderNav();
 
   const [nangoConfigured, setNangoConfigured] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [seedError, setSeedError] = useState<string | null>(null);
   const [connections, setConnections] = useState<NangoConnection[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -147,6 +151,25 @@ export default function SettingsPanel() {
       setValues({});
       await load();
     });
+  };
+
+  const handleLogout = async () => {
+    const ok = await confirm({
+      title: 'Log out of aidea?',
+      message:
+        'This clears the local app session on this browser and returns you to Log in / Sign up. '
+        + 'Your saved profile, queue history, and connected Google accounts are not deleted.',
+      confirmLabel: 'Log out',
+    });
+    if (!ok) return;
+
+    await runLogout(async () => {
+      await fetch('/api/auth/session', { method: 'DELETE' });
+      resetLocalChatStore();
+      clearCachedWorkFeed();
+      clearOnboardingCache();
+      window.location.assign('/');
+    }).catch(() => undefined);
   };
 
   const handleConnectGoogle = async () => {
@@ -315,6 +338,23 @@ export default function SettingsPanel() {
         throw new Error('reset failed');
       }
       resetLocalChatStore();
+      clearCachedWorkFeed();
+      clearOnboardingCache();
+      window.location.assign('/');
+    }).catch(() => undefined);
+  };
+
+  const handleSeedSampleData = async () => {
+    setSeedError(null);
+    await runSeed(async () => {
+      const res = await fetch('/api/seed', { method: 'POST' });
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok) {
+        setSeedError(body.error ?? `Seed failed (${res.status})`);
+        throw new Error('seed failed');
+      }
+      resetLocalChatStore();
+      clearCachedWorkFeed();
       await refreshWorkFeed();
     }).catch(() => undefined);
   };
@@ -324,8 +364,8 @@ export default function SettingsPanel() {
     : 0;
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="mx-auto max-w-2xl space-y-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Settings</h2>
           <p className="text-sm text-foreground-muted mt-1">
@@ -335,17 +375,36 @@ export default function SettingsPanel() {
                 Environment variables in <code className="text-xs bg-surface-subtle px-1 rounded">.env.local</code> are used as fallback.</>}
           </p>
         </div>
-        <div className="text-right shrink-0">
+        <div className="flex items-center justify-between gap-3 sm:block sm:shrink-0 sm:text-right">
           <div className="text-xs text-foreground-subtle">{configuredCount}/{SETTING_FIELDS.length} configured</div>
           {!readOnly && (
             <button
               onClick={handleSave}
               disabled={saving || Object.keys(values).length === 0}
-              className="btn-primary mt-2 text-xs py-1.5"
+              className="btn-primary min-h-11 text-xs sm:mt-2 sm:min-h-0 sm:py-1.5"
             >
               {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save keys'}
             </button>
           )}
+        </div>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Account</h3>
+            <p className="text-xs text-foreground-muted mt-1">
+              Log out on this browser to return to Log in / Sign up. This does not delete profile data
+              or disconnect Google.
+            </p>
+          </div>
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="btn-secondary min-h-11 w-full shrink-0 justify-center text-xs sm:min-h-0 sm:w-auto sm:py-1.5"
+          >
+            {loggingOut ? 'Logging out…' : 'Log out'}
+          </button>
         </div>
       </div>
 
@@ -358,7 +417,7 @@ export default function SettingsPanel() {
                 <StatusDot configured={fieldStatus?.configured ?? false} />
                 <span className="text-sm font-medium text-foreground">{field.label}</span>
                 {fieldStatus?.configured && fieldStatus.preview && (
-                  <span className="text-[11px] font-mono text-foreground-subtle ml-auto">
+                  <span className="ml-auto max-w-[45%] break-all text-right font-mono text-[11px] text-foreground-subtle">
                     {fieldStatus.preview}
                     {fieldStatus.source === 'env' && ' (env)'}
                   </span>
@@ -389,7 +448,7 @@ export default function SettingsPanel() {
       </div>
 
       <div className="card p-4 space-y-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div>
             <h3 className="text-sm font-medium text-foreground">Google (Gmail &amp; Calendar)</h3>
             <p className="text-xs text-foreground-muted mt-1">
@@ -397,18 +456,18 @@ export default function SettingsPanel() {
               that hold school mail and your main calendar.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 shrink-0">
+          <div className="flex w-full flex-wrap gap-2 shrink-0 sm:w-auto">
             <button
               onClick={handleConnectGoogle}
               disabled={connecting || !nangoConfigured}
-              className="btn-primary text-xs py-1.5"
+              className="btn-primary min-h-11 w-full justify-center text-xs sm:min-h-0 sm:w-auto sm:py-1.5"
             >
               {connecting ? 'Connecting…' : 'Connect Gmail'}
             </button>
             <button
               onClick={handleConnectCalendar}
               disabled={calendarConnecting || !nangoConfigured}
-              className="btn-secondary text-xs py-1.5"
+              className="btn-secondary min-h-11 w-full justify-center text-xs sm:min-h-0 sm:w-auto sm:py-1.5"
             >
               {calendarConnecting ? 'Connecting…' : 'Connect Calendar'}
             </button>
@@ -435,7 +494,7 @@ export default function SettingsPanel() {
         )}
 
         {nangoConfigured && (
-          <p className="text-[11px] text-foreground-subtle font-mono">
+          <p className="break-words font-mono text-[11px] text-foreground-subtle">
             Nango integrations: google-mail, google-calendar. Gmail drafts/send need scope{' '}
             <span className="text-foreground-muted">gmail.compose</span> — add in Nango, then reconnect.
           </p>
@@ -443,8 +502,8 @@ export default function SettingsPanel() {
 
         {gmailConnections.length > 0 || calendarConnections.length > 0 ? (
           <ul className="divide-y divide-border rounded-md border border-border">
-            {gmailConnections.map(conn => (
-              <li key={conn.connectionId} className="flex items-center gap-3 px-3 py-2 text-sm">
+            {[...gmailConnections, ...calendarConnections].map(conn => (
+              <li key={conn.connectionId} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-3 py-3 text-sm sm:flex sm:py-2">
                 <StatusDot configured />
                 <div className="min-w-0 flex-1">
                   <div className="font-medium truncate">{connectionTitle(conn)}</div>
@@ -452,22 +511,7 @@ export default function SettingsPanel() {
                 </div>
                 <button
                   onClick={() => handleDisconnect(conn)}
-                  className="text-xs text-foreground-muted hover:text-red-500"
-                >
-                  Disconnect
-                </button>
-              </li>
-            ))}
-            {calendarConnections.map(conn => (
-              <li key={conn.connectionId} className="flex items-center gap-3 px-3 py-2 text-sm">
-                <StatusDot configured />
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{connectionTitle(conn)}</div>
-                  <div className="text-[11px] text-foreground-subtle">{connectionSubtitle(conn)}</div>
-                </div>
-                <button
-                  onClick={() => handleDisconnect(conn)}
-                  className="text-xs text-foreground-muted hover:text-red-500"
+                  className="col-start-2 min-h-10 justify-self-start text-xs text-foreground-muted hover:text-red-500 sm:min-h-0 sm:shrink-0"
                 >
                   Disconnect
                 </button>
@@ -557,7 +601,7 @@ export default function SettingsPanel() {
       </div>
 
       <div className="card p-4 space-y-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div>
             <h3 className="text-sm font-medium text-foreground">Strava (health sync)</h3>
             <p className="text-xs text-foreground-muted mt-1">
@@ -568,7 +612,7 @@ export default function SettingsPanel() {
             <button
               onClick={handleConnectStrava}
               disabled={stravaBusy || strava?.configured === false}
-              className="btn-primary text-xs py-1.5 shrink-0"
+              className="btn-primary min-h-11 w-full shrink-0 justify-center text-xs sm:min-h-0 sm:w-auto sm:py-1.5"
             >
               Connect Strava
             </button>
@@ -586,7 +630,7 @@ export default function SettingsPanel() {
         )}
 
         {strava?.connected ? (
-          <div className="flex items-center gap-3 px-3 py-2 text-sm rounded-md border border-border">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-md border border-border px-3 py-3 text-sm sm:flex sm:py-2">
             <StatusDot configured />
             <div className="min-w-0 flex-1">
               <div className="font-medium truncate">{strava.athleteName ?? 'Strava athlete'}</div>
@@ -594,10 +638,10 @@ export default function SettingsPanel() {
                 {strava.lastSyncedAt ? `Last sync ${strava.lastSyncedAt.slice(0, 16).replace('T', ' ')} UTC` : 'Not synced yet'}
               </div>
             </div>
-            <button onClick={handleSyncStrava} disabled={stravaBusy} className="text-xs text-accent hover:underline">
+            <button onClick={handleSyncStrava} disabled={stravaBusy} className="col-start-2 min-h-10 justify-self-start text-xs text-accent hover:underline sm:min-h-0 sm:shrink-0">
               {stravaBusy ? 'Syncing…' : 'Sync now'}
             </button>
-            <button onClick={handleDisconnectStrava} disabled={stravaBusy} className="text-xs text-foreground-muted hover:text-red-500">
+            <button onClick={handleDisconnectStrava} disabled={stravaBusy} className="col-start-2 min-h-10 justify-self-start text-xs text-foreground-muted hover:text-red-500 sm:min-h-0 sm:shrink-0">
               Disconnect
             </button>
           </div>
@@ -615,29 +659,52 @@ export default function SettingsPanel() {
         <AuditTrailPanel />
       </div>
 
-      <div className="card p-4 space-y-3">
-        <h3 className="text-sm font-medium text-foreground">Advanced</h3>
-        <p className="text-xs text-foreground-muted">
-          Builder tools are for debugging multi-agent runs. The daily product is Home, Inbox, Profile, and Settings.
-        </p>
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={builderNav}
-            onChange={e => setBuilderNav(e.target.checked)}
-            className="mt-0.5 rounded border-border"
-          />
-          <span className="text-sm text-foreground">
-            Show Studio &amp; Agents in navigation
-            <span className="block text-xs text-foreground-muted mt-0.5">
-              Also shows Run Company / Learning / Creator on Home
+      <div className="card p-4 space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Sample data</h3>
+            <p className="text-xs text-foreground-muted mt-1">
+              Clear activity and load realistic demo data — useful for demos without live integrations.
+            </p>
+          </div>
+          <button
+            onClick={handleSeedSampleData}
+            disabled={seeding}
+            className="btn-secondary min-h-11 w-full shrink-0 justify-center text-xs sm:min-h-0 sm:w-auto sm:py-1.5"
+          >
+            {seedDone ? 'Loaded ✓' : seeding ? 'Loading…' : 'Load sample data'}
+          </button>
+        </div>
+        {seedError && (
+          <p className="text-xs text-red-600 dark:text-red-400 whitespace-pre-wrap">
+            {seedError}
+          </p>
+        )}
+
+        <div className="border-t border-border pt-4 space-y-3">
+          <h3 className="text-sm font-medium text-foreground">Advanced</h3>
+          <p className="text-xs text-foreground-muted">
+            Builder tools are for debugging multi-agent runs. The daily product is Home, Inbox, Profile, and Settings.
+          </p>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={builderNav}
+              onChange={e => setBuilderNav(e.target.checked)}
+              className="mt-0.5 rounded border-border"
+            />
+            <span className="text-sm text-foreground">
+              Show Studio &amp; Agents in navigation
+              <span className="block text-xs text-foreground-muted mt-0.5">
+                Also shows Run Company / Learning / Creator on Home
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        </div>
       </div>
 
       <div className="card border-danger/30 p-4 space-y-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div>
             <h3 className="text-sm font-medium text-foreground">Danger zone</h3>
             <p className="text-xs text-foreground-muted mt-1">
@@ -649,7 +716,7 @@ export default function SettingsPanel() {
           <button
             onClick={handleResetActivity}
             disabled={resetting}
-            className="btn-secondary text-xs py-1.5 shrink-0 text-danger hover:text-danger border-danger/30"
+            className="btn-secondary min-h-11 w-full shrink-0 justify-center border-danger/30 text-xs text-danger hover:text-danger sm:min-h-0 sm:w-auto sm:py-1.5"
           >
             {resetDone ? 'Reset ✓' : resetting ? 'Resetting…' : 'Reset activity history'}
           </button>

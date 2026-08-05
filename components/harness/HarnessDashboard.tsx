@@ -20,8 +20,10 @@ import QuickStartOnboarding from './onboarding/QuickStartOnboarding';
 import HumanInputOverlay from './HumanInputOverlay';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
 import { isBuilderView } from '@/lib/client/builder-nav';
+import WelcomeScreen from './WelcomeScreen';
 
 export default function HarnessDashboard() {
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => readOnboardingCache() === null);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
     const cached = readOnboardingCache();
     return cached === false;
@@ -32,8 +34,13 @@ export default function HarnessDashboard() {
     fetch('/api/onboarding')
       .then(r => r.json())
       .then(d => {
-        writeOnboardingCache(Boolean(d.complete));
-        setShowOnboarding(!d.complete);
+        // A cleared cache deliberately means "show the login screen" (first visit or reset).
+        // Do not replace that choice with the profile's previously completed onboarding state.
+        if (readOnboardingCache() !== null) {
+          writeOnboardingCache(Boolean(d.complete));
+          setShowWelcome(false);
+          setShowOnboarding(!d.complete);
+        }
       })
       .catch(() => {
         if (readOnboardingCache() === null) {
@@ -42,6 +49,21 @@ export default function HarnessDashboard() {
         }
       });
   }, []);
+
+  if (showWelcome) {
+    return (
+      <WelcomeScreen
+        onGoogleConnected={() => {
+          setShowWelcome(false);
+          setShowOnboarding(true);
+        }}
+        onDemoReady={() => {
+          setShowWelcome(false);
+          setShowOnboarding(false);
+        }}
+      />
+    );
+  }
 
   if (showOnboarding) {
     if (onboardingMode === 'full') {

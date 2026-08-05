@@ -10,10 +10,10 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
 **Last updated:** 2026-08-05  
-**Phase:** P10 complete — School triage & feed  
-**Next up:** [P8.4 — Platform](./docs/PLAN.md#p84--platform) — auth/multi-user blocked pending provider choice  
-**Recent:** School Gmail rules + calendar/SharePoint sync; Home school card + week prep digest; Inbox moved to sidebar nav  
-**Git:** `main` ahead of `origin/main` (school triage merged locally; push when ready)
+**Phase:** P10 complete — School triage & feed; P8.4 auth + mobile polish on prod  
+**Next up:** Run the production tenant report in [PROD_SMOKE.md](./docs/PROD_SMOKE.md); legacy `default`-tenant copy decision  
+**Recent:** School Gmail rules + calendar/SharePoint sync; Inbox sidebar nav; signed multi-user sessions; mobile surface polish  
+**Git:** merging local P10 with `origin/main`
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
 **Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)  
@@ -131,8 +131,8 @@ Full P8.0–P8.4 backlog lives in [docs/PLAN.md § P8](./docs/PLAN.md#p8--checkb
 - [x] **Rich contact graph** — Last touch from Gmail/Calendar; relationship-monitor writes graph
 - [x] **Finance spike** — Plaid read-only or minimal subscription alerts
 - [x] **Finance → Inbox** — Actionable finance nudges as approval/suggestion cards
-- [ ] **Auth / multi-user** — Session middleware; per-user profile/KB — **BLOCKED** (needs auth provider + storage migration)
-- [ ] **Mobile secondary surfaces** — Agents, Context, Settings polish on small screens — deferred with P8.4
+- [x] **Auth / multi-user** — Signed session middleware; stable Nango-verified Google tenants; per-user profile/KB and safe tenant claiming (no Clerk dependency)
+- [x] **Mobile secondary surfaces** — Agents, Profile/Context, and Settings polished and smoke-tested on small screens
 
 ---
 
@@ -201,7 +201,7 @@ Deterministic school mail triage (rules-first, KB-driven) plus a separate Micros
 - 2026-06-21 — P8.1 Strava health connector — OAuth, sync job, Settings connect/disconnect
 - 2026-06-21 — P8.2 rich contact graph — mail/calendar signal sync, relationship-monitor persist
 - 2026-06-21 — P8.3 finance spike — KB subscription nudges in Inbox, Plaid env stub, finance_read tool
-- 2026-06-21 — P8.4 platform — **BLOCKED** auth/multi-user (no session middleware path chosen); mobile secondary surfaces deferred
+- 2026-07-19 — P8.4 platform complete — signed Nango-backed auth, tenant isolation, and mobile Settings/Profile/Agents
 - 2026-06-21 — P9 profile memory — canonical people store, tombstones, People UI, pulse dismiss, kb reject feedback
 - 2026-06-21 — P9 follow-up — profile E2E suite, kb contract, onboarding→people[], agent person queue round-trip
 - 2026-08-05 — P10 school triage — rules engine, school-inbox/school-sync crons, SharePoint, calendar prep digest, Inbox sidebar nav; merged to main locally

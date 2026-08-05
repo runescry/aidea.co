@@ -1,6 +1,6 @@
 # aidea — infrastructure & data architecture
 
-How the platform is deployed, where data lives, how integrations and the agent harness connect. **P7 is complete on prod; P8 hardens partials and adds live connectors (Strava, contact graph, finance spike). P10 adds school triage & feed. P8.4 auth/multi-user is still open.**
+How the platform is deployed, where data lives, how integrations and the agent harness connect. **P7 is complete on prod; P8 hardens partials and adds live connectors (Strava, contact graph, finance spike). P8.4 auth/multi-user hardening and mobile polish are complete. P10 adds school triage & feed.**
 
 **Related:** [Product vision](/docs/vision) · [Gap closure plan](/docs/plan) · [Deployment](/docs/deployment) · [Agent instructions](/docs/agents)
 
@@ -80,7 +80,7 @@ flowchart TB
   STRAVA --> KBH
 ```
 
-**Tenant model:** All storage calls use `getUserId()` → `process.env.DEFAULT_USER_ID ?? 'default'`. There is **no session auth** today; Nango connections are tagged with the same `end_user_id`.
+**Tenant model:** In Postgres mode, user data is scoped by an HMAC-signed app session. Demo sessions use isolated random `demo:*` ids. Google entry uses Nango OAuth to verify the account, derives a stable opaque `google:*` tenant from the normalized Google email, and preserves the temporary Nango owner id for connection lookups. Production API middleware rejects missing, expired, or tampered sessions. `DEFAULT_USER_ID ?? 'default'` remains only as the local/CLI/cron fallback. Filesystem storage remains a single-user local development fallback.
 
 ---
 
@@ -115,7 +115,7 @@ What aidea uses on Vercel vs what it does not. Postgres (Neon, Supabase, etc.) i
 | **Cron Jobs** | Yes | [`vercel.json`](../vercel.json) → `/api/monitor`: daily 6:30 UTC, inbox every 15m (7–22), **school-inbox** every 15m (7–22), **school-sync** hourly, relationships Mon 8:00. Requires `CRON_SECRET` in prod |
 | **KV** | Optional | `@vercel/kv` for `request_human_input` when `KV_REST_*` env vars set; without KV, human-input answers use an in-memory Map (single instance / local dev only) |
 | **OIDC** (`VERCEL_OIDC_TOKEN`) | Fallback | Third LLM auth path when gateway key and direct Anthropic key are unset ([`lib/ai/provider.ts`](../lib/ai/provider.ts)). On Vercel deploys, OIDC-only often returns **403** on multi-agent Studio runs — set `AI_GATEWAY_API_KEY` |
-| **Auth** | No | No Vercel Auth; single tenant via `DEFAULT_USER_ID` (P8.4 backlog) |
+| **Auth** | Yes | Nango-verified Google identity or isolated demo entry; signed app session, stable Postgres tenant, and production API middleware. No Clerk dependency. |
 | **Analytics** | No | Not integrated |
 | **Blob** | No | Profile, queue, chat, and briefs live in Postgres or local `data/` — not Vercel Blob |
 
@@ -188,7 +188,7 @@ Models route through Vercel AI Gateway (`anthropic/claude-*`). Fast chat uses Ha
 ### Nango — Gmail, Calendar & School Microsoft
 
 - Env: `NANGO_SECRET_KEY`; optional `NANGO_GMAIL_INTEGRATION_ID` / `NANGO_CALENDAR_INTEGRATION_ID` (defaults: `google-mail`, `google-calendar`); optional `NANGO_MICROSOFT_INTEGRATION_ID` (default: `microsoft-school`).
-- Connect flow: Settings → `POST /api/nango/session` → Nango Connect UI → connections stored in Nango tagged with `DEFAULT_USER_ID`.
+- Connect flow: Welcome or Settings → `POST /api/nango/session` → Nango Connect UI → connections stored in Nango under the session's integration-owner id. Welcome then calls `POST /api/auth/google/complete` to verify the Google email, claim the stable app tenant, and retain that integration-owner id; demo tenants are blocked from live connects.
 - **Gmail + Calendar (personal Google):** `lib/nango/gmail.ts`, `lib/nango/calendar.ts` — read inbox, send mail, create drafts, read/create calendar events. Multiple accounts supported; school calendar sync reads all connected calendars.
 - **School Microsoft (separate account):** `lib/nango/sharepoint.ts` — SharePoint news lists + document libraries for timetables/forms. Mapped per child in KB (`family.children[]` → `microsoftSiteId`, etc.).
 - Harness auto-upgrades `realWorldToolMode` from `dry-run` to `auto` when Nango connections exist.
@@ -301,7 +301,8 @@ Per-domain autonomy (`domain-autonomy.ts`) gates auto-execute vs `needs_you` on 
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | Postgres (also `POSTGRES_URL`, `POSTGRES_PRISMA_URL`) |
-| `DEFAULT_USER_ID` | Single-tenant user id (default `default`) |
+| `AIDEA_SESSION_SECRET` | HMAC signing and opaque Google tenant derivation; use a long random production value |
+| `DEFAULT_USER_ID` | Local/CLI/cron/single-user fallback (default `default`); not a public production browser identity |
 | `AI_GATEWAY_API_KEY` | Vercel AI Gateway (prod LLM auth) |
 | `AI_GATEWAY_BASE_URL` | Optional gateway URL override |
 | `ANTHROPIC_API_KEY` | Direct Anthropic fallback (local dev) |
@@ -341,8 +342,7 @@ Handler mode calls route handlers directly; set `TEST_BASE_URL=http://localhost:
 
 ## Current gaps (P8.4)
 
-- **No auth middleware** — anyone with the URL shares one tenant (`DEFAULT_USER_ID`).
-- **Multi-user** requires session → per-user `DEFAULT_USER_ID` on all storage/Nango tags.
-- **Mobile polish** on Agents/Context/Settings secondary surfaces still open.
+- **Legacy tenant assignment** — existing `default` or random pre-hardening tenants still need an explicit one-time report/copy decision; new Google sessions claim temporary tenant rows automatically.
+- **Legacy profile compatibility** — `people-migrate.ts` remains the sole read-time bridge from old relationship lists; all active graph, onboarding, agent, and seed paths use `relationships.people[]`.
 
 Everything else in the daily loop (Home school feed, chat, Inbox approvals, crons, timeline, per-domain autonomy, Strava sync, contact graph, finance spike) is shipped per P7 + P8 + P10 checkboxes in [PLAN.md](./PLAN.md).

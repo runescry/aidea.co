@@ -7,6 +7,8 @@ import { collapsePendingQueueDuplicates } from '@/lib/harness/queue';
 import { recordRelationshipMonitorSignals } from '@/lib/contacts/sync-signals';
 import { syncSchoolSharePoint } from '@/lib/harness/school-sharepoint-sync';
 import { syncSchoolFeed } from '@/lib/harness/school-feed-sync';
+import { listGmailConnectionsLite, hasNangoConnections } from '@/lib/nango/connections';
+import { nangoConfigured } from '@/lib/nango/client';
 
 export const runtime = 'nodejs';
 export const maxDuration = 1800;
@@ -67,6 +69,21 @@ export async function GET(req: NextRequest) {
     return llmSkippedResponse(
       'LLM not configured — set AI_GATEWAY_API_KEY or ANTHROPIC_API_KEY to resume morning brief and inbox triage',
     );
+  }
+
+  // Inbox and daily monitors need Gmail — skip gracefully if not connected.
+  if (name === 'inbox' || name === 'daily') {
+    const gmailConns = nangoConfigured() ? await listGmailConnectionsLite() : [];
+    if (gmailConns.length === 0) {
+      return NextResponse.json({ ok: true, skipped: 'no Gmail connection', eventCount: 0 });
+    }
+  }
+
+  // Relationship monitor needs at least some integration — skip if none.
+  if (name === 'relationships') {
+    if (!(await hasNangoConnections())) {
+      return NextResponse.json({ ok: true, skipped: 'no integrations connected', eventCount: 0 });
+    }
   }
 
   const events: HarnessEvent[] = [];
