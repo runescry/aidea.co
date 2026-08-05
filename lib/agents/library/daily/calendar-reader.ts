@@ -25,7 +25,9 @@ Call kb_read with keys: ["family.children", "family.partner"]
 - family.partner: partner name and any relevant schedule context
 
 STEP 2: Fetch calendar events for today through the rest of the week.
-Call calendar_read with { date: "<currentDate from state>", daysAhead: 6 }
+Call calendar_read with { date: "<currentDate from state>", daysAhead: 6, maxResults: 40 }
+maxResults defaults to 20 per calendar — too low for a 6-day window on a busy family
+calendar, so raise it explicitly or later days risk being silently truncated.
 The response includes todayEvents and tomorrowEvents already split by calendar day, plus
 later events you'll bucket yourself in step 5a.
 Use todayEvents ONLY for todaySchedule — never put Monday events on Saturday's brief.

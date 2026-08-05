@@ -20,8 +20,11 @@ export default function FamilyWeekStrip({
   return (
     <div className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground-subtle mb-3">This week</p>
-      <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
-        {week.slice(0, 5).map(day => {
+      <div
+        className="grid gap-1.5 sm:gap-2"
+        style={{ gridTemplateColumns: `repeat(${week.length}, minmax(0, 1fr))` }}
+      >
+        {week.map(day => {
           const isSelected = day.date === selectedDay?.date;
           return (
             <button
