@@ -5,7 +5,7 @@ import { useHarnessSession } from '@/hooks/useHarnessSession';
 import { ChatProvider, useChatConversations } from '@/hooks/useChatConversations';
 import { ConfirmProvider } from '@/hooks/useConfirm';
 import { WorkFeedProvider, useWorkFeed } from '@/hooks/useWorkFeed';
-import { readOnboardingCache, writeOnboardingCache, fetchOnboardingComplete, fetchSessionAuthenticated } from '@/lib/client/onboarding-cache';
+import { fetchSessionAuthenticated } from '@/lib/client/onboarding-cache';
 import AppSidebar, { type MainView } from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import ConversationDrawer from './sidebar/ConversationDrawer';
@@ -15,8 +15,6 @@ import RunStudio from './RunStudio';
 import ProfilePage from './ProfilePage';
 import SettingsPanel from './SettingsPanel';
 import AgentLibrary from './AgentLibrary';
-import OnboardingWizard from './onboarding/OnboardingWizard';
-import QuickStartOnboarding from './onboarding/QuickStartOnboarding';
 import HumanInputOverlay from './HumanInputOverlay';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
 import { isBuilderView } from '@/lib/client/builder-nav';
@@ -34,83 +32,29 @@ export default function HarnessDashboard({
   initialSchoolFeed = null,
   homeFeedPending = false,
 }: HarnessDashboardProps) {
-  // Both start matching the server render (no localStorage there) — corrected from the cache
-  // synchronously on mount, before the /api/onboarding fetch resolves. A returning visitor
-  // (any non-null cache) would otherwise mismatch the server's WelcomeScreen render.
-  const [showWelcome, setShowWelcome] = useState<boolean>(true);
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
-  const [onboardingMode, setOnboardingMode] = useState<'quick' | 'full'>('quick');
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   useEffect(() => {
-    const cached = readOnboardingCache();
-    if (cached !== null) {
-      setShowWelcome(false);
-      setShowOnboarding(cached === false);
-    }
-
     void (async () => {
       const authenticated = await fetchSessionAuthenticated();
-      // No session and no cache → stay on Welcome (first visit or after logout).
-      if (readOnboardingCache() === null && !authenticated) return;
-
-      const complete = await fetchOnboardingComplete();
-      if (complete === null) {
-        if (authenticated && readOnboardingCache() === null) {
-          setShowWelcome(false);
-          setShowOnboarding(false);
-        }
-        return;
-      }
-
-      writeOnboardingCache(complete);
-      setShowWelcome(false);
-      setShowOnboarding(!complete);
+      if (authenticated) setShowWelcome(false);
+      setSessionChecked(true);
     })();
   }, []);
 
-  const handleGoogleConnected = useCallback(async () => {
+  const handleSignedIn = useCallback(() => {
     setShowWelcome(false);
-    const complete = await fetchOnboardingComplete();
-    if (complete === null) {
-      setShowOnboarding(true);
-      return;
-    }
-    writeOnboardingCache(complete);
-    setShowOnboarding(!complete);
   }, []);
 
-  if (showWelcome) {
-    return (
-      <WelcomeScreen
-        onGoogleConnected={handleGoogleConnected}
-        onDemoReady={() => {
-          setShowWelcome(false);
-          setShowOnboarding(false);
-        }}
-      />
-    );
-  }
-
-  if (showOnboarding) {
-    if (onboardingMode === 'full') {
-      return (
-        <OnboardingWizard
-          onComplete={() => {
-            writeOnboardingCache(true);
-            setShowOnboarding(false);
-            setOnboardingMode('quick');
-          }}
-        />
-      );
+  if (!sessionChecked || showWelcome) {
+    if (showWelcome) {
+      return <WelcomeScreen onSignedIn={handleSignedIn} />;
     }
     return (
-      <QuickStartOnboarding
-        onComplete={() => {
-          writeOnboardingCache(true);
-          setShowOnboarding(false);
-        }}
-        onFullProfile={() => setOnboardingMode('full')}
-      />
+      <main className="min-h-[100dvh] bg-surface-muted flex items-center justify-center">
+        <p className="text-sm text-foreground-muted">Loading…</p>
+      </main>
     );
   }
 
@@ -118,8 +62,6 @@ export default function HarnessDashboard({
     <ConfirmProvider>
       <ChatProvider>
         <DashboardBody
-          setShowOnboarding={setShowOnboarding}
-          setOnboardingMode={setOnboardingMode}
           initialSchoolFeed={initialSchoolFeed}
           homeFeedPending={homeFeedPending}
         />
@@ -129,13 +71,9 @@ export default function HarnessDashboard({
 }
 
 function DashboardBody({
-  setShowOnboarding,
-  setOnboardingMode,
   initialSchoolFeed,
   homeFeedPending,
 }: {
-  setShowOnboarding: (v: boolean) => void;
-  setOnboardingMode: (m: 'quick' | 'full') => void;
   initialSchoolFeed: SchoolFeed | null;
   homeFeedPending: boolean;
 }) {
@@ -170,8 +108,6 @@ function DashboardBody({
         clearPendingInput={clearPendingInput}
         chatPendingInput={chatPendingInput}
         clearChatPendingInput={clearChatPendingInput}
-        setShowOnboarding={setShowOnboarding}
-        setOnboardingMode={setOnboardingMode}
         initialSchoolFeed={initialSchoolFeed}
         homeFeedPending={homeFeedPending}
       />
@@ -190,8 +126,6 @@ function DashboardChrome({
   clearPendingInput,
   chatPendingInput,
   clearChatPendingInput,
-  setShowOnboarding,
-  setOnboardingMode,
   initialSchoolFeed,
   homeFeedPending,
 }: {
@@ -205,8 +139,6 @@ function DashboardChrome({
   clearPendingInput: ReturnType<typeof useHarnessSession>['clearPendingInput'];
   chatPendingInput: ReturnType<typeof useChatConversations>['pendingInput'];
   clearChatPendingInput: ReturnType<typeof useChatConversations>['clearPendingInput'];
-  setShowOnboarding: (v: boolean) => void;
-  setOnboardingMode: (m: 'quick' | 'full') => void;
   initialSchoolFeed: SchoolFeed | null;
   homeFeedPending: boolean;
 }) {
@@ -319,10 +251,6 @@ function DashboardChrome({
           <ProfilePage
             refreshKey={taskRefreshKey}
             onOpenChat={openChatWithDraft}
-            onRestartOnboarding={() => {
-              setOnboardingMode('full');
-              setShowOnboarding(true);
-            }}
           />
         )}
 

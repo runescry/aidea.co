@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getConnectedGoogleIdentity: vi.fn(),
   claimTenantData: vi.fn(),
   registerGoogleAccount: vi.fn(),
+  mergeProfile: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/session', () => ({
@@ -20,6 +21,7 @@ vi.mock('@/lib/nango/connections', () => ({
 }));
 vi.mock('@/lib/storage/tenant-copy', () => ({ claimTenantData: mocks.claimTenantData }));
 vi.mock('@/lib/auth/accounts', () => ({ registerGoogleAccount: mocks.registerGoogleAccount }));
+vi.mock('@/lib/storage', () => ({ mergeProfile: mocks.mergeProfile }));
 
 import { POST } from './route';
 
@@ -30,6 +32,7 @@ describe('POST /api/auth/google/complete', () => {
     mocks.getCurrentNangoUserId.mockResolvedValue('google:temporary');
     mocks.getConnectedGoogleIdentity.mockResolvedValue({ email: 'person@example.com' });
     mocks.registerGoogleAccount.mockResolvedValue(undefined);
+    mocks.mergeProfile.mockResolvedValue(undefined);
   });
 
   it('claims temporary data and promotes the signed session to a stable Google tenant', async () => {
@@ -43,6 +46,7 @@ describe('POST /api/auth/google/complete', () => {
     expect(mocks.claimTenantData).toHaveBeenCalledWith('google:temporary', body.userId);
     expect(mocks.setCurrentGoogleUser).toHaveBeenCalledWith(body.userId, 'google:temporary');
     expect(mocks.registerGoogleAccount).toHaveBeenCalledWith(body.userId, 'google:temporary');
+    expect(mocks.mergeProfile).toHaveBeenCalledWith({ 'preferences.onboardingComplete': true });
   });
 
   it('does not create a session when Google identity cannot be resolved', async () => {

@@ -2,14 +2,12 @@
 
 import { useState } from 'react';
 import Nango from '@nangohq/frontend';
-import { writeOnboardingCache } from '@/lib/client/onboarding-cache';
 
 interface Props {
-  onGoogleConnected: () => void | Promise<void>;
-  onDemoReady: () => void;
+  onSignedIn: () => void | Promise<void>;
 }
 
-export default function WelcomeScreen({ onGoogleConnected, onDemoReady }: Props) {
+export default function WelcomeScreen({ onSignedIn }: Props) {
   const [connecting, setConnecting] = useState(false);
   const [loadingDemo, setLoadingDemo] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +44,7 @@ export default function WelcomeScreen({ onGoogleConnected, onDemoReady }: Props)
                 throw new Error(body.error ?? 'Unable to finish Google sign-in');
               }
               setConnecting(false);
-              await onGoogleConnected();
+              await onSignedIn();
             } catch (err) {
               setError(err instanceof Error ? err.message : 'Unable to finish Google sign-in');
               setConnecting(false);
@@ -82,8 +80,7 @@ export default function WelcomeScreen({ onGoogleConnected, onDemoReady }: Props)
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? `Failed to load demo (${res.status})`);
       }
-      writeOnboardingCache(true);
-      onDemoReady();
+      await onSignedIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load demo');
     } finally {
@@ -98,7 +95,7 @@ export default function WelcomeScreen({ onGoogleConnected, onDemoReady }: Props)
           <div className="text-display text-foreground">aidea</div>
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">Log in or sign up</h1>
           <p className="mt-3 text-sm leading-6 text-foreground-muted">
-            Continue with Google to connect Gmail and Calendar, then confirm your details before your first brief.
+            Continue with Google to connect Gmail and Calendar. Add your name and preferences anytime in Profile.
           </p>
         </div>
 

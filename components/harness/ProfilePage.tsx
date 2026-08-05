@@ -16,12 +16,11 @@ import ProfileDomainSheet from './profile/ProfileDomainSheet';
 import ProfilePulseBand from './profile/ProfilePulseBand';
 
 interface Props {
-  onRestartOnboarding?: () => void;
   onOpenChat?: (draft: string) => void;
   refreshKey?: number;
 }
 
-export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKey = 0 }: Props) {
+export default function ProfilePage({ onOpenChat, refreshKey = 0 }: Props) {
   const confirm = useConfirm();
   const [data, setData] = useState<KnowledgeBase>({});
   const [loading, setLoading] = useState(true);
@@ -197,13 +196,7 @@ export default function ProfilePage({ onRestartOnboarding, onOpenChat, refreshKe
             Living context — updates from chat, agents, and integrations.
           </p>
         </div>
-        <div className="flex w-full gap-2 sm:w-auto sm:shrink-0">
-          {onRestartOnboarding && (
-            <button type="button" onClick={onRestartOnboarding} className="btn-secondary min-h-11 w-full px-3 text-xs sm:min-h-0 sm:w-auto sm:py-1.5">
-              Re-run onboarding
-            </button>
-          )}
-        </div>
+        <div className="flex w-full gap-2 sm:w-auto sm:shrink-0" />
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 md:p-6">
