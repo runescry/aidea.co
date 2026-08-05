@@ -15,6 +15,10 @@ export interface SchoolRoundupItem {
   reason: string;
   action?: string;
   messageId?: string;
+  from?: string;
+  account?: string;
+  threadId?: string;
+  internetMessageId?: string;
   gmailUrl?: string;
   queueActionId?: string;
 }
@@ -66,6 +70,10 @@ function toRoundupItem(
     reason: String(row.reason ?? row.snippet ?? cached?.snippet ?? '').trim(),
     action: row.action ? String(row.action) : undefined,
     messageId,
+    from: String(row.from ?? cached?.from ?? ''),
+    account: row.account ? String(row.account) : cached?.account,
+    threadId: row.threadId ? String(row.threadId) : cached?.threadId,
+    internetMessageId: cached?.internetMessageId,
     gmailUrl: messageId
       ? gmailMessageUrlFromEmail({
           id: messageId,

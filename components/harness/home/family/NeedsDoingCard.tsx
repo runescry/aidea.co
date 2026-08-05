@@ -32,7 +32,7 @@ function NeedRow({ item, child }: { item: FamilyNeedItem; child: FamilyChild | u
               onClick={event => {
                 if (!item.gmailLink) return;
                 event.preventDefault();
-                openGmailMessage({ id: item.gmailLink.messageId, ...item.gmailLink });
+                void openGmailMessage({ id: item.gmailLink.messageId, ...item.gmailLink });
               }}
               target="_blank"
               rel="noopener noreferrer"
