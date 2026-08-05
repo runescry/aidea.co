@@ -19,13 +19,14 @@ import QuickStartOnboarding from './onboarding/QuickStartOnboarding';
 import HumanInputOverlay from './HumanInputOverlay';
 
 export default function HarnessDashboard() {
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
-    const cached = readOnboardingCache();
-    return cached === false;
-  });
+  // Starts false to match the server render (no localStorage there) — corrected
+  // from the cache synchronously on mount, before the /api/onboarding fetch resolves.
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
   const [onboardingMode, setOnboardingMode] = useState<'quick' | 'full'>('quick');
 
   useEffect(() => {
+    if (readOnboardingCache() === false) setShowOnboarding(true);
+
     fetch('/api/onboarding')
       .then(r => r.json())
       .then(d => {
