@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gmailMessageUrl, gmailMessageUrlFromEmail } from './message-url';
+import { gmailMessageUrl, gmailMessageUrlFromEmail, androidGmailIntentUrl } from './message-url';
 
 describe('gmailMessageUrl', () => {
   it('uses rfc822msgid search when Message-ID header is known', () => {
@@ -38,6 +38,31 @@ describe('gmailMessageUrl', () => {
   it('falls back to account index when only api id is available', () => {
     expect(gmailMessageUrl('19eda6f5b270bb31', { accountIndex: 0 })).toBe(
       'https://mail.google.com/mail/u/0/#all/19eda6f5b270bb31',
+    );
+  });
+
+  it('uses mobile Gmail web path when target is mobile', () => {
+    const url = gmailMessageUrlFromEmail(
+      {
+        id: 'msg-1',
+        from: 'Consent2Go <noreply@xavier.vic.edu.au>',
+        subject: 'Invitation for Sebastian',
+        account: 'parent@gmail.com',
+      },
+      'mobile',
+    );
+    expect(url).toContain('/mail/mu/mp/');
+    expect(url).toContain('#tl/search/');
+    expect(url).toContain('authuser=parent%40gmail.com');
+    expect(url).not.toContain('subject%3A%22');
+  });
+
+  it('builds Android intent wrapper', () => {
+    expect(androidGmailIntentUrl('https://mail.google.com/mail/mu/mp/0/#tl/search/test')).toContain(
+      'intent://mail.google.com/mail/mu/mp/0/#tl/search/test',
+    );
+    expect(androidGmailIntentUrl('https://mail.google.com/mail/mu/mp/0/#tl/search/test')).toContain(
+      'com.google.android.gm',
     );
   });
 

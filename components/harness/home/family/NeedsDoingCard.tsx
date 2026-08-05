@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import type { FamilyChild, FamilyNeedItem } from '@/lib/harness/family-week';
+import { openGmailMessage } from '@/lib/client/open-gmail';
 import { childDotClass } from './childColors';
 
 function NeedRow({ item, child }: { item: FamilyNeedItem; child: FamilyChild | undefined }) {
   const [open, setOpen] = useState(false);
-  const expandable = Boolean(item.detail || item.gmailUrl);
+  const expandable = Boolean(item.detail || item.gmailLink || item.gmailUrl);
 
   return (
     <li className="rounded-xl border border-border border-l-[3px] border-l-danger bg-surface overflow-hidden">
@@ -25,9 +26,14 @@ function NeedRow({ item, child }: { item: FamilyNeedItem; child: FamilyChild | u
       {expandable && open && (
         <div className="px-3.5 pb-3.5 pl-[34px] space-y-2">
           {item.detail && <p className="text-[13.5px] text-foreground-muted leading-snug">{item.detail}</p>}
-          {item.gmailUrl && (
+          {(item.gmailLink || item.gmailUrl) && (
             <a
-              href={item.gmailUrl}
+              href={item.gmailUrl ?? '#'}
+              onClick={event => {
+                if (!item.gmailLink) return;
+                event.preventDefault();
+                openGmailMessage({ id: item.gmailLink.messageId, ...item.gmailLink });
+              }}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block text-[12.5px] font-medium text-accent hover:underline"

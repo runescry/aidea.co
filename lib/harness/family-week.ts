@@ -38,6 +38,14 @@ export interface FamilyNeedItem {
   detail?: string;
   childKey?: string;
   gmailUrl?: string;
+  /** Rebuild Gmail link client-side for mobile / Android app. */
+  gmailLink?: {
+    messageId: string;
+    from: string;
+    subject: string;
+    account?: string;
+    internetMessageId?: string;
+  };
 }
 
 export interface FamilyGoodToKnowItem {
@@ -107,6 +115,13 @@ function needItemFromRow(row: SchoolFeedEmailRow, children: FamilyChild[]): Fami
     detail: detailParts.length > 0 ? detailParts.join(' — ') : undefined,
     childKey: children.find(c => c.name === row.child)?.key,
     gmailUrl: gmailUrlForFeedRow(row),
+    gmailLink: {
+      messageId: row.messageId,
+      from: row.from,
+      subject: row.subject,
+      account: row.account,
+      internetMessageId: row.internetMessageId,
+    },
   };
 }
 
