@@ -13,12 +13,14 @@ export interface GmailMessage {
   connectionId: string;
   account?: string;
   threadId?: string;
+  /** RFC 822 Message-ID header — used for reliable Gmail web deep links. */
+  internetMessageId?: string;
   replyTo?: string;
   bodyText?: string;
   bodyTruncated?: boolean;
 }
 
-const GMAIL_METADATA_HEADERS = ['From', 'Subject', 'Date', 'Reply-To'] as const;
+const GMAIL_METADATA_HEADERS = ['From', 'Subject', 'Date', 'Reply-To', 'Message-ID'] as const;
 
 /** Gmail needs repeated metadataHeaders query params; Nango drops them when passed as an array in params. */
 export function gmailMessageMetadataEndpoint(messageId: string, extraHeaders: string[] = []): string {
@@ -63,6 +65,7 @@ async function readGmailForConnection(
         const headers = msg.payload?.headers ?? [];
         const get = (name: string) => headers.find(h => h.name === name)?.value ?? '';
         const from = get('From');
+        const messageIdHeader = get('Message-ID');
         return {
           id: msg.id,
           from,
@@ -74,6 +77,9 @@ async function readGmailForConnection(
           account: conn.email,
           threadId: msg.threadId,
           replyTo: get('Reply-To') || from,
+          internetMessageId: messageIdHeader
+            ? messageIdHeader.trim().replace(/^<|>$/g, '')
+            : undefined,
         } satisfies GmailMessage;
       }),
     ),
@@ -132,6 +138,10 @@ async function fetchGmailMessageById(
       replyTo: get('Reply-To') || from,
       bodyText,
       bodyTruncated,
+      internetMessageId: (() => {
+        const header = get('Message-ID');
+        return header ? header.trim().replace(/^<|>$/g, '') : undefined;
+      })(),
     };
   } catch {
     return null;

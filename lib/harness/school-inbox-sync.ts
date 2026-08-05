@@ -41,10 +41,16 @@ function toFeedRow(row: SchoolEmailRow): SchoolFeedEmailRow {
     priority: row.priority,
     deadline: row.deadline,
     attachmentSummary: row.attachmentSummary,
+    internetMessageId: row.internetMessageId,
+    account: row.account,
+    threadId: row.threadId,
     gmailUrl: gmailMessageUrlFromEmail({
       id: row.messageId,
       threadId: row.threadId,
       account: row.account,
+      internetMessageId: row.internetMessageId,
+      subject: row.subject,
+      from: row.from,
     }),
   };
 }

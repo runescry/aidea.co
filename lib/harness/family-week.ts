@@ -3,6 +3,7 @@ import type { SchoolCalendarEventRow } from './school-calendar-classify';
 import { dedupeSchoolCalendarEvents } from './school-calendar-classify';
 import { buildSchoolTodayItems, schoolEventToPrepLine } from './school-today-digest';
 import { decodeBriefText } from './morning-brief-must-do';
+import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
 
 const CHILD_COLOR_COUNT = 4;
 
@@ -86,6 +87,18 @@ export function formatFullDate(dateYmd: string): string {
     : '';
 }
 
+function gmailUrlForFeedRow(row: SchoolFeedEmailRow): string | undefined {
+  const url = gmailMessageUrlFromEmail({
+    id: row.messageId,
+    subject: row.subject,
+    from: row.from,
+    internetMessageId: row.internetMessageId,
+    account: row.account,
+    threadId: row.threadId,
+  });
+  return url || row.gmailUrl;
+}
+
 function needItemFromRow(row: SchoolFeedEmailRow, children: FamilyChild[]): FamilyNeedItem {
   const detailParts = [row.deadline ? `Due ${row.deadline}` : '', decodeBriefText(row.snippet)].filter(Boolean);
   return {
@@ -93,7 +106,7 @@ function needItemFromRow(row: SchoolFeedEmailRow, children: FamilyChild[]): Fami
     title: decodeBriefText(row.subject),
     detail: detailParts.length > 0 ? detailParts.join(' — ') : undefined,
     childKey: children.find(c => c.name === row.child)?.key,
-    gmailUrl: row.gmailUrl,
+    gmailUrl: gmailUrlForFeedRow(row),
   };
 }
 

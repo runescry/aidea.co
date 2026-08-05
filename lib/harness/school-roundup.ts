@@ -71,6 +71,9 @@ function toRoundupItem(
           id: messageId,
           threadId: row.threadId ? String(row.threadId) : cached?.threadId,
           account: row.account ? String(row.account) : cached?.account,
+          internetMessageId: cached?.internetMessageId,
+          subject: String(row.subject ?? cached?.subject ?? ''),
+          from: String(row.from ?? cached?.from ?? ''),
         })
       : undefined,
     queueActionId: row.queueActionId ? String(row.queueActionId) : undefined,

@@ -63,7 +63,8 @@ describe('morning-brief-must-do', () => {
     });
     expect(item.context).toBe('Genazzano FCJ College · Ivy');
     expect(String(item.gmailUrl)).toContain('authuser=parent%40gmail.com');
-    expect(String(item.gmailUrl)).toContain('#all/t1');
+    expect(String(item.gmailUrl)).toContain('#search/');
+    expect(String(item.gmailUrl)).toContain('Save+the+date');
   });
 
   it('drops vague summaries when linked emails exist', () => {

@@ -65,6 +65,10 @@ export interface SchoolFeedEmailRow {
   deadline?: string;
   gmailUrl?: string;
   attachmentSummary?: string;
+  /** RFC 822 Message-ID — preferred for Gmail web deep links after sync. */
+  internetMessageId?: string;
+  account?: string;
+  threadId?: string;
 }
 
 export interface SchoolFeedRoundup {

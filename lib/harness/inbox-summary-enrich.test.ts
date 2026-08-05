@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { enrichInboxSummary, type CachedGmail } from './inbox-sanitize';
-import { gmailMessageUrl } from '@/lib/gmail/message-url';
+import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
 
 describe('enrichInboxSummary', () => {
   const cache = new Map<string, CachedGmail>([
@@ -18,7 +18,11 @@ describe('enrichInboxSummary', () => {
       cache,
     );
     expect(rows[0]?.messageId).toBe('msg-1');
-    expect(rows[0]?.gmailUrl).toBe(gmailMessageUrl('msg-1', { accountIndex: 0 }));
+    expect(rows[0]?.gmailUrl).toBe(gmailMessageUrlFromEmail({
+      id: 'msg-1',
+      from: 'Stripe <billing@stripe.com>',
+      subject: 'Payment failed',
+    }));
     expect(rows[0]?.snippet).toBe('Your card was declined');
   });
 
@@ -27,7 +31,10 @@ describe('enrichInboxSummary', () => {
       [{ messageId: 'msg-99', subject: 'Unknown' }],
       cache,
     );
-    expect(rows[0]?.gmailUrl).toBe(gmailMessageUrl('msg-99', { accountIndex: 0 }));
+    expect(rows[0]?.gmailUrl).toBe(gmailMessageUrlFromEmail({
+      id: 'msg-99',
+      subject: 'Unknown',
+    }));
   });
 
   it('matches when subject differs by Re: prefix', () => {
@@ -44,6 +51,7 @@ describe('enrichInboxSummary', () => {
       fuzzyCache,
     );
     expect(rows[0]?.messageId).toBe('msg-2');
-    expect(rows[0]?.gmailUrl).toContain('msg-2');
+    expect(rows[0]?.gmailUrl).toContain('#search/');
+    expect(rows[0]?.gmailUrl).toContain('Payment+failed');
   });
 });

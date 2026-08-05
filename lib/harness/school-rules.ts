@@ -26,6 +26,7 @@ export interface SchoolEmailRow {
   threadId?: string;
   account?: string;
   connectionId?: string;
+  internetMessageId?: string;
   attachmentSummary?: string;
 }
 
@@ -114,6 +115,7 @@ function rowFromEmail(email: CachedGmail, profile: { school: string; child: stri
     threadId: email.threadId,
     account: email.account,
     connectionId: email.connectionId,
+    internetMessageId: email.internetMessageId,
   };
 }
 

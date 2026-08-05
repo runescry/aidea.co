@@ -19,6 +19,7 @@ export interface CachedGmail {
   replyTo?: string;
   account?: string;
   connectionId?: string;
+  internetMessageId?: string;
 }
 
 export interface CachedGmailAttachment {

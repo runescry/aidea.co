@@ -209,7 +209,13 @@ export function normalizeMustDoItem(item: Record<string, unknown>): Record<strin
   const gmailUrl = nonEmpty(
     item.gmailUrl,
     (messageId || threadId)
-      ? gmailMessageUrl(messageId || threadId, { threadId: threadId || undefined, account: account || undefined })
+      ? gmailMessageUrl(messageId || threadId, {
+          threadId: threadId || undefined,
+          account: account || undefined,
+          subject: subject || undefined,
+          from: fromField || undefined,
+          internetMessageId: nonEmpty(item.internetMessageId) || undefined,
+        })
       : '',
   );
 

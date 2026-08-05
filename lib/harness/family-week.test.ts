@@ -93,13 +93,14 @@ describe('buildFamilyWeekView', () => {
       }),
       '2026-08-10',
     );
-    expect(view.needsDoing).toEqual([{
+    expect(view.needsDoing[0]).toMatchObject({
       id: 'x1',
       title: 'Pay swimming carnival note',
       detail: 'Due Friday — $12',
       childKey: 'sebastian',
-      gmailUrl: 'https://mail.google.com/mail/u/0/#inbox/x1',
-    }]);
+    });
+    expect(view.needsDoing[0]?.gmailUrl).toContain('#search/');
+    expect(view.needsDoing[0]?.gmailUrl).toContain('Pay+swimming');
     expect(view.goodToKnow).toEqual([{ id: 'x2', title: 'Term 3 canteen menu & hours', childKey: 'sebastian' }]);
   });
 
