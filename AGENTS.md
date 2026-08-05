@@ -221,6 +221,12 @@ Agent definitions live in `lib/agents/library/`. User overrides persist at `prof
 - **Home** = chat (`ChatInterface variant="home"`) + **Inbox** (`TaskFeed` via `useWorkFeed`)
   - **Desktop (`lg+`):** chat left, Inbox panel right (~380px)
   - **Mobile (`<lg`):** full-height chat; Inbox via header button → full-screen overlay
+  - **Exception — Family view:** when the brief carries school-sourced `mustDo` items
+    (`hasFamilyData`, see `lib/harness/family-week.ts`), Home renders `FamilyWeekView`
+    instead — a chat-free weekly digest, by design (see the Family Week UX audit).
+    A "Manage" link and a `localStorage`-persisted per-device mode switch back to the
+    chat + Inbox layout above. This is the one documented case where Home does not
+    mount chat/Inbox by default.
 - **Nav:** collapsible sidebar (desktop); `MobileBottomNav` (mobile); badge on Home = pending approvals
 - **Onboarding** = 3-step `QuickStartOnboarding` on first launch; full `OnboardingWizard` from Context → Re-run onboarding
 - **Studio** = `RunStudio` (harness debug + entity runs); Reset session = in-memory only
