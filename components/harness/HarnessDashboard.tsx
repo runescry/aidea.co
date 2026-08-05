@@ -5,7 +5,7 @@ import { useHarnessSession } from '@/hooks/useHarnessSession';
 import { ChatProvider, useChatConversations } from '@/hooks/useChatConversations';
 import { ConfirmProvider } from '@/hooks/useConfirm';
 import { WorkFeedProvider, useWorkFeed } from '@/hooks/useWorkFeed';
-import { readOnboardingCache, writeOnboardingCache } from '@/lib/client/onboarding-cache';
+import { readOnboardingCache, writeOnboardingCache, fetchOnboardingComplete, fetchSessionAuthenticated } from '@/lib/client/onboarding-cache';
 import AppSidebar, { type MainView } from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import ConversationDrawer from './sidebar/ConversationDrawer';
@@ -48,32 +48,41 @@ export default function HarnessDashboard({
       setShowOnboarding(cached === false);
     }
 
-    fetch('/api/onboarding')
-      .then(r => r.json())
-      .then(d => {
-        // A cleared cache deliberately means "show the login screen" (first visit or reset).
-        // Do not replace that choice with the profile's previously completed onboarding state.
-        if (readOnboardingCache() !== null) {
-          writeOnboardingCache(Boolean(d.complete));
+    void (async () => {
+      const authenticated = await fetchSessionAuthenticated();
+      // No session and no cache → stay on Welcome (first visit or after logout).
+      if (readOnboardingCache() === null && !authenticated) return;
+
+      const complete = await fetchOnboardingComplete();
+      if (complete === null) {
+        if (authenticated && readOnboardingCache() === null) {
           setShowWelcome(false);
-          setShowOnboarding(!d.complete);
-        }
-      })
-      .catch(() => {
-        if (readOnboardingCache() === null) {
-          writeOnboardingCache(true);
           setShowOnboarding(false);
         }
-      });
+        return;
+      }
+
+      writeOnboardingCache(complete);
+      setShowWelcome(false);
+      setShowOnboarding(!complete);
+    })();
+  }, []);
+
+  const handleGoogleConnected = useCallback(async () => {
+    setShowWelcome(false);
+    const complete = await fetchOnboardingComplete();
+    if (complete === null) {
+      setShowOnboarding(true);
+      return;
+    }
+    writeOnboardingCache(complete);
+    setShowOnboarding(!complete);
   }, []);
 
   if (showWelcome) {
     return (
       <WelcomeScreen
-        onGoogleConnected={() => {
-          setShowWelcome(false);
-          setShowOnboarding(true);
-        }}
+        onGoogleConnected={handleGoogleConnected}
         onDemoReady={() => {
           setShowWelcome(false);
           setShowOnboarding(false);

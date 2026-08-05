@@ -5,7 +5,7 @@ import Nango from '@nangohq/frontend';
 import { writeOnboardingCache } from '@/lib/client/onboarding-cache';
 
 interface Props {
-  onGoogleConnected: () => void;
+  onGoogleConnected: () => void | Promise<void>;
   onDemoReady: () => void;
 }
 
@@ -45,9 +45,8 @@ export default function WelcomeScreen({ onGoogleConnected, onDemoReady }: Props)
                 const body = await completeRes.json().catch(() => ({})) as { error?: string };
                 throw new Error(body.error ?? 'Unable to finish Google sign-in');
               }
-              writeOnboardingCache(false);
               setConnecting(false);
-              onGoogleConnected();
+              await onGoogleConnected();
             } catch (err) {
               setError(err instanceof Error ? err.message : 'Unable to finish Google sign-in');
               setConnecting(false);
