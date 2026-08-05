@@ -347,6 +347,20 @@ export async function deleteNangoConnection(connectionId: string, integrationId:
   await nango.deleteConnection(integrationId, connectionId);
 }
 
+/** List connections for a specific Nango end-user id (not necessarily the current session). */
+export async function listConnectionsForEndUser(endUserId: string): Promise<NangoConnectionPublic[]> {
+  if (!nangoConfigured()) return [];
+  const nango = getNango();
+  const res = await nango.listConnections({ tags: { end_user_id: endUserId } });
+  return ((res.connections ?? []) as ListedConnection[]).map(mapConnectionLite);
+}
+
+export async function hasGoogleConnectionsForEndUser(endUserId: string): Promise<boolean> {
+  const connections = await listConnectionsForEndUser(endUserId);
+  const ids = new Set(connections.map(c => c.integrationId));
+  return ids.has(gmailIntegrationId()) && ids.has(calendarIntegrationId());
+}
+
 /** Remove all Nango connections tagged to an end-user (e.g. abandoned login temp ids). */
 export async function deleteAllConnectionsForEndUser(endUserId: string): Promise<number> {
   if (!nangoConfigured()) return 0;

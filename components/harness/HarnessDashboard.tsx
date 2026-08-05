@@ -6,6 +6,7 @@ import { ChatProvider, useChatConversations } from '@/hooks/useChatConversations
 import { ConfirmProvider } from '@/hooks/useConfirm';
 import { WorkFeedProvider, useWorkFeed } from '@/hooks/useWorkFeed';
 import { fetchSessionAuthenticated } from '@/lib/client/onboarding-cache';
+import { writeLastGoogleUserId } from '@/lib/client/google-login-cache';
 import AppSidebar, { type MainView } from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import ConversationDrawer from './sidebar/ConversationDrawer';

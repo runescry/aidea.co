@@ -19,7 +19,9 @@ export async function POST() {
     const existingNangoUserId = await getRegisteredNangoUserId(userId);
     const canonicalNangoUserId = existingNangoUserId ?? nangoUserId;
 
-    await claimTenantData(temporaryUserId, userId);
+    if (temporaryUserId !== userId) {
+      await claimTenantData(temporaryUserId, userId);
+    }
     await setCurrentGoogleUser(userId, canonicalNangoUserId);
 
     if (existingNangoUserId && existingNangoUserId !== nangoUserId) {

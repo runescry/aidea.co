@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AIDEA_SESSION_COOKIE, verifySessionToken } from '@/lib/auth/session-token';
 
-const PUBLIC_API_PREFIXES = ['/api/auth/session', '/api/eval/', '/api/monitor'];
-const PENDING_GOOGLE_PREFIXES = ['/api/nango/', '/api/auth/google/complete'];
+const PUBLIC_API_PREFIXES = ['/api/auth/session', '/api/auth/google/resume', '/api/eval/', '/api/monitor'];
+const PENDING_GOOGLE_PREFIXES = ['/api/nango/', '/api/auth/google/complete', '/api/auth/google/prepare'];
 
 export async function middleware(req: NextRequest) {
   if (process.env.NODE_ENV !== 'production') return NextResponse.next();

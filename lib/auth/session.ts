@@ -98,6 +98,21 @@ export async function setCurrentGoogleUser(userId: string, nangoUserId: string):
   await writeSession({ userId: normalizedUserId, mode: 'google', verified: true, nangoUserId: normalizedNangoUserId });
 }
 
+/** Restore an unverified Google session scoped to an existing Nango end-user (reconnect path). */
+export async function setPendingGoogleResume(userId: string, nangoUserId: string): Promise<void> {
+  const normalizedUserId = normalizeUserId(userId);
+  const normalizedNangoUserId = normalizeUserId(nangoUserId);
+  if (!normalizedUserId?.startsWith('google:') || !normalizedNangoUserId?.startsWith('google:')) {
+    throw new Error('Google session ids are invalid');
+  }
+  await writeSession({
+    userId: normalizedUserId,
+    mode: 'google',
+    verified: false,
+    nangoUserId: normalizedNangoUserId,
+  });
+}
+
 export async function clearCurrentUser(): Promise<void> {
   try {
     const store = await cookies();
