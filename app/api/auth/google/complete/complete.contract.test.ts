@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   setCurrentGoogleUser: vi.fn(),
   getConnectedGoogleIdentity: vi.fn(),
   claimTenantData: vi.fn(),
+  registerGoogleAccount: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/session', () => ({
@@ -18,6 +19,7 @@ vi.mock('@/lib/nango/connections', () => ({
   invalidateNangoConnectionsCache: vi.fn(),
 }));
 vi.mock('@/lib/storage/tenant-copy', () => ({ claimTenantData: mocks.claimTenantData }));
+vi.mock('@/lib/auth/accounts', () => ({ registerGoogleAccount: mocks.registerGoogleAccount }));
 
 import { POST } from './route';
 
@@ -27,6 +29,7 @@ describe('POST /api/auth/google/complete', () => {
     mocks.getCurrentUserId.mockResolvedValue('google:temporary');
     mocks.getCurrentNangoUserId.mockResolvedValue('google:temporary');
     mocks.getConnectedGoogleIdentity.mockResolvedValue({ email: 'person@example.com' });
+    mocks.registerGoogleAccount.mockResolvedValue(undefined);
   });
 
   it('claims temporary data and promotes the signed session to a stable Google tenant', async () => {
@@ -39,6 +42,7 @@ describe('POST /api/auth/google/complete', () => {
     expect(body.email).toBe('person@example.com');
     expect(mocks.claimTenantData).toHaveBeenCalledWith('google:temporary', body.userId);
     expect(mocks.setCurrentGoogleUser).toHaveBeenCalledWith(body.userId, 'google:temporary');
+    expect(mocks.registerGoogleAccount).toHaveBeenCalledWith(body.userId, 'google:temporary');
   });
 
   it('does not create a session when Google identity cannot be resolved', async () => {
@@ -47,5 +51,14 @@ describe('POST /api/auth/google/complete', () => {
 
     expect(res.status).toBe(409);
     expect(mocks.setCurrentGoogleUser).not.toHaveBeenCalled();
+    expect(mocks.registerGoogleAccount).not.toHaveBeenCalled();
+  });
+
+  it('completes sign-in even if registering the monitor account fails', async () => {
+    mocks.registerGoogleAccount.mockRejectedValue(new Error('db unavailable'));
+    const res = await POST();
+
+    expect(res.status).toBe(200);
+    expect(mocks.setCurrentGoogleUser).toHaveBeenCalled();
   });
 });

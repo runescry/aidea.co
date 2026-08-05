@@ -7,6 +7,7 @@ import {
   verifySessionToken,
   type AideaSession,
 } from './session-token';
+import { getUserExecutionContext } from './user-context';
 
 export const AIDEA_USER_COOKIE = 'aidea-user-id';
 export const AIDEA_AUTH_MODE_COOKIE = 'aidea-auth-mode';
@@ -45,6 +46,8 @@ async function readSession(): Promise<AideaSession | null> {
 }
 
 export async function getCurrentUserId(): Promise<string> {
+  const context = getUserExecutionContext();
+  if (context) return context.userId;
   return (await readSession())?.userId ?? fallbackUserId();
 }
 
@@ -57,6 +60,8 @@ export async function isCurrentSessionVerified(): Promise<boolean> {
 }
 
 export async function getCurrentNangoUserId(): Promise<string> {
+  const context = getUserExecutionContext();
+  if (context) return context.nangoUserId;
   const session = await readSession();
   return session?.nangoUserId ?? session?.userId ?? fallbackUserId();
 }
