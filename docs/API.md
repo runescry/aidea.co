@@ -4,6 +4,46 @@ Internal and external HTTP endpoints beyond what the UI uses directly.
 
 ---
 
+## `GET /api/school-feed` — School feed read
+
+Returns the persisted school feed from profile/KB (`family.schoolFeed`).
+
+```http
+GET /api/school-feed
+```
+
+**200**
+
+```json
+{
+  "feed": {
+    "updatedAt": "2026-08-05T04:00:00.000Z",
+    "gmail": { "roundups": [], "actionRequired": [], "fyi": [] },
+    "calendar": { "weekStart": "2026-08-04", "weekEnd": "2026-08-10", "events": [] },
+    "sharepoint": { "news": [], "documents": [] }
+  }
+}
+```
+
+Returns `{ "feed": null }` when no sync has run yet.
+
+---
+
+## `POST /api/school-feed/sync` — Manual school sync
+
+Runs Gmail school inbox sync then Google Calendar sync (no LLM). SharePoint is on the separate `school-sync` cron.
+
+```http
+POST /api/school-feed/sync
+```
+
+**200** — `{ "ok": true, "inbox": { … }, "calendar": { … } }`  
+**500** — sync error details in body
+
+Home **Sync now** calls this route. Cron equivalent: `GET /api/monitor?name=school-inbox`.
+
+---
+
 ## `POST /api/eval/chat` — EvalKit adapter (fast-chat only)
 
 Stateless JSON endpoint for external eval harnesses ([EvalKit](https://github.com/runescry/evalkit) and similar). Does **not** use SSE, `command`, or the full harness dispatcher.

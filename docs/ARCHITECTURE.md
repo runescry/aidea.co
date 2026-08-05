@@ -1,6 +1,6 @@
 # aidea — infrastructure & data architecture
 
-How the platform is deployed, where data lives, how integrations and the agent harness connect. **P7 is complete on prod; P8 hardens partials and adds live connectors (Strava, contact graph, finance spike). P8.4 auth/multi-user is still open.**
+How the platform is deployed, where data lives, how integrations and the agent harness connect. **P7 is complete on prod; P8 hardens partials and adds live connectors (Strava, contact graph, finance spike). P10 adds school triage & feed. P8.4 auth/multi-user is still open.**
 
 **Related:** [Product vision](/docs/vision) · [Gap closure plan](/docs/plan) · [Deployment](/docs/deployment) · [Agent instructions](/docs/agents)
 
@@ -98,7 +98,10 @@ flowchart TB
 - Postgres client: `max: 1` connection per instance (serverless-safe).
 - Schema auto-applied on first DB access via `lib/db/migrate.ts`.
 - **Settings panel writes are blocked on Vercel** (`isProductionDeploy()`); API keys must be Vercel env vars, not in-app form saves.
-- **Crons:** `GET /api/monitor?name=…` — scheduled jobs in [`vercel.json`](../vercel.json) (`daily`, `inbox`, `relationships`); `calendar` is supported in code but not scheduled. Authorized via `Authorization: Bearer CRON_SECRET` (open in non-prod if secret unset).
+- **Crons:** `GET /api/monitor?name=…` — scheduled jobs in [`vercel.json`](../vercel.json):
+  - **LLM monitors:** `daily` (6:30 UTC), `inbox` (every 15m 7–22), `relationships` (Mon 8:00); `calendar` supported in code but not scheduled
+  - **Deterministic sync (no LLM):** `school-inbox` (Gmail school mail + Google Calendar → `family.schoolFeed`, every 15m 7–22), `school-sync` (SharePoint news/docs, hourly)
+  Authorized via `Authorization: Bearer CRON_SECRET` (open in non-prod if secret unset).
 - **Human-in-the-loop across instances:** optional Vercel KV (`KV_REST_*`) for `request_human_input`; otherwise in-memory Map (single dev server only).
 
 ### Vercel platform services
@@ -109,7 +112,7 @@ What aidea uses on Vercel vs what it does not. Postgres (Neon, Supabase, etc.) i
 |---------|-------|------|
 | **Hosting** (Next.js serverless) | Yes | Prod at [aidea-co.vercel.app](https://aidea-co.vercel.app); App Router, `runtime = 'nodejs'`, `maxDuration = 1800` on `/api/message`, `/api/run`, `/api/monitor` ([`vercel.json`](../vercel.json)) |
 | **AI Gateway** | Yes (prod) | All LLM traffic via `https://ai-gateway.vercel.sh/v1` — chat, agents, crons. Key setup: [DEPLOYMENT.md § aidea-co production](./DEPLOYMENT.md#aidea-co-production-aidea-covercelapp) |
-| **Cron Jobs** | Yes | [`vercel.json`](../vercel.json) → `/api/monitor`: daily 6:30 UTC, inbox every 15m (7–22), relationships Mon 8:00. Requires `CRON_SECRET` in prod |
+| **Cron Jobs** | Yes | [`vercel.json`](../vercel.json) → `/api/monitor`: daily 6:30 UTC, inbox every 15m (7–22), **school-inbox** every 15m (7–22), **school-sync** hourly, relationships Mon 8:00. Requires `CRON_SECRET` in prod |
 | **KV** | Optional | `@vercel/kv` for `request_human_input` when `KV_REST_*` env vars set; without KV, human-input answers use an in-memory Map (single instance / local dev only) |
 | **OIDC** (`VERCEL_OIDC_TOKEN`) | Fallback | Third LLM auth path when gateway key and direct Anthropic key are unset ([`lib/ai/provider.ts`](../lib/ai/provider.ts)). On Vercel deploys, OIDC-only often returns **403** on multi-agent Studio runs — set `AI_GATEWAY_API_KEY` |
 | **Auth** | No | No Vercel Auth; single tenant via `DEFAULT_USER_ID` (P8.4 backlog) |
@@ -136,6 +139,7 @@ Central facade: `lib/storage/index.ts` — switches filesystem vs Postgres trans
 | **Harness runs** | `harness-state.json` | `harness_entities` | Entity/agent run state for Studio + feed |
 | **Chat** | `chat/conversations/*.json` + `chat/meta.json` | `chat_conversations`, `chat_meta` (+ legacy `chat_store`) | Client also caches in `localStorage` key `aidea-chat-v1` |
 | **Daily brief** | `latest-brief.json` | `latest_briefs` | Written by cron lite daily monitor |
+| **School feed** | Inside profile at `family.schoolFeed` | Same in `profiles.data` | Gmail roundups, calendar week, SharePoint news/docs; written by school sync crons + `POST /api/school-feed/sync` |
 | **App settings** | `settings.json` | `app_settings` | Local-only writes; prod uses env vars |
 | **Strava tokens** | Inside profile at `integrations.strava` | Same in `profiles.data` | Not Nango — direct OAuth |
 | **Nango connections** | External (Nango cloud) | — | Listed by `end_user_id`; not in local JSON |
@@ -181,12 +185,14 @@ Priority: **`AI_GATEWAY_API_KEY`** → **`ANTHROPIC_API_KEY`** → Vercel OIDC g
 
 Models route through Vercel AI Gateway (`anthropic/claude-*`). Fast chat uses Haiku; Studio CEOs use Sonnet.
 
-### Nango — Gmail & Calendar
+### Nango — Gmail, Calendar & School Microsoft
 
-- Env: `NANGO_SECRET_KEY`; optional `NANGO_GMAIL_INTEGRATION_ID` / `NANGO_CALENDAR_INTEGRATION_ID` (defaults: `google-mail`, `google-calendar`).
+- Env: `NANGO_SECRET_KEY`; optional `NANGO_GMAIL_INTEGRATION_ID` / `NANGO_CALENDAR_INTEGRATION_ID` (defaults: `google-mail`, `google-calendar`); optional `NANGO_MICROSOFT_INTEGRATION_ID` (default: `microsoft-school`).
 - Connect flow: Settings → `POST /api/nango/session` → Nango Connect UI → connections stored in Nango tagged with `DEFAULT_USER_ID`.
-- Runtime: `lib/nango/gmail.ts`, `lib/nango/calendar.ts` — read inbox, send mail, create drafts, create calendar events.
+- **Gmail + Calendar (personal Google):** `lib/nango/gmail.ts`, `lib/nango/calendar.ts` — read inbox, send mail, create drafts, read/create calendar events. Multiple accounts supported; school calendar sync reads all connected calendars.
+- **School Microsoft (separate account):** `lib/nango/sharepoint.ts` — SharePoint news lists + document libraries for timetables/forms. Mapped per child in KB (`family.children[]` → `microsoftSiteId`, etc.).
 - Harness auto-upgrades `realWorldToolMode` from `dry-run` to `auto` when Nango connections exist.
+- **School triage split:** deterministic sync (`school-inbox`, `school-sync` crons) writes `family.schoolFeed`; LLM `inbox-triage` agent excludes school sender domains and handles non-school mail only.
 
 ### Strava — health (P8.1, not Nango)
 
@@ -197,7 +203,7 @@ Models route through Vercel AI Gateway (`anthropic/claude-*`). Fast chat uses Ha
 ### Other
 
 - **Brave Search:** `BRAVE_SEARCH_API_KEY` for web search tool.
-- **Integration status:** `GET /api/integrations` aggregates LLM, Google (Nango), Strava, Brave.
+- **Integration status:** `GET /api/integrations` aggregates LLM, Gmail, Google Calendar, School Microsoft, Strava, Brave.
 
 ---
 
@@ -223,7 +229,7 @@ Client: `useChatConversations` → `fetch('/api/message')` → **`consumeHarness
 | Entry | Config | Purpose |
 |-------|--------|---------|
 | `POST /api/run` | company/personal/learning/creator/daily entity configs | Studio debug runs |
-| `GET /api/monitor?name=…` | daily lite, inbox-triage, calendar-reader, relationship-monitor | Scheduled workforce |
+| `GET /api/monitor?name=…` | daily lite, inbox-triage, calendar-reader, relationship-monitor; **sync:** `school-inbox`, `school-sync` | Scheduled workforce + deterministic school feed |
 
 Bootstrap pipeline (`lib/harness/bootstrap.ts`): create entity state → load Nango status + agent overrides → spawn root agent → `runAgentLoop` (or daily kickstart for orchestrator) → persist entity state → tools may **`enqueueAction`** / **`enqueueActionWithAutonomy`**.
 
@@ -253,25 +259,28 @@ Per-domain autonomy (`domain-autonomy.ts`) gates auto-execute vs `needs_you` on 
 **`HarnessDashboard`** (`components/harness/HarnessDashboard.tsx`):
 
 - Onboarding gate → **`ChatProvider`** + **`WorkFeedProvider`**
-- Views: **Home** (chat + Inbox), Agents, Studio, Context, Settings
+- Views: **Home** (school + chat + week calendar), **Inbox** (sidebar), Agents, Studio, Profile, Settings
 - **`WorkFeedProvider`** — single poller for Inbox + nav badge:
-  - Home idle ~20s, active (agents/chat streaming) ~6s, off-Home summary ~45s; paused when tab hidden
+  - `homeActive`, `inboxActive`, or `profileActive` keeps full feed polling; idle ~20s, active (agents/chat streaming) ~6s, off-surface summary ~45s; paused when tab hidden
   - `refresh()` after chat complete, queue PATCH, activity reset
 - **`useHarnessSession`** — Studio runs via `/api/run` SSE
 - **`HumanInputOverlay`** — answers `request_human_input` (local Map or Vercel KV)
 
-**Home layout:** desktop — chat left, Inbox ~380px right; mobile — full chat + Inbox overlay.
+**Home layout:** desktop — school updates + chat left, **This week** calendar ~380px right; mobile — stacked school + chat with inline week panel.
+
+**Inbox layout:** full-width `TaskFeed` when sidebar **Inbox** is selected; approval badge on Inbox nav item.
 
 ---
 
-## API route map (22 routes)
+## API route map (24 routes)
 
 | Route | Role |
 |-------|------|
 | `/api/message` | Home chat dispatch (fast + full SSE) |
 | `/api/run` | Studio entity runs (SSE) |
-| `/api/monitor` | Vercel cron monitors |
+| `/api/monitor` | Vercel cron monitors + school sync jobs |
 | `/api/tasks`, `/api/tasks/suggestions` | Unified Inbox feed + suggestion actions |
+| `/api/school-feed`, `/api/school-feed/sync` | Read school feed; manual Gmail + calendar sync |
 | `/api/queue`, `/api/queue/audit` | Queue CRUD + audit history |
 | `/api/chat` | Conversation persistence |
 | `/api/kb` | Profile read (`GET`) + batch merge (`POST`) — people store, hygiene fields |
@@ -296,9 +305,10 @@ Per-domain autonomy (`domain-autonomy.ts`) gates auto-execute vs `needs_you` on 
 | `AI_GATEWAY_API_KEY` | Vercel AI Gateway (prod LLM auth) |
 | `AI_GATEWAY_BASE_URL` | Optional gateway URL override |
 | `ANTHROPIC_API_KEY` | Direct Anthropic fallback (local dev) |
-| `NANGO_SECRET_KEY` | Nango OAuth (Gmail + Calendar) |
+| `NANGO_SECRET_KEY` | Nango OAuth (Gmail + Calendar + School Microsoft) |
 | `NANGO_GMAIL_INTEGRATION_ID` | Nango Gmail integration key |
 | `NANGO_CALENDAR_INTEGRATION_ID` | Nango Calendar integration key |
+| `NANGO_MICROSOFT_INTEGRATION_ID` | Nango SharePoint school integration (default `microsoft-school`) |
 | `BRAVE_SEARCH_API_KEY` | Web search tool |
 | `STRAVA_CLIENT_ID` | Strava OAuth |
 | `STRAVA_CLIENT_SECRET` | Strava OAuth |
@@ -335,4 +345,4 @@ Handler mode calls route handlers directly; set `TEST_BASE_URL=http://localhost:
 - **Multi-user** requires session → per-user `DEFAULT_USER_ID` on all storage/Nango tags.
 - **Mobile polish** on Agents/Context/Settings secondary surfaces still open.
 
-Everything else in the daily loop (Home chat, Inbox approvals, crons, timeline, per-domain autonomy, Strava sync, contact graph, finance spike) is shipped per P7 + P8 checkboxes in [PLAN.md](./PLAN.md).
+Everything else in the daily loop (Home school feed, chat, Inbox approvals, crons, timeline, per-domain autonomy, Strava sync, contact graph, finance spike) is shipped per P7 + P8 + P10 checkboxes in [PLAN.md](./PLAN.md).

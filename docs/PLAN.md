@@ -472,8 +472,53 @@ Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
 - [ ] **Rich person sheet** — interaction history (wire `ContactLensPanel` patterns)
 - [ ] **Legacy list deprecation** — stop reading `work.keyContacts` in remaining agent paths
 
-### Deferred (post-P8)
+---
 
+## P10 — School triage & feed
+
+Reliable school mail and calendar for parents: **rules-first Gmail triage** (no LLM cost on school crons), **Google Calendar week view** with friendly prep lines, and optional **SharePoint** sync via a separate school Microsoft account. School outcomes live on **Home** (`family.schoolFeed`); the LLM `inbox-triage` agent excludes school sender domains and handles everything else.
+
+Use the same [Build workflow](#build-workflow), [Test strategy](#test-strategy), and [Deployment workflow](#deployment-workflow).
+
+### P10 — Checkbox backlog
+
+Mark `[x]` only when [mandatory gates](#mandatory-gates-every-slice) pass.
+
+#### P10.1 — Config & rules
+
+- [x] **KB school profiles** — `loadSchoolProfiles` from `family.children[]`; sender domains; SharePoint site mapping
+- [x] **Rules engine** — `school-rules.ts` deterministic classify; PDF attachment text for action items
+- [x] **Inbox-triage exclusion** — School senders filtered from LLM Gmail query
+
+#### P10.2 — Sync jobs
+
+- [x] **Gmail school inbox sync** — `syncSchoolInbox` → `family.schoolFeed.gmail`; cron `school-inbox`
+- [x] **Calendar sync** — Multi-account Nango calendars → `family.schoolFeed.calendar`; child matching + dedupe
+- [x] **SharePoint sync** — `syncSchoolSharePoint`; cron `school-sync`; Nango `microsoft-school`
+- [x] **Manual sync API** — `POST /api/school-feed/sync`; Home **Sync now** button
+
+#### P10.3 — Home UX
+
+- [x] **School card** — Per-child roundups; action-required mail links
+- [x] **Week + prep panels** — `SchoolWeekPanel`, `SchoolTodayPanel`; friendly lines (`school-today-digest.ts`)
+- [x] **Morning brief integration** — `school-feed-must-do.ts` prefers school feed for mustDo items
+- [x] **Inbox sidebar nav** — Home = school + chat + week calendar; Inbox = dedicated nav item
+
+#### P10.4 — Settings & integrations
+
+- [x] **Google Calendar integration row** — Separate from Gmail in `/api/integrations`
+- [x] **Gmail-without-Calendar prompt** — Settings amber banner per account
+- [x] **School Microsoft connect** — SharePoint in Settings
+
+#### P10.5 — Docs & tests
+
+- [x] **Unit tests** — `school-rules`, `school-inbox-sync`, `school-calendar-classify`, `school-today-digest`, SharePoint
+- [x] **CLI scripts** — `npm run test:school-inbox:run`, `npm run test:school-sync:run`
+- [x] **Docs** — AGENTS, ARCHITECTURE, DEPLOYMENT, ROADMAP, VISION
+
+### Deferred (post-P10)
+
+- Rich person sheet (P9 follow-up)
 - Full 6-agent Daily OS as default Home morning path (lite brief remains default)
 - All Phase 3 connectors at once (Slack, Notion, WhatsApp, Twilio)
 - Autonomous send without approval in supervised mode
@@ -507,6 +552,6 @@ Align with [VISION.md — Explicitly deferred](./VISION.md#explicitly-deferred):
 
 When a checkbox closes:
 
-1. Mark `[x]` here and the matching [ROADMAP P7](../ROADMAP.md#p7--gap-closure-see-docsplanmd) or [ROADMAP P8](../ROADMAP.md#p8--harden--extend-see-docsplanmd) item.
+1. Mark `[x]` here and the matching [ROADMAP P7](../ROADMAP.md#p7--gap-closure-see-docsplanmd), [ROADMAP P8](../ROADMAP.md#p8--harden--extend-see-docsplanmd), or [ROADMAP P10](../ROADMAP.md#p10--school-triage--feed-see-docsplanmd) item.
 2. Update [VISION.md](./VISION.md) domain score and **Next enrichment** if the domain changed materially.
 3. Append one line to [ROADMAP Loop log](../ROADMAP.md#loop-log).

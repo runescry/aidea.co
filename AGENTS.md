@@ -1,6 +1,6 @@
 # aidea — agent instructions
 
-Personal AI chief-of-staff platform — unified context across mail, calendar, health, contacts, KB, and connected services. Active UI: `HarnessDashboard` → **Home** (chat + **Inbox**), Agents, Studio, Profile, Settings.
+Personal AI chief-of-staff platform — unified context across mail, calendar, health, contacts, KB, and connected services. Active UI: `HarnessDashboard` → **Home** (school feed + chat), **Inbox** (sidebar nav), Agents, Studio, Profile, Settings.
 
 **Production:** [aidea-co.vercel.app](https://aidea-co.vercel.app) · **Local:** `http://localhost:3000`
 
@@ -19,7 +19,7 @@ Personal AI chief-of-staff platform — unified context across mail, calendar, h
 | Doc | Read when |
 |-----|-----------|
 | [ROADMAP.md](./ROADMAP.md) | Picking the next checkbox; loop iterations |
-| [docs/PLAN.md](./docs/PLAN.md) | P7 complete; **P8** strategic slices (harden + extend) |
+| [docs/PLAN.md](./docs/PLAN.md) | P7 complete; **P8** strategic slices; **P10** school triage & feed |
 | [docs/VISION.md](./docs/VISION.md) | Domain scope, scores, non-goals |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Infrastructure, storage, integrations, harness flow |
 | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Env, Nango, Vercel, Postgres |
@@ -120,7 +120,7 @@ Extend routing in `shouldUseFastChat` (and tests in `fast-chat.test.ts`) — do 
 
 **Queue intents:** `approve` (send), `save` (Gmail draft via Nango), `reject`. Live edits (`body`, `subject`, `to`, `cc`) pass as optional `edits` on `PATCH /api/queue`; server applies via `applyQueueEdits` in `normalize-queue-action.ts`.
 
-**Inbox feed:** `HarnessDashboard` mounts `WorkFeedProvider`; `TaskFeed` and nav badge consume `useWorkFeed()`. Intervals: ~20s idle on Home, ~6s while agents run or chat streams, ~45s summary-only off Home; paused when tab hidden. Manual refresh via `refresh()` after chat complete, queue PATCH, or activity reset.
+**Inbox feed:** `HarnessDashboard` mounts `WorkFeedProvider`; `TaskFeed` (dedicated **Inbox** view) and nav badge consume `useWorkFeed()`. Pass `inboxActive={view === 'inbox'}` so polling stays active on the Inbox surface. Intervals: ~20s idle on Home/Inbox/Profile, ~6s while agents run or chat streams, ~45s summary-only off those surfaces; paused when tab hidden. Manual refresh via `refresh()` after chat complete, queue PATCH, or activity reset.
 
 **Tasks API:**
 
@@ -129,7 +129,9 @@ Extend routing in `shouldUseFastChat` (and tests in `fast-chat.test.ts`) — do 
   - `suggestions` = proactive nudges from KB (`lib/harness/proactive-tasks.ts`)
 - `GET /api/tasks?summary=1` — badge counts `{ needsYou, suggestions }` (nav badge uses `needsYou` only)
 
-Inbox UI lives in `components/harness/home/TaskFeed.tsx` (panel title **Inbox**). Do not add a separate `ActionQueue` component.
+Inbox UI lives in `components/harness/home/TaskFeed.tsx` (panel title **Inbox**), mounted as its own sidebar view — not a Home right column. Do not add a separate `ActionQueue` component.
+
+**School feed:** Gmail school mail + Google Calendar + optional SharePoint sync → `family.schoolFeed` in profile/KB. Home shows `SchoolCard` + `SchoolWeekPanel`; manual sync via `POST /api/school-feed/sync`. Crons: `school-inbox` (Gmail + calendar), `school-sync` (SharePoint). Deterministic rules in `lib/harness/school-rules.ts`; inbox-triage agent excludes school senders.
 
 ---
 
@@ -218,15 +220,16 @@ Agent definitions live in `lib/agents/library/`. User overrides persist at `prof
 
 ## UI conventions
 
-- **Home** = chat (`ChatInterface variant="home"`) + **Inbox** (`TaskFeed` via `useWorkFeed`)
-  - **Desktop (`lg+`):** chat left, Inbox panel right (~380px)
-  - **Mobile (`<lg`):** full-height chat; Inbox via header button → full-screen overlay
-- **Nav:** collapsible sidebar (desktop); `MobileBottomNav` (mobile); badge on Home = pending approvals
+- **Home** = school updates (`SchoolCard`, morning brief) + chat (`ChatInterface variant="home"`) + **This week** calendar (`SchoolWeekPanel` on the right at `lg+`)
+  - **Desktop (`lg+`):** school + chat left; week calendar ~380px right
+  - **Mobile (`<lg`):** stacked school + chat; week panel inline under school updates
+- **Inbox** = dedicated sidebar nav item (`TaskFeed` via `useWorkFeed`); badge on **Inbox** = pending approvals
+- **Nav:** collapsible sidebar (desktop); `MobileBottomNav` (mobile); core nav: Home, Inbox, Profile, Settings
 - **Onboarding** = 3-step `QuickStartOnboarding` on first launch; full `OnboardingWizard` from Context → Re-run onboarding
 - **Studio** = `RunStudio` (harness debug + entity runs); Reset session = in-memory only
 - **Agents** = `AgentLibrary` (view/customize workforce); Reset = agent overrides only
 - **Profile** = narrative control center (`ProfilePage`) — chapter, priorities, people band; domain sheets for full edits; re-run onboarding from Profile
-- **Settings** = API keys, Google connect/disconnect, per-domain autonomy (P7.4), queue activity audit, **Danger zone** (activity reset)
+- **Settings** = API keys, Google Gmail/Calendar + School Microsoft connect, per-domain autonomy (P7.4), queue activity audit, **Danger zone** (activity reset)
 - **Home Yesterday tab** = cross-domain timeline (`HomeScreen.tsx`)
 - Reuse `components/harness/forms.tsx` for inputs (`Label`, `TextField`, `TextArea`, `Section`, etc.)
 
@@ -302,6 +305,29 @@ INTEGRATION_GMAIL=1 npm run test:inbox-triage:run
 ```
 
 Validation logic: `lib/harness/inbox-triage-validate.ts`. Runner: `lib/harness/inbox-triage-harness.ts`.
+
+### School feed (rules + sync)
+
+Deterministic school triage — no LLM for Gmail/Calendar/SharePoint sync crons.
+
+```bash
+# Unit tests (fixtures, no network)
+npm run test:school-inbox
+npm run test:school-sync
+
+# CLI against live connections (optional)
+npm run test:school-inbox:run
+INTEGRATION_GMAIL=1 npm run test:school-inbox:run
+npm run test:school-sync:run
+
+# Manual sync while dev server running
+curl -X POST http://localhost:3000/api/school-feed/sync
+curl "http://localhost:3000/api/monitor?name=school-inbox"   # cron equivalent
+```
+
+Key modules: `school-config.ts`, `school-rules.ts`, `school-inbox-sync.ts`, `school-calendar-sync.ts`, `school-sharepoint-sync.ts`, `school-today-digest.ts`. Read feed: `GET /api/school-feed`.
+
+**Calendar note:** Gmail and Calendar are separate Nango connections. Connect Calendar on the same Google account that holds each child's school calendar (Settings shows amber prompt when Gmail is connected but Calendar is not).
 
 ### Profile memory E2E (people store + queue hygiene)
 
@@ -385,4 +411,4 @@ Run only **one** `next dev` process at a time.
 
 ## Roadmap & loops
 
-Prioritized work lives in [ROADMAP.md](./ROADMAP.md). **P7** (complete) and **P8** (next) gap closure — data, workforce, UX, platform — is detailed in [docs/PLAN.md](./docs/PLAN.md). For recurring agent execution, use the prompt in [.cursor/loop-prompt.md](./.cursor/loop-prompt.md) with Cursor `/loop`.
+Prioritized work lives in [ROADMAP.md](./ROADMAP.md). **P7** (complete), **P8** (harden + extend), and **P10** (school triage) — data, workforce, UX, platform — is detailed in [docs/PLAN.md](./docs/PLAN.md). For recurring agent execution, use the prompt in [.cursor/loop-prompt.md](./.cursor/loop-prompt.md) with Cursor `/loop`.

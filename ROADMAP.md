@@ -9,11 +9,11 @@ One item per agent loop iteration unless the loop prompt says to continue throug
 ## Current status
 
 <!-- Agent: overwrite this block each loop iteration — user reads this for live progress -->
-**Last updated:** 2026-06-21  
-**Phase:** P9 complete — Profile memory & people graph  
+**Last updated:** 2026-08-05  
+**Phase:** P10 complete — School triage & feed  
 **Next up:** [P8.4 — Platform](./docs/PLAN.md#p84--platform) — auth/multi-user blocked pending provider choice  
-**Recent:** P9 People UI + memory hygiene; profile E2E suite; onboarding → `people[]`; agent `person` queue fix  
-**Git:** `main` ahead of `origin/main` (docs + P8.0)
+**Recent:** School Gmail rules + calendar/SharePoint sync; Home school card + week prep digest; Inbox moved to sidebar nav  
+**Git:** `main` ahead of `origin/main` (school triage merged locally; push when ready)
 
 **Vision & domain scores:** [docs/VISION.md](./docs/VISION.md) · [Interactive reader](/docs/vision)  
 **Gap closure plan:** [docs/PLAN.md](./docs/PLAN.md) · [Interactive reader](/docs/plan)  
@@ -149,6 +149,21 @@ Profile as the living control plane: canonical `relationships.people[]`, tombsto
 
 ---
 
+## P10 — School triage & feed (see [docs/PLAN.md](./docs/PLAN.md#p10--school-triage--feed))
+
+Deterministic school mail triage (rules-first, KB-driven) plus a separate Microsoft school-account connector for SharePoint. Gmail school senders excluded from LLM inbox-triage; outcomes surface on Home, not Inbox approvals.
+
+- [x] **P10.1 School config** — KB-driven `loadSchoolProfiles`; legacy fallback; sender domains per child
+- [x] **P10.2 Rules engine** — Deterministic classification (`school-rules.ts`); PDF attachment parsing
+- [x] **P10.3 Gmail sync cron** — `school-inbox` monitor → `family.schoolFeed`; `npm run test:school-inbox`
+- [x] **P10.4 SharePoint sync** — Nango `microsoft-school`; `school-sync` cron; Settings connect
+- [x] **P10.5 Calendar sync** — Multi-account Google Calendar → week view + prep digest (`school-today-digest.ts`)
+- [x] **P10.6 Home UX** — School card, This week panel, friendly prep lines; morning brief pulls school mustDo
+- [x] **P10.7 Inbox nav** — Inbox as sidebar view; Home focused on school + chat
+- [x] **P10.8 Docs** — AGENTS, ARCHITECTURE, DEPLOYMENT, PLAN, ROADMAP synced
+
+---
+
 ## Done
 
 - [x] Home: chat left + Work feed right
@@ -189,3 +204,4 @@ Profile as the living control plane: canonical `relationships.people[]`, tombsto
 - 2026-06-21 — P8.4 platform — **BLOCKED** auth/multi-user (no session middleware path chosen); mobile secondary surfaces deferred
 - 2026-06-21 — P9 profile memory — canonical people store, tombstones, People UI, pulse dismiss, kb reject feedback
 - 2026-06-21 — P9 follow-up — profile E2E suite, kb contract, onboarding→people[], agent person queue round-trip
+- 2026-08-05 — P10 school triage — rules engine, school-inbox/school-sync crons, SharePoint, calendar prep digest, Inbox sidebar nav; merged to main locally

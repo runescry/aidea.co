@@ -4,7 +4,7 @@ aidea runs locally with JSON files under `data/`. For production (especially mul
 
 ## Local development (default)
 
-Day-to-day work happens on **localhost** — not production. Per-slice build, test gates, and deploy cadence: [PLAN.md § Build workflow](./PLAN.md#build-workflow) · [Test strategy](./PLAN.md#test-strategy) · [Deployment workflow](./PLAN.md#deployment-workflow). **P7** is complete on prod; active backlog is **[PLAN P8](./PLAN.md#p8--harden--extend)**.
+Day-to-day work happens on **localhost** — not production. Per-slice build, test gates, and deploy cadence: [PLAN.md § Build workflow](./PLAN.md#build-workflow) · [Test strategy](./PLAN.md#test-strategy) · [Deployment workflow](./PLAN.md#deployment-workflow). **P7** is complete on prod; **P10** school triage merged locally; active backlog is **[PLAN P8](./PLAN.md#p8--harden--extend)**.
 
 ```bash
 npm run dev          # http://localhost:3000
@@ -34,10 +34,10 @@ Run after each prod deploy (extends [PLAN P7.0](./PLAN.md#p70--ship--stabilize);
 
 | Surface | Check |
 |---------|-------|
-| Home | Chat streams; fast path responds; **Yesterday** tab shows cross-domain timeline |
-| Inbox | Tabs; email edit; calendar/KB cards; approve / save / reject; dismiss/snooze suggestions |
-| Mobile | Inbox overlay; bottom nav |
-| Settings | Integration status; **per-domain autonomy**; queue activity audit; activity reset |
+| Home | School card + **This week** calendar; prep digest; chat streams; **Yesterday** tab |
+| Inbox | Sidebar nav; tabs; email edit; calendar/KB cards; approve / save / reject; dismiss/snooze suggestions |
+| Mobile | Bottom nav includes Inbox; Home school + chat stack |
+| Settings | Integration status (Gmail, Calendar, School Microsoft); Gmail-without-Calendar prompt; per-domain autonomy; queue activity audit; activity reset |
 | Context | KB editor; contact/health lenses load without console errors |
 | Docs | `/docs/plan`, `/docs/vision` render without console errors |
 | Crons | `/api/monitor` reachable with `CRON_SECRET` |
@@ -58,7 +58,8 @@ Run after each prod deploy (extends [PLAN P7.0](./PLAN.md#p70--ship--stabilize);
 | `CRON_SECRET` | Authorize Vercel Cron hits to `/api/monitor` (`Authorization: Bearer …`); schedules in [`vercel.json`](../vercel.json) |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN` | Optional [Vercel KV](https://vercel.com/docs/storage/vercel-kv) — human-input answers across serverless instances; omit for local dev |
 | `BRAVE_SEARCH_API_KEY` | Web search tool |
-| `NANGO_SECRET_KEY` | Gmail & Calendar OAuth via [Nango](https://app.nango.dev) — copy from **Environment Settings → Secret key** |
+| `NANGO_SECRET_KEY` | Gmail, Calendar & School Microsoft OAuth via [Nango](https://app.nango.dev) — copy from **Environment Settings → Secret key** |
+| `NANGO_MICROSOFT_INTEGRATION_ID` | Optional — default `microsoft-school` for SharePoint school account |
 
 Vercel services **not** used: Auth, Analytics, Blob. See [ARCHITECTURE.md § Vercel platform services](./ARCHITECTURE.md#vercel-platform-services).
 
@@ -160,6 +161,16 @@ npm run dev
 Keep a single dev server running. Client code must import queue types from `lib/harness/queue-types.ts`, not `lib/harness/queue.ts`.
 
 **Nango local setup:** Copy `NANGO_SECRET_KEY` from [app.nango.dev](https://app.nango.dev) → Environment Settings into `.env.local`. Restart dev server. `vercel env pull` may return empty strings for encrypted vars — paste the key manually if needed.
+
+**School feed local setup:**
+
+1. Connect **Gmail** and **Calendar** in Settings — use the Google account that holds each child's school calendar (Gmail alone does not sync calendar).
+2. Optional: connect **School Microsoft** for SharePoint news/docs (separate school account).
+3. Configure children in Profile → Family (`school`, sender domains, SharePoint site IDs).
+4. Sync: Home → **Sync now**, or `curl -X POST http://localhost:3000/api/school-feed/sync`.
+5. Tests: `npm run test:school-inbox`, `npm run test:school-sync` (unit); `npm run test:school-inbox:run` with live Gmail.
+
+Crons (`school-inbox`, `school-sync`) run on prod only — see [`vercel.json`](../vercel.json).
 
 ### Live inbox approve E2E (Gmail + Calendar)
 

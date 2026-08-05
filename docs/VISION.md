@@ -32,8 +32,9 @@ Vision: one chief-of-staff reasons over **all** relevant personal data. Implemen
 | Domain | In vision | In product today | How |
 |--------|-----------|------------------|-----|
 | **Knowledge base** | Core | Live | Context editor, onboarding, `kb_read` / `update_kb` |
-| **Mail** | Core | Live | Nango Gmail — triage, drafts, send |
-| **Calendar** | Core | Live | Nango Google Calendar — schedule, logistics |
+| **Mail** | Core | Live | Nango Gmail — triage, drafts, send; school mail via deterministic rules (`family.schoolFeed`) |
+| **Calendar** | Core | Live | Nango Google Calendar — schedule, logistics; school week view + prep digest on Home |
+| **Family / school** | Core | Live | KB `family.children[]`; Gmail rules + calendar + SharePoint → Home school card |
 | **Contacts & social graph** | Core | Partial | KB `relationships`; Google People; interaction graph spike; relationship-monitor → Inbox |
 | **Health & fitness** | Core | Partial | KB `health`; health-briefer → Inbox; sync spike (`lib/health/sync`); no live wearable OAuth yet |
 | **Work & projects** | Core | Live | KB projects/job apps; proactive Inbox suggestions |
@@ -239,7 +240,7 @@ flowchart TB
 
 ### D4 Integrations — 78
 
-**Works:** Nango OAuth for Gmail and Calendar; connect/disconnect in Settings; gmail read/send/draft, calendar read/create, contacts read in harness; integration status bar on Home.
+**Works:** Nango OAuth for Gmail and Calendar (multiple accounts); School Microsoft for SharePoint; connect/disconnect in Settings; gmail read/send/draft, calendar read/create, contacts read in harness; integration status bar on Home; Gmail-without-Calendar prompt when school calendars missing.
 
 **Partial:** Health and social data mostly via KB + agents, not live wearable or messaging APIs; `gmail.compose` scope manual in Nango; env ops fragile.
 
@@ -303,7 +304,7 @@ flowchart TB
 
 ### D12 Mobile — 82
 
-**Works:** Bottom nav; full-height chat; Inbox full-screen overlay; Yesterday tab; conversation drawer; safe-area padding; Home loop on prod.
+**Works:** Bottom nav (Home, Inbox, Profile, Settings); Home school + chat stack; Inbox as dedicated nav view; Yesterday tab; conversation drawer; safe-area padding; Home loop on prod.
 
 **Partial:** Agents, Studio, Context usable but not mobile-optimized ([PLAN P8.4](./PLAN.md#p84--platform)).
 
@@ -313,7 +314,7 @@ flowchart TB
 
 ## Strategic priorities
 
-**P7 closed prod parity and the daily loop** (morning brief on Home, Inbox hygiene, cron outcomes, timeline, trust dashboard). Post-gap work is **[P8 — Harden & extend](./PLAN.md#p8--harden--extend)** — see [ROADMAP P8](../ROADMAP.md#p8--harden--extend-see-docsplanmd) for summary checkboxes.
+**P7 closed prod parity and the daily loop** (morning brief on Home, Inbox hygiene, cron outcomes, timeline, trust dashboard). **P10 added school triage** (rules-first Gmail, calendar prep digest, SharePoint). Post-gap work is **[P8 — Harden & extend](./PLAN.md#p8--harden--extend)** — see [ROADMAP P8](../ROADMAP.md#p8--harden--extend-see-docsplanmd) for summary checkboxes.
 
 Ordered by vision impact vs current gaps. Detailed slices: [docs/PLAN.md § P8](./PLAN.md#p8--checkbox-backlog).
 
