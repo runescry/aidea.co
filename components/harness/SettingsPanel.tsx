@@ -164,11 +164,10 @@ export default function SettingsPanel() {
     if (!ok) return;
 
     await runLogout(async () => {
-      await fetch('/api/auth/session', { method: 'DELETE' });
       resetLocalChatStore();
       clearCachedWorkFeed();
       clearOnboardingCache();
-      window.location.assign('/');
+      window.location.assign('/api/auth/logout');
     }).catch(() => undefined);
   };
 

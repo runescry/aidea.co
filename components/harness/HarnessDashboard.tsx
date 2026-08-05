@@ -19,6 +19,8 @@ import { useBuilderNav } from '@/hooks/useBuilderNav';
 import { isBuilderView } from '@/lib/client/builder-nav';
 import WelcomeScreen from './WelcomeScreen';
 import GoogleConnectScreen from './GoogleConnectScreen';
+import { clearOnboardingCache } from '@/lib/client/onboarding-cache';
+import { clearCachedWorkFeed } from '@/hooks/useWorkFeed';
 import type { SchoolFeed } from '@/types/knowledge-base';
 
 type AuthGate = 'loading' | 'welcome' | 'google-connect' | 'app';
@@ -51,6 +53,18 @@ function wantsGoogleConnect(): boolean {
   return true;
 }
 
+function consumeSignedOutFlag(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('signed_out') !== '1') return false;
+  params.delete('signed_out');
+  const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+  window.history.replaceState({}, '', next);
+  clearOnboardingCache();
+  clearCachedWorkFeed();
+  return true;
+}
+
 export default function HarnessDashboard({
   initialSchoolFeed = null,
   homeFeedPending = false,
@@ -60,6 +74,7 @@ export default function HarnessDashboard({
 
   useEffect(() => {
     void (async () => {
+      consumeSignedOutFlag();
       setWelcomeError(readWelcomeError());
       const res = await fetch('/api/auth/session');
       const data = res.ok

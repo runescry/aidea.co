@@ -19,11 +19,14 @@ async function finishGoogleConnect(onConnected: () => void | Promise<void>) {
 export default function GoogleConnectScreen({ onConnected }: Props) {
   const [connecting, setConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
+      setConnecting(true);
+      setError(null);
       try {
         const res = await fetch('/api/nango/session', {
           method: 'POST',
@@ -63,7 +66,11 @@ export default function GoogleConnectScreen({ onConnected }: Props) {
     })();
 
     return () => { cancelled = true; };
-  }, [onConnected]);
+  }, [onConnected, attempt]);
+
+  const signOut = () => {
+    window.location.assign('/api/auth/logout');
+  };
 
   return (
     <main className="min-h-[100dvh] bg-surface-muted px-6 py-10 text-foreground flex items-center justify-center">
@@ -80,7 +87,24 @@ export default function GoogleConnectScreen({ onConnected }: Props) {
           <p className="text-sm text-foreground-muted">Opening Google connection…</p>
         )}
 
-        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+        {!connecting && !error && (
+          <p className="text-sm text-foreground-muted">
+            Connection window closed. Try again or sign out to use a different Google account.
+          </p>
+        )}
+
+        {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
+
+        <div className="mt-6 flex flex-col gap-2">
+          {!connecting && (
+            <button type="button" className="btn-primary w-full justify-center" onClick={() => setAttempt(n => n + 1)}>
+              Try again
+            </button>
+          )}
+          <button type="button" className="btn-secondary w-full justify-center" onClick={signOut}>
+            Sign out
+          </button>
+        </div>
       </section>
     </main>
   );

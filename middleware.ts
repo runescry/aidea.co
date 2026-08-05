@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AIDEA_SESSION_COOKIE, verifySessionToken } from '@/lib/auth/session-token';
 
-const PUBLIC_API_PREFIXES = ['/api/auth/session', '/api/auth/google/authorize', '/api/auth/google/callback', '/api/eval/', '/api/monitor'];
+const PUBLIC_API_PREFIXES = ['/api/auth/session', '/api/auth/logout', '/api/auth/google/authorize', '/api/auth/google/callback', '/api/eval/', '/api/monitor'];
 const PENDING_GOOGLE_PREFIXES = ['/api/nango/', '/api/auth/google/complete'];
 
 export async function middleware(req: NextRequest) {

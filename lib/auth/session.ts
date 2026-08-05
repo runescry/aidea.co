@@ -7,6 +7,7 @@ import {
   verifySessionToken,
   type AideaSession,
 } from './session-token';
+import { GOOGLE_OAUTH_STATE_COOKIE } from './google-oauth';
 import { getUserExecutionContext } from './user-context';
 
 export const AIDEA_USER_COOKIE = 'aidea-user-id';
@@ -113,12 +114,31 @@ export async function setPendingGoogleResume(userId: string, nangoUserId: string
   });
 }
 
+function expireCookie(name: string) {
+  return {
+    name,
+    value: '',
+    options: {
+      httpOnly: true,
+      sameSite: 'lax' as const,
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 0,
+    },
+  };
+}
+
 export async function clearCurrentUser(): Promise<void> {
   try {
     const store = await cookies();
-    store.delete(AIDEA_SESSION_COOKIE);
-    store.delete(AIDEA_USER_COOKIE);
-    store.delete(AIDEA_AUTH_MODE_COOKIE);
+    for (const cookie of [
+      expireCookie(AIDEA_SESSION_COOKIE),
+      expireCookie(AIDEA_USER_COOKIE),
+      expireCookie(AIDEA_AUTH_MODE_COOKIE),
+      expireCookie(GOOGLE_OAUTH_STATE_COOKIE),
+    ]) {
+      store.set(cookie.name, cookie.value, cookie.options);
+    }
   } catch {
     // Route contract tests and CLI callers may not have a Next request cookie store.
   }
