@@ -9,6 +9,7 @@ import {
   parseLegacyChatStore,
   rowToConversation,
 } from './chat-conversations';
+import { setNestedKey } from './nested-keys';
 
 const globalForChatMigration = globalThis as typeof globalThis & {
   __aideaLegacyChatMigratedUsers?: Set<string>;
@@ -37,6 +38,36 @@ export async function writeProfile(userId: string, data: Record<string, unknown>
     VALUES (${userId}, ${sql.json(toJson(data))}, NOW())
     ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
   `;
+}
+
+/**
+ * Atomic read-modify-write: locks the row for the duration of the transaction so a concurrent
+ * mergeProfile for the same user blocks until this one commits, then reads the already-merged
+ * data instead of racing against it. Plain readProfile()-then-writeProfile() (as writeKB does)
+ * cannot offer this — two overlapping calls can each read before either writes, and the second
+ * write silently drops the first's update.
+ */
+export async function mergeProfile(userId: string, updates: Record<string, unknown>): Promise<void> {
+  const sql = getSql();
+  await sql.begin(async tx => {
+    await tx`
+      INSERT INTO profiles (user_id, data, updated_at)
+      VALUES (${userId}, ${tx.json(toJson({}))}, NOW())
+      ON CONFLICT (user_id) DO NOTHING
+    `;
+    const rows = await tx<{ data: Record<string, unknown> }[]>`
+      SELECT data FROM profiles WHERE user_id = ${userId} FOR UPDATE
+    `;
+    const current = (rows[0]?.data ?? {}) as Record<string, unknown>;
+    for (const [k, v] of Object.entries(updates)) {
+      if (k.includes('.')) setNestedKey(current, k, v);
+      else current[k] = v;
+    }
+    await tx`
+      UPDATE profiles SET data = ${tx.json(toJson(current))}, updated_at = NOW()
+      WHERE user_id = ${userId}
+    `;
+  });
 }
 
 export async function getQueueAction(userId: string, id: string): Promise<QueuedAction | null> {
