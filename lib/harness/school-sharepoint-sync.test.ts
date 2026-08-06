@@ -3,15 +3,17 @@ import type { SchoolFeed } from '@/types/knowledge-base';
 
 const mocks = vi.hoisted(() => ({
   readAllKB: vi.fn(),
-  writeKB: vi.fn(),
+  writeManyKB: vi.fn(),
+  readProfile: vi.fn(),
   listSiteNewsItems: vi.fn(),
   listDriveDocuments: vi.fn(),
 }));
 
 vi.mock('@/lib/harness/knowledge-base', () => ({
   readAllKB: mocks.readAllKB,
-  writeKB: mocks.writeKB,
+  writeManyKB: mocks.writeManyKB,
 }));
+vi.mock('@/lib/storage', () => ({ readProfile: mocks.readProfile }));
 vi.mock('@/lib/nango/sharepoint', () => ({
   listSiteNewsItems: mocks.listSiteNewsItems,
   listDriveDocuments: mocks.listDriveDocuments,
@@ -34,17 +36,19 @@ const GMAIL: SchoolFeed['gmail'] = {
   fyi: [],
 };
 
-function kbWithFeed(feed: Partial<SchoolFeed>) {
+const CHILD = {
+  name: 'Ivy',
+  school: 'Genazzano',
+  microsoftSiteId: 'site-1',
+  microsoftNewsListId: 'list-1',
+  microsoftDocsPath: 'Shared Documents/Timetables',
+};
+
+function kb(feed?: Partial<SchoolFeed>) {
   return {
     family: {
-      children: [{
-        name: 'Ivy',
-        school: 'Genazzano',
-        microsoftSiteId: 'site-1',
-        microsoftNewsListId: 'list-1',
-        microsoftDocsPath: 'Shared Documents/Timetables',
-      }],
-      schoolFeed: { updatedAt: '2026-08-05T00:00:00.000Z', gmail: GMAIL, ...feed },
+      children: [CHILD],
+      ...(feed ? { schoolFeed: { updatedAt: '2026-08-05T00:00:00.000Z', gmail: GMAIL, ...feed } } : {}),
     },
   };
 }
@@ -52,7 +56,9 @@ function kbWithFeed(feed: Partial<SchoolFeed>) {
 describe('syncSchoolSharePoint', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.writeKB.mockResolvedValue(undefined);
+    mocks.writeManyKB.mockResolvedValue(undefined);
+    mocks.readAllKB.mockResolvedValue(kb({ calendar: CALENDAR }));
+    mocks.readProfile.mockResolvedValue(kb({ calendar: CALENDAR }));
     mocks.listSiteNewsItems.mockResolvedValue([
       { title: 'Sports carnival', publishedAt: '2026-08-01', url: 'https://school/news/1' },
     ]);
@@ -61,46 +67,69 @@ describe('syncSchoolSharePoint', () => {
     ]);
   });
 
-  it('preserves the calendar section it does not own', async () => {
-    mocks.readAllKB.mockResolvedValue(kbWithFeed({ calendar: CALENDAR }));
-
+  it('writes only the sharepoint section it owns, never the whole feed', async () => {
     const result = await syncSchoolSharePoint();
 
     expect(result).toMatchObject({ ok: true, newsCount: 1, documentCount: 1 });
-    const [, written] = mocks.writeKB.mock.calls[0] as [string, SchoolFeed];
-    expect(written.calendar).toEqual(CALENDAR);
-    expect(written.gmail).toEqual(GMAIL);
-    expect(written.sharepoint?.news).toHaveLength(1);
-    expect(written.sharepoint?.documents).toHaveLength(1);
+    const [updates] = mocks.writeManyKB.mock.calls[0] as [Record<string, unknown>];
+    // Scoped paths only — no 'family.schoolFeed' wholesale overwrite, which is what let a
+    // stale snapshot clobber a concurrent gmail/calendar write.
+    expect(Object.keys(updates).sort()).toEqual([
+      'family.schoolFeed.sharepoint',
+      'family.schoolFeed.updatedAt',
+    ]);
+    expect(updates['family.schoolFeed.sharepoint']).toEqual({
+      news: [{ title: 'Sports carnival', publishedAt: '2026-08-01', url: 'https://school/news/1' }],
+      documents: [{ name: 'Timetable.pdf', url: 'https://school/doc.pdf', child: 'Ivy' }],
+    });
   });
 
-  it('omits the calendar key entirely when there was none', async () => {
-    mocks.readAllKB.mockResolvedValue(kbWithFeed({}));
+  it('does not resurrect a stale calendar when a sibling job writes during the Graph calls', async () => {
+    // school-inbox (*/15) and school-sync (0 * * * *) both fire at :00. Simulate the calendar
+    // landing after this job's initial read: the pre-call snapshot has no calendar at all.
+    mocks.readAllKB.mockResolvedValue(kb({}));
+    mocks.readProfile.mockResolvedValue(kb({ calendar: CALENDAR }));
 
     await syncSchoolSharePoint();
 
-    const [, written] = mocks.writeKB.mock.calls[0] as [string, SchoolFeed];
-    expect('calendar' in written).toBe(false);
+    const [updates] = mocks.writeManyKB.mock.calls[0] as [Record<string, unknown>];
+    // Nothing here touches calendar, so the freshly-written sibling data survives untouched.
+    expect(Object.keys(updates)).not.toContain('family.schoolFeed.calendar');
+    expect(Object.keys(updates)).not.toContain('family.schoolFeed');
+  });
+
+  it('seeds an empty gmail section when no feed exists yet, so Home does not throw', async () => {
+    mocks.readAllKB.mockResolvedValue(kb());
+    mocks.readProfile.mockResolvedValue(kb());
+
+    await syncSchoolSharePoint();
+
+    const [updates] = mocks.writeManyKB.mock.calls[0] as [Record<string, unknown>];
+    expect(updates['family.schoolFeed.gmail']).toEqual({ roundups: [], actionRequired: [], fyi: [] });
+  });
+
+  it('leaves an existing gmail section alone', async () => {
+    await syncSchoolSharePoint();
+
+    const [updates] = mocks.writeManyKB.mock.calls[0] as [Record<string, unknown>];
+    expect(Object.keys(updates)).not.toContain('family.schoolFeed.gmail');
   });
 
   it('skips the sync when no child has a SharePoint mapping', async () => {
-    mocks.readAllKB.mockResolvedValue({
-      family: { children: [{ name: 'Ivy', school: 'Genazzano' }] },
-    });
+    mocks.readAllKB.mockResolvedValue({ family: { children: [{ name: 'Ivy', school: 'Genazzano' }] } });
 
     const result = await syncSchoolSharePoint();
 
     expect(result).toMatchObject({ ok: true, newsCount: 0, documentCount: 0 });
-    expect(mocks.writeKB).not.toHaveBeenCalled();
+    expect(mocks.writeManyKB).not.toHaveBeenCalled();
   });
 
   it('reports the error and writes nothing when Graph fails', async () => {
-    mocks.readAllKB.mockResolvedValue(kbWithFeed({ calendar: CALENDAR }));
     mocks.listSiteNewsItems.mockRejectedValue(new Error('Graph 403'));
 
     const result = await syncSchoolSharePoint();
 
     expect(result).toMatchObject({ ok: false, error: 'Graph 403' });
-    expect(mocks.writeKB).not.toHaveBeenCalled();
+    expect(mocks.writeManyKB).not.toHaveBeenCalled();
   });
 });
