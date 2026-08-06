@@ -116,14 +116,56 @@ export async function downloadDriveFileBytes(
   return Buffer.from(res.data as ArrayBuffer);
 }
 
-export async function searchSharePointSites(query: string, connectionId?: string): Promise<Array<{ id: string; name: string; webUrl?: string }>> {
+export interface SharePointSite {
+  id: string;
+  name: string;
+  webUrl?: string;
+}
+
+export interface SharePointList {
+  id: string;
+  name: string;
+  webUrl?: string;
+  /** Graph list template — 'news'/'webPageLibrary' are the usual school announcement lists. */
+  template?: string;
+}
+
+export async function searchSharePointSites(query: string, connectionId?: string): Promise<SharePointSite[]> {
   const [conn] = await resolveMicrosoftConnections(connectionId);
+  // Graph rejects an empty search term; '*' is its documented "everything" wildcard.
+  const term = query.trim() || '*';
   const data = await graphGet<{
     value?: Array<{ id?: string; displayName?: string; name?: string; webUrl?: string }>;
-  }>(conn.connectionId, `/v1.0/sites?search=${encodeURIComponent(query)}`);
+  }>(conn.connectionId, `/v1.0/sites?search=${encodeURIComponent(term)}`);
   return (data.value ?? []).map(site => ({
     id: site.id ?? '',
     name: site.displayName ?? site.name ?? 'Site',
     webUrl: site.webUrl,
   })).filter(s => s.id);
+}
+
+/**
+ * Lists a site's document/announcement lists so the news list can be picked by name
+ * instead of hand-pasting a GUID. Hidden system lists are filtered out.
+ */
+export async function listSiteLists(siteId: string, connectionId?: string): Promise<SharePointList[]> {
+  const [conn] = await resolveMicrosoftConnections(connectionId);
+  const data = await graphGet<{
+    value?: Array<{
+      id?: string;
+      displayName?: string;
+      name?: string;
+      webUrl?: string;
+      list?: { template?: string; hidden?: boolean };
+    }>;
+  }>(conn.connectionId, `/v1.0/sites/${encodeURIComponent(siteId)}/lists?$top=100`);
+
+  return (data.value ?? [])
+    .filter(list => list.id && !list.list?.hidden)
+    .map(list => ({
+      id: list.id!,
+      name: list.displayName ?? list.name ?? 'List',
+      webUrl: list.webUrl,
+      template: list.list?.template,
+    }));
 }

@@ -46,6 +46,10 @@ export async function syncSchoolSharePoint(): Promise<SchoolSharePointSyncResult
     const feed: SchoolFeed = {
       updatedAt: new Date().toISOString(),
       gmail: existing?.gmail ?? { roundups: [], actionRequired: [], fyi: [] },
+      // Carry the calendar through untouched — this cron runs hourly and owns only the
+      // sharepoint section, so dropping siblings here would wipe what school-inbox and
+      // school-calendar wrote (same guard those two use for the sections they don't own).
+      ...(existing?.calendar ? { calendar: existing.calendar } : {}),
       sharepoint: { news: allNews, documents: allDocs },
     };
 

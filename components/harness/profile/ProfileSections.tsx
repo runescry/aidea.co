@@ -7,6 +7,7 @@ import { Label, TextField, TextArea, TextArrayInput, SelectField, Section } from
 import PersonListEditor from '../onboarding/PersonListEditor';
 import { applyContactListToPeople, peopleContactsForEditor } from '@/lib/profile/people';
 import ProjectsEditor from '../ProjectsEditor';
+import SharePointPicker from './SharePointPicker';
 
 export type ProfileUpdater = <K extends keyof KnowledgeBase>(
   section: K,
@@ -202,16 +203,7 @@ export function FamilySection({ data, u, embedded }: SectionProps) {
                 placeholder="genazzano.vic.edu.au"
               />
             </div>
-            <TextField
-              value={child.microsoftSiteId ?? ''}
-              onChange={v => updateChild(i, { microsoftSiteId: v })}
-              placeholder="SharePoint site ID (optional)"
-            />
-            <TextField
-              value={child.microsoftDocsPath ?? ''}
-              onChange={v => updateChild(i, { microsoftDocsPath: v })}
-              placeholder="SharePoint docs path: Shared Documents/Timetables"
-            />
+            <SharePointPicker child={child} onChange={patch => updateChild(i, patch)} />
             <TextField
               value={(child.peDay ?? []).join(', ')}
               onChange={v => updateChild(i, { peDay: v.split(',').map(s => s.trim()).filter(Boolean) })}
