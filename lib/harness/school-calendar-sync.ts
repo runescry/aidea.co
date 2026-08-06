@@ -1,5 +1,6 @@
 import { readCalendarEvents } from '@/lib/nango/calendar';
-import { readAllKB, writeKB } from '@/lib/harness/knowledge-base';
+import { readAllKB, writeManyKB } from '@/lib/harness/knowledge-base';
+import { readProfile } from '@/lib/storage';
 import { loadSchoolProfiles } from '@/lib/harness/school-config';
 import { addCalendarDays } from '@/lib/calendar/dates';
 import { resolveUserTimezone, userDateYmd } from '@/lib/calendar/user-time';
@@ -26,19 +27,6 @@ function formatEventTimeLocal(start: string, timeZone: string): string {
     minute: '2-digit',
     hour12: false,
   }).format(d);
-}
-
-function preserveExistingFeedSections(
-  kb: KnowledgeBase,
-  calendar: NonNullable<SchoolFeed['calendar']>,
-): SchoolFeed {
-  const existing = kb.family?.schoolFeed;
-  return {
-    updatedAt: new Date().toISOString(),
-    gmail: existing?.gmail ?? { roundups: [], actionRequired: [], fyi: [] },
-    calendar,
-    ...(existing?.sharepoint ? { sharepoint: existing.sharepoint } : {}),
-  };
 }
 
 export async function syncSchoolCalendar(): Promise<SchoolCalendarSyncResult> {
@@ -74,7 +62,23 @@ export async function syncSchoolCalendar(): Promise<SchoolCalendarSyncResult> {
       events: mapped,
     };
 
-    await writeKB('family.schoolFeed', preserveExistingFeedSections(kb, calendar));
+    // Scoped write — only the calendar section, never the whole feed. school-sync (0 * * * *)
+    // and school-inbox (*/15) collide at the top of every hour; a whole-feed write here would
+    // clobber whatever gmail/sharepoint data a sibling job wrote concurrently.
+    const updates: Record<string, unknown> = {
+      'family.schoolFeed.calendar': calendar,
+      'family.schoolFeed.updatedAt': new Date().toISOString(),
+    };
+
+    // Uncached read — readAllKB() memoizes for up to a minute. This job doesn't own gmail, but
+    // if it's the first sync to ever run, there's no feed yet and Home's `feed?.gmail.roundups`
+    // would throw. Only seed it when still missing.
+    const fresh = await readProfile() as KnowledgeBase;
+    if (!fresh.family?.schoolFeed?.gmail) {
+      updates['family.schoolFeed.gmail'] = { roundups: [], actionRequired: [], fyi: [] };
+    }
+
+    await writeManyKB(updates);
 
     const calendarReadError = readErrors?.length
       ? readErrors[0]
