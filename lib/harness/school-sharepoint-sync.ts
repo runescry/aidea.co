@@ -1,4 +1,5 @@
-import { readAllKB, writeKB } from '@/lib/harness/knowledge-base';
+import { readAllKB, writeManyKB } from '@/lib/harness/knowledge-base';
+import { readProfile } from '@/lib/storage';
 import { loadSchoolProfiles } from '@/lib/harness/school-config';
 import type { KnowledgeBase, SchoolFeed } from '@/types/knowledge-base';
 import { listDriveDocuments, listSiteNewsItems } from '@/lib/nango/sharepoint';
@@ -42,14 +43,25 @@ export async function syncSchoolSharePoint(): Promise<SchoolSharePointSyncResult
       }
     }
 
-    const existing = kb.family?.schoolFeed;
-    const feed: SchoolFeed = {
-      updatedAt: new Date().toISOString(),
-      gmail: existing?.gmail ?? { roundups: [], actionRequired: [], fyi: [] },
-      sharepoint: { news: allNews, documents: allDocs },
+    // Write only the section this job owns, at its nested path, instead of rebuilding the
+    // whole feed. The Graph calls above take seconds (PDF download + text extraction) and
+    // school-inbox (*/15) collides with this job (0 * * * *) at the top of every hour — so
+    // any sibling snapshot taken before those calls is already stale by now. writeManyKB
+    // re-reads immediately before persisting, so a concurrent gmail/calendar write survives.
+    const updates: Record<string, unknown> = {
+      'family.schoolFeed.sharepoint': { news: allNews, documents: allDocs },
+      'family.schoolFeed.updatedAt': new Date().toISOString(),
     };
 
-    await writeKB('family.schoolFeed', feed);
+    // Uncached read — readAllKB() memoizes for up to a minute, which is exactly the staleness
+    // being avoided here. Consumers do `feed?.gmail.roundups`, so a feed created by this job
+    // alone still needs a gmail section present or Home throws.
+    const fresh = await readProfile() as KnowledgeBase;
+    if (!fresh.family?.schoolFeed?.gmail) {
+      updates['family.schoolFeed.gmail'] = { roundups: [], actionRequired: [], fyi: [] };
+    }
+
+    await writeManyKB(updates);
 
     return { ok: true, newsCount: allNews.length, documentCount: allDocs.length };
   } catch (err) {

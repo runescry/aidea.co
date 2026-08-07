@@ -93,6 +93,8 @@ export default function SettingsPanel() {
   const [calendarConnectError, setCalendarConnectError] = useState<string | null>(null);
   const [microsoftConnecting, setMicrosoftConnecting] = useState(false);
   const [microsoftConnectError, setMicrosoftConnectError] = useState<string | null>(null);
+  const [sharePointSyncing, setSharePointSyncing] = useState(false);
+  const [sharePointSyncMessage, setSharePointSyncMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [strava, setStrava] = useState<{
     configured: boolean;
     connected: boolean;
@@ -266,6 +268,31 @@ export default function SettingsPanel() {
     } catch (err) {
       setMicrosoftConnectError(err instanceof Error ? err.message : 'Failed to start Microsoft connect');
       setMicrosoftConnecting(false);
+    }
+  };
+
+  const handleSyncSharePoint = async () => {
+    setSharePointSyncing(true);
+    setSharePointSyncMessage(null);
+    try {
+      const res = await fetch('/api/school-feed/sharepoint', { method: 'POST' });
+      const body = await res.json().catch(() => ({})) as {
+        ok?: boolean; newsCount?: number; documentCount?: number; error?: string;
+      };
+      if (!res.ok || body.ok === false) {
+        setSharePointSyncMessage({ ok: false, text: body.error ?? `Sync failed (${res.status})` });
+        return;
+      }
+      // A mapping-less sync succeeds with zero counts — say so rather than implying it worked.
+      setSharePointSyncMessage({
+        ok: true,
+        text: body.error
+          ?? `Synced ${body.newsCount ?? 0} news item(s) and ${body.documentCount ?? 0} document(s).`,
+      });
+    } catch {
+      setSharePointSyncMessage({ ok: false, text: 'Could not reach the server — try again.' });
+    } finally {
+      setSharePointSyncing(false);
     }
   };
 
@@ -597,6 +624,26 @@ export default function SettingsPanel() {
         ) : nangoConfigured ? (
           <p className="text-xs text-foreground-muted">No school Microsoft account connected yet.</p>
         ) : null}
+
+        {microsoftConnections.length > 0 && (
+          <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+            <p className="text-xs text-foreground-muted">
+              Map each child to a site in Profile → Family. Syncs hourly on its own.
+            </p>
+            <button
+              onClick={handleSyncSharePoint}
+              disabled={sharePointSyncing}
+              className="btn-secondary text-xs py-1.5 shrink-0"
+            >
+              {sharePointSyncing ? 'Syncing…' : 'Sync now'}
+            </button>
+          </div>
+        )}
+        {sharePointSyncMessage && (
+          <p className={`text-xs ${sharePointSyncMessage.ok ? 'text-foreground-muted' : 'text-red-600 dark:text-red-400'}`}>
+            {sharePointSyncMessage.text}
+          </p>
+        )}
       </div>
 
       <div className="card p-4 space-y-4">

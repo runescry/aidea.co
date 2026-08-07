@@ -46,6 +46,9 @@ export interface ChildProfile {
   /** SharePoint site ID (Microsoft school account) */
   microsoftSiteId?: string;
   microsoftNewsListId?: string;
+  /** Display-only labels captured at pick time so setup shows names, not raw GUIDs. */
+  microsoftSiteName?: string;
+  microsoftNewsListName?: string;
   /** Document library path, e.g. Shared Documents/Timetables */
   microsoftDocsPath?: string;
   peDay?: string[];
