@@ -137,6 +137,14 @@ export async function readCalendarEvents(options: {
   };
 }
 
+/** Adds minutes to a naive 'YYYY-MM-DDTHH:MM:SS' string via UTC arithmetic — a pure wall-clock
+ *  shift, not a real timezone conversion, so it stays correct regardless of DST. */
+function addMinutesToNaiveDateTime(naive: string, minutes: number): string {
+  const d = new Date(`${naive}Z`);
+  d.setUTCMinutes(d.getUTCMinutes() + minutes);
+  return d.toISOString().slice(0, 19);
+}
+
 export async function createCalendarEvent(input: {
   title: string;
   start: string;
@@ -144,11 +152,20 @@ export async function createCalendarEvent(input: {
   description?: string;
   attendees?: string[];
   connectionId?: string;
+  /** IANA zone (e.g. 'Australia/Melbourne'). When set, `start` is treated as a naive local
+   *  wall-clock time and forwarded to Google as-is with this zone, rather than being
+   *  reinterpreted as a UTC instant. */
+  timeZone?: string;
 }): Promise<{ eventId: string; title: string; start: string; connectionId: string }> {
   const [conn] = await resolveCalendarConnections(input.connectionId);
   const nango = getNango();
-  const startDate = new Date(input.start);
-  const endDate = new Date(startDate.getTime() + input.durationMinutes * 60_000);
+
+  const start = input.timeZone
+    ? { dateTime: input.start, timeZone: input.timeZone }
+    : { dateTime: new Date(input.start).toISOString() };
+  const end = input.timeZone
+    ? { dateTime: addMinutesToNaiveDateTime(input.start, input.durationMinutes), timeZone: input.timeZone }
+    : { dateTime: new Date(new Date(input.start).getTime() + input.durationMinutes * 60_000).toISOString() };
 
   const res = await nango.post<{ id: string }>({
     providerConfigKey: conn.integrationId,
@@ -157,8 +174,8 @@ export async function createCalendarEvent(input: {
     data: {
       summary: input.title,
       description: input.description ?? '',
-      start: { dateTime: startDate.toISOString() },
-      end: { dateTime: endDate.toISOString() },
+      start,
+      end,
       attendees: (input.attendees ?? []).map(email => ({ email })),
     },
   });
