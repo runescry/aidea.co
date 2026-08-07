@@ -34,16 +34,10 @@ export async function writeProfile(data: Record<string, unknown>): Promise<void>
 }
 
 export async function mergeProfile(updates: Record<string, unknown>): Promise<void> {
-  const current = await readProfile();
-  for (const [k, v] of Object.entries(updates)) {
-    if (k.includes('.')) {
-      const { setNestedKey } = await import('./nested-keys');
-      setNestedKey(current, k, v);
-    } else {
-      current[k] = v;
-    }
-  }
-  await writeProfile(current);
+  await ready();
+  const userId = await resolveUserId();
+  if (usePostgres()) await pg.mergeProfile(userId, updates);
+  else await fs.mergeProfile(updates);
 }
 
 export async function getQueuedAction(id: string): Promise<QueuedAction | null> {

@@ -9,6 +9,7 @@ import {
   ensureActiveId,
   parseLegacyChatStore,
 } from './chat-conversations';
+import { setNestedKey } from './nested-keys';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const CHAT_DIR = path.join(DATA_DIR, 'chat');
@@ -42,6 +43,25 @@ export function readProfile(): Record<string, unknown> {
 
 export function writeProfile(data: Record<string, unknown>): void {
   writeJson('knowledge-base.json', data);
+}
+
+// Single-file backend with synchronous I/O, so a single call is already atomic in this
+// single-threaded process — but chain calls through one lock anyway so that invariant holds
+// even if this ever moves to async file I/O (mirrors the row lock Postgres uses, see
+// postgres.ts's mergeProfile).
+let profileMergeLock: Promise<void> = Promise.resolve();
+
+export function mergeProfile(updates: Record<string, unknown>): Promise<void> {
+  const run = profileMergeLock.then(() => {
+    const current = readProfile();
+    for (const [k, v] of Object.entries(updates)) {
+      if (k.includes('.')) setNestedKey(current, k, v);
+      else current[k] = v;
+    }
+    writeProfile(current);
+  });
+  profileMergeLock = run.catch(() => undefined);
+  return run;
 }
 
 export function getQueueAction(id: string): QueuedAction | null {

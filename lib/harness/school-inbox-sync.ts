@@ -2,8 +2,8 @@ import { gmailMessageUrlFromEmail } from '@/lib/gmail/message-url';
 import { readGmailMessages } from '@/lib/nango/gmail';
 import { fetchGmailAttachments } from '@/lib/nango/gmail-attachments';
 import { extractTextFromBuffer } from '@/lib/documents/extract-text';
-import { readAllKB, writeKB } from '@/lib/harness/knowledge-base';
-import type { KnowledgeBase, SchoolFeed, SchoolFeedEmailRow } from '@/types/knowledge-base';
+import { readAllKB, writeManyKB } from '@/lib/harness/knowledge-base';
+import type { SchoolFeed, SchoolFeedEmailRow } from '@/types/knowledge-base';
 import { INBOX_LOOKBACK_DAYS } from './inbox-window';
 import {
   buildSchoolGmailFromQuery,
@@ -175,14 +175,13 @@ export async function syncSchoolInbox(): Promise<SchoolInboxSyncResult> {
     });
 
     if (emails.length === 0) {
-      const existing = (kb as KnowledgeBase).family?.schoolFeed;
-      const emptyFeed: SchoolFeed = {
-        updatedAt: new Date().toISOString(),
-        gmail: { roundups: [], actionRequired: [], fyi: [] },
-        ...(existing?.calendar ? { calendar: existing.calendar } : {}),
-        ...(existing?.sharepoint ? { sharepoint: existing.sharepoint } : {}),
-      };
-      await writeKB('family.schoolFeed', emptyFeed);
+      // Scoped write — only the gmail section, never the whole feed. school-inbox (*/15) and
+      // school-sync (0 * * * *) collide at the top of every hour; a whole-feed write here would
+      // clobber whatever calendar/sharepoint data a sibling job wrote concurrently.
+      await writeManyKB({
+        'family.schoolFeed.gmail': { roundups: [], actionRequired: [], fyi: [] },
+        'family.schoolFeed.updatedAt': new Date().toISOString(),
+      });
       return { ok: true, emailCount: 0, actionRequired: 0, fyi: 0, roundups: 0, query };
     }
 
@@ -201,22 +200,19 @@ export async function syncSchoolInbox(): Promise<SchoolInboxSyncResult> {
     const bundled = bundleSchoolTriage(triageInput, cache, 2, profiles);
     const roundups = (bundled.schoolRoundups ?? []) as SchoolRoundup[];
 
-    const kbTyped = kb as KnowledgeBase;
-    const existingSharepoint = kbTyped.family?.schoolFeed?.sharepoint;
-    const existingCalendar = kbTyped.family?.schoolFeed?.calendar;
-
-    const feed: SchoolFeed = {
-      updatedAt: new Date().toISOString(),
-      gmail: {
-        roundups: roundups.map(roundupToFeedRoundup),
-        actionRequired: actionRequired.map(toFeedRow),
-        fyi: fyi.map(toFeedRow),
-      },
-      ...(existingCalendar ? { calendar: existingCalendar } : {}),
-      ...(existingSharepoint ? { sharepoint: existingSharepoint } : {}),
+    // Scoped write — see the empty-emails branch above for why this must not touch
+    // calendar/sharepoint, especially here where the slow attachment enrichment above widens
+    // the window for a sibling job's write to land in between.
+    const gmail: SchoolFeed['gmail'] = {
+      roundups: roundups.map(roundupToFeedRoundup),
+      actionRequired: actionRequired.map(toFeedRow),
+      fyi: fyi.map(toFeedRow),
     };
 
-    await writeKB('family.schoolFeed', feed);
+    await writeManyKB({
+      'family.schoolFeed.gmail': gmail,
+      'family.schoolFeed.updatedAt': new Date().toISOString(),
+    });
 
     return {
       ok: true,
