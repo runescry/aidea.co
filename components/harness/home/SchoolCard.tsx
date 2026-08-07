@@ -1,11 +1,70 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SchoolFeed, SchoolFeedEmailRow, SchoolFeedRoundup } from '@/types/knowledge-base';
 import { decodeBriefText } from '@/lib/harness/morning-brief-must-do';
 import SchoolWeekCalendar from './SchoolWeekCalendar';
 
 const PREVIEW_COUNT = 2;
+
+interface UploadResult {
+  ok: boolean;
+  event?: { title: string; date: string; time?: string; location?: string; assumedTime?: boolean };
+  error?: string;
+}
+
+function UploadEventControl({ onUploaded }: { onUploaded: () => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<UploadResult | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = useCallback(async (file: File) => {
+    setUploading(true);
+    setResult(null);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch('/api/school-feed/upload', { method: 'POST', body });
+      const data = await res.json() as UploadResult;
+      setResult(res.ok ? { ok: true, event: data.event } : { ok: false, error: data.error ?? 'Upload failed' });
+      if (res.ok) onUploaded();
+    } catch {
+      setResult({ ok: false, error: 'Upload failed — check your connection and try again' });
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  }, [onUploaded]);
+
+  return (
+    <div className="space-y-1">
+      <label className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-medium text-foreground-muted hover:text-foreground hover:bg-surface-subtle border border-border cursor-pointer transition-colors">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png,image/webp,image/gif"
+          className="sr-only"
+          disabled={uploading}
+          onChange={e => {
+            const file = e.target.files?.[0];
+            if (file) void handleFile(file);
+          }}
+        />
+        {uploading ? 'Reading document…' : 'Upload flyer or form'}
+      </label>
+      {result?.ok && result.event && (
+        <p className="text-[11px] text-foreground-muted">
+          Added &ldquo;{result.event.title}&rdquo; on {result.event.date}
+          {result.event.time ? ` at ${result.event.time}` : ''} to your calendar
+          {result.event.assumedTime ? ' (no time found — assumed 9am)' : ''}.
+        </p>
+      )}
+      {result && !result.ok && (
+        <p className="text-[11px] text-danger">{result.error}</p>
+      )}
+    </div>
+  );
+}
 
 function uniqueBySubject(rows: SchoolFeedEmailRow[]): SchoolFeedEmailRow[] {
   const seen = new Map<string, SchoolFeedEmailRow>();
@@ -167,21 +226,23 @@ export default function SchoolCard({
   const [feed, setFeed] = useState<SchoolFeed | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const loadFeed = useCallback(async (signal?: { cancelled: boolean }) => {
+    try {
+      const res = await fetch('/api/school-feed');
+      if (!res.ok || signal?.cancelled) return;
+      const data = await res.json() as { feed: SchoolFeed | null };
+      setFeed(data.feed);
+    } finally {
+      if (!signal?.cancelled) setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/school-feed');
-        if (!res.ok) return;
-        const data = await res.json() as { feed: SchoolFeed | null };
-        if (!cancelled) setFeed(data.feed);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [refreshKey]);
+    const signal = { cancelled: false };
+    setLoading(true);
+    void loadFeed(signal);
+    return () => { signal.cancelled = true; };
+  }, [refreshKey, loadFeed]);
 
   if (loading) {
     return (
@@ -201,7 +262,7 @@ export default function SchoolCard({
 
   if (!hasContent) {
     return (
-      <div className="py-2 space-y-1">
+      <div className="py-2 space-y-2">
         {syncError && (
           <p className="text-[12px] text-danger">{syncError}</p>
         )}
@@ -212,6 +273,7 @@ export default function SchoolCard({
               ? 'No school events this week. Tap Sync now on the left.'
               : 'No school emails in the last 14 days. Tap Sync now to check Gmail.'}
         </p>
+        <UploadEventControl onUploaded={() => void loadFeed()} />
       </div>
     );
   }
@@ -238,6 +300,8 @@ export default function SchoolCard({
       {hasCalendarContent && feed?.calendar && (
         <SchoolWeekCalendar calendar={feed.calendar} />
       )}
+
+      <UploadEventControl onUploaded={() => void loadFeed()} />
 
       {roundups.length > 0 && (
         <div className="space-y-2.5 divide-y divide-border/60">
