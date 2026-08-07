@@ -150,6 +150,7 @@ export async function createCalendarEvent(input: {
   start: string;
   durationMinutes: number;
   description?: string;
+  location?: string;
   attendees?: string[];
   connectionId?: string;
   /** IANA zone (e.g. 'Australia/Melbourne'). When set, `start` is treated as a naive local
@@ -174,6 +175,7 @@ export async function createCalendarEvent(input: {
     data: {
       summary: input.title,
       description: input.description ?? '',
+      location: input.location ?? '',
       start,
       end,
       attendees: (input.attendees ?? []).map(email => ({ email })),

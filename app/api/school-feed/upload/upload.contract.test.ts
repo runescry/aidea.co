@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server';
 const mocks = vi.hoisted(() => ({
   readAllKB: vi.fn(),
   resolveUserTimezone: vi.fn(),
+  userDateYmd: vi.fn(),
   loadSchoolProfiles: vi.fn(),
   matchSchoolCalendarChild: vi.fn(),
   extractEventFromUpload: vi.fn(),
@@ -16,7 +17,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/harness/knowledge-base', () => ({ readAllKB: mocks.readAllKB }));
-vi.mock('@/lib/calendar/user-time', () => ({ resolveUserTimezone: mocks.resolveUserTimezone }));
+vi.mock('@/lib/calendar/user-time', () => ({
+  resolveUserTimezone: mocks.resolveUserTimezone,
+  userDateYmd: mocks.userDateYmd,
+}));
 vi.mock('@/lib/harness/school-config', () => ({ loadSchoolProfiles: mocks.loadSchoolProfiles }));
 vi.mock('@/lib/harness/school-calendar-classify', () => ({ matchSchoolCalendarChild: mocks.matchSchoolCalendarChild }));
 vi.mock('@/lib/documents/extract-event', () => ({
@@ -47,6 +51,7 @@ describe('POST /api/school-feed/upload', () => {
     mocks.isDemoUserId.mockReturnValue(false);
     mocks.readAllKB.mockResolvedValue({ family: { children: [] } });
     mocks.resolveUserTimezone.mockReturnValue('Australia/Melbourne');
+    mocks.userDateYmd.mockReturnValue('2026-08-07');
     mocks.loadSchoolProfiles.mockReturnValue([]);
     mocks.matchSchoolCalendarChild.mockReturnValue(null);
     mocks.isSupportedEventUpload.mockReturnValue(true);
@@ -148,6 +153,37 @@ describe('POST /api/school-feed/upload', () => {
     await POST(uploadRequest(file));
 
     expect(mocks.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({ title: 'Ivy: Sports carnival' }));
+  });
+
+  it('matches a child named only in the location/description, not the generic title', async () => {
+    mocks.matchSchoolCalendarChild.mockImplementation((text: string) =>
+      text.includes('Genazzano') ? { child: 'Ivy', school: 'Genazzano FCJ College' } : null,
+    );
+    mocks.extractEventFromUpload.mockResolvedValue({
+      title: 'Sports carnival',
+      date: '2026-09-05',
+      time: '09:00',
+      location: 'Genazzano FCJ College oval',
+    });
+    const file = new File(['x'], 'flyer.pdf', { type: 'application/pdf' });
+    await POST(uploadRequest(file));
+
+    expect(mocks.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({ title: 'Ivy: Sports carnival' }));
+  });
+
+  it('passes the extracted location through to the calendar write', async () => {
+    const file = new File(['x'], 'flyer.pdf', { type: 'application/pdf' });
+    await POST(uploadRequest(file));
+
+    expect(mocks.createCalendarEvent).toHaveBeenCalledWith(expect.objectContaining({ location: 'The oval' }));
+  });
+
+  it("resolves relative dates against the user's local date, not the server's", async () => {
+    const file = new File(['x'], 'flyer.pdf', { type: 'application/pdf' });
+    await POST(uploadRequest(file));
+
+    expect(mocks.extractEventFromUpload).toHaveBeenCalledWith(expect.objectContaining({ referenceDate: '2026-08-07' }));
+    expect(mocks.userDateYmd).toHaveBeenCalledWith(expect.any(Date), 'Australia/Melbourne');
   });
 
   it('does not double-prefix when the extracted title already names the matched child', async () => {

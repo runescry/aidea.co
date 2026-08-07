@@ -54,6 +54,19 @@ describe('createCalendarEvent', () => {
     expect(call.data.end).toEqual({ dateTime: '2026-09-05T09:30:00.000Z' });
   });
 
+  it('forwards the location to the Google Calendar write', async () => {
+    await createCalendarEvent({
+      title: 'Sports carnival',
+      start: '2026-09-05T09:00:00',
+      durationMinutes: 60,
+      location: 'The oval',
+      timeZone: 'Australia/Melbourne',
+    });
+
+    const [call] = mocks.post.mock.calls[0] as [{ data: { location: string } }];
+    expect(call.data.location).toBe('The oval');
+  });
+
   it('returns the created event id and echoes the input start', async () => {
     const result = await createCalendarEvent({
       title: 'Sports carnival',

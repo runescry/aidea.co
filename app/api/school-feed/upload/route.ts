@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readAllKB } from '@/lib/harness/knowledge-base';
-import { resolveUserTimezone } from '@/lib/calendar/user-time';
+import { resolveUserTimezone, userDateYmd } from '@/lib/calendar/user-time';
 import { loadSchoolProfiles } from '@/lib/harness/school-config';
 import { matchSchoolCalendarChild } from '@/lib/harness/school-calendar-classify';
 import { extractEventFromUpload, isSupportedEventUpload } from '@/lib/documents/extract-event';
@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
       bytes,
       mimeType: file.type,
       filename: file.name,
+      referenceDate: userDateYmd(new Date(), timeZone),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -83,7 +84,10 @@ export async function POST(req: NextRequest) {
   }
 
   const profiles = loadSchoolProfiles(kb);
-  const matchedChild = matchSchoolCalendarChild(extracted.title, profiles);
+  // Match against the whole extraction, not just the (often generic) title — "Sports carnival"
+  // won't name a child or school on its own, but the location/description often does.
+  const matchText = [extracted.title, extracted.description, extracted.location].filter(Boolean).join(' ');
+  const matchedChild = matchSchoolCalendarChild(matchText, profiles);
   // Embed the child's name so the school feed's own title-only matcher recognizes this event
   // once school-calendar-sync reads it back from Google Calendar.
   const title =
@@ -100,6 +104,7 @@ export async function POST(req: NextRequest) {
       start,
       durationMinutes: DEFAULT_DURATION_MINUTES,
       description: extracted.description,
+      location: extracted.location,
       timeZone,
     });
 
