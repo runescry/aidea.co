@@ -7,29 +7,45 @@ import SchoolWeekCalendar from './SchoolWeekCalendar';
 
 const PREVIEW_COUNT = 2;
 
-interface UploadResult {
+interface EventOutcome {
   ok: boolean;
-  event?: { title: string; date: string; time?: string; location?: string; assumedTime?: boolean };
+  title: string;
+  date: string;
+  time?: string;
+  location?: string;
+  assumedTime: boolean;
+  error?: string;
+}
+
+interface UploadResponse {
+  ok: boolean;
+  events?: EventOutcome[];
   error?: string;
 }
 
 function UploadEventControl({ onUploaded }: { onUploaded: () => void }) {
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<UploadResult | null>(null);
+  const [events, setEvents] = useState<EventOutcome[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (file: File) => {
     setUploading(true);
-    setResult(null);
+    setEvents(null);
+    setError(null);
     try {
       const body = new FormData();
       body.append('file', file);
       const res = await fetch('/api/school-feed/upload', { method: 'POST', body });
-      const data = await res.json() as UploadResult;
-      setResult(res.ok ? { ok: true, event: data.event } : { ok: false, error: data.error ?? 'Upload failed' });
-      if (res.ok) onUploaded();
+      const data = await res.json() as UploadResponse;
+      if (data.events) {
+        setEvents(data.events);
+        if (data.events.some(e => e.ok)) onUploaded();
+      } else {
+        setError(data.error ?? 'Upload failed');
+      }
     } catch {
-      setResult({ ok: false, error: 'Upload failed — check your connection and try again' });
+      setError('Upload failed — check your connection and try again');
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = '';
@@ -52,15 +68,16 @@ function UploadEventControl({ onUploaded }: { onUploaded: () => void }) {
         />
         {uploading ? 'Reading document…' : 'Upload flyer or form'}
       </label>
-      {result?.ok && result.event && (
-        <p className="text-[11px] text-foreground-muted">
-          Added &ldquo;{result.event.title}&rdquo; on {result.event.date}
-          {result.event.time ? ` at ${result.event.time}` : ''} to your calendar
-          {result.event.assumedTime ? ' (no time found — assumed 9am)' : ''}.
+      {events && events.map((event, i) => (
+        <p key={i} className={`text-[11px] ${event.ok ? 'text-foreground-muted' : 'text-danger'}`}>
+          {event.ok ? 'Added' : 'Could not add'} &ldquo;{event.title}&rdquo; on {event.date}
+          {event.time ? ` at ${event.time}` : ''}
+          {event.ok && event.assumedTime ? ' (no time found — assumed 9am)' : ''}
+          {!event.ok && event.error ? ` — ${event.error}` : ''}
         </p>
-      )}
-      {result && !result.ok && (
-        <p className="text-[11px] text-danger">{result.error}</p>
+      ))}
+      {error && (
+        <p className="text-[11px] text-danger">{error}</p>
       )}
     </div>
   );
