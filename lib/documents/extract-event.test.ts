@@ -114,6 +114,22 @@ describe('extractEventsFromUpload', () => {
     expect(result).toEqual([{ title: 'Valid event', date: '2026-08-10', time: '09:00', location: undefined, description: undefined }]);
   });
 
+  it('drops null/scalar array entries instead of losing the whole batch', async () => {
+    mocks.generateText.mockResolvedValue(jsonResponse([
+      { title: 'Valid event', date: '2026-08-10', time: '09:00' },
+      null,
+      'unexpected string',
+      42,
+    ]));
+
+    const result = await extractEventsFromUpload({
+      bytes: Buffer.from('x'),
+      mimeType: 'application/pdf',
+    });
+
+    expect(result).toEqual([{ title: 'Valid event', date: '2026-08-10', time: '09:00', location: undefined, description: undefined }]);
+  });
+
   it('caps the number of events returned', async () => {
     mocks.generateText.mockResolvedValue(jsonResponse(
       Array.from({ length: 12 }, (_, i) => ({ title: `Event ${i}`, date: '2026-08-10', time: '09:00' })),

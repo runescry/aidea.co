@@ -120,7 +120,14 @@ export async function POST(req: NextRequest) {
 
   // Check once, up front — createCalendarEvent would otherwise throw this same error once per
   // extracted event, which is both wasteful and noisy when a document has several.
-  if (!(await hasCalendarConnection())) return notConnected();
+  let calendarConnected: boolean;
+  try {
+    calendarConnected = await hasCalendarConnection();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Could not check calendar connection: ${message}` }, { status: 502 });
+  }
+  if (!calendarConnected) return notConnected();
 
   const kb = await readAllKB() as KnowledgeBase;
   const timeZone = resolveUserTimezone(kb);

@@ -62,7 +62,12 @@ function extractJSON(text: string): unknown {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{1,2}:\d{2}$/;
 
-function normalizeEvent(raw: RawExtraction): ExtractedEvent | null {
+function normalizeEvent(item: unknown): ExtractedEvent | null {
+  // The model may return null/a bare string/etc. alongside valid events for an item it can't
+  // parse — treat that as "drop this one" rather than letting property access throw and lose
+  // every event already collected in this batch.
+  if (!item || typeof item !== 'object') return null;
+  const raw = item as RawExtraction;
   if (!raw.title?.trim() || !raw.date || !DATE_RE.test(raw.date)) return null;
   const time = raw.time?.trim();
   return {
@@ -109,7 +114,7 @@ export async function extractEventsFromUpload(input: {
 
   const events: ExtractedEvent[] = [];
   for (const item of rawEvents) {
-    const normalized = normalizeEvent(item as RawExtraction);
+    const normalized = normalizeEvent(item);
     if (normalized) events.push(normalized);
   }
   return events.slice(0, MAX_EVENTS_PER_UPLOAD);

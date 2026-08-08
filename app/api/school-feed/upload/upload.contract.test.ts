@@ -91,6 +91,15 @@ describe('POST /api/school-feed/upload', () => {
     expect(mocks.extractEventsFromUpload).not.toHaveBeenCalled();
   });
 
+  it('returns a structured 502 instead of throwing when the calendar preflight check itself fails', async () => {
+    mocks.hasCalendarConnection.mockRejectedValue(new Error('Nango timeout'));
+    const file = new File(['x'], 'flyer.pdf', { type: 'application/pdf' });
+    const res = await POST(uploadRequest(file));
+    expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toMatchObject({ error: expect.stringContaining('Nango timeout') });
+    expect(mocks.extractEventsFromUpload).not.toHaveBeenCalled();
+  });
+
   it('returns 400 when no file is provided', async () => {
     const res = await POST(uploadRequest(null));
     expect(res.status).toBe(400);
